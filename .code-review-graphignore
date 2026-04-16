@@ -1,0 +1,9 @@
+# Nested virtual environments
+services/.venv/**
+services/pr_card_scraper/.venv/**
+services/rag_service/.venv/**
+
+# Data and artifact directories (not source code)
+data/**
+artifacts/**
+logs/**

@@ -1,0 +1,27 @@
+[project]
+name = "pr-card-scraper"
+version = "1.0.0"
+description = "Mahabhumi Bhulekh PR Card Scraper Service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "playwright>=1.40.0",
+    "playwright-stealth>=1.0.6",
+    "tenacity>=8.2.0",
+    "pytesseract>=0.3.10",
+    "Pillow>=10.0.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.7.0",
+    "httpx>=0.27.0",
+    "psycopg2-binary>=2.9.0",
+    "selenium>=4.0.0",
+    "webdriver-manager>=4.0.0",
+    "unidecode>=1.3.0",
+    "ddddocr>=1.4.11",
+    "opencv-python-headless>=4.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,70 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# frontend (Local Only)
+frontend/
+Dhara-frontend/
+
+# Data & Logs
+logs/
+*.log
+*.db
+*.db-journal
+
+# Allow specific data folders
+data/docs/
+
+# Embeddings Data
+collection.json
+
+# One-time scripts
+scripts/import_to_zilliz.py
+
+# Claude AI settings
+.claude/
+
+
+# ... existing ignores ...
+.milvus_lite.db*
+milvus_lite.db
+collection_data.json
+
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar.gz
+
+# Temporary
+tmp/
+temp/
+*.tmp
+reports/*.json
+reports/*.txt
+reports/*.xlsx
+reports/*.pdf
+data/uploads/*
+data/feedback.json
+*.log

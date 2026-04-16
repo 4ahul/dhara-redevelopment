@@ -1,0 +1,14 @@
+[project]
+name = "premium-checker"
+version = "1.0.0"
+description = "Premium Checker Service - Government Charges"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.7.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["config", "schemas", "services", "routes"]

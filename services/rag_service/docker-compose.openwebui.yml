@@ -1,0 +1,39 @@
+# Docker Compose with Open WebUI
+# Run: docker-compose -f docker-compose.openwebui.yml up -d
+
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  openwebui:
+    build:
+      context: .
+      dockerfile: Dockerfile.webui
+    container_name: openwebui
+    ports:
+      - "8080:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    environment:
+      - OLLAMA_API_BASE_URL=http://ollama:11434/api
+      - WEBUI_SECRET_KEY=your-secret-key-here
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data:
+  openwebui_data:

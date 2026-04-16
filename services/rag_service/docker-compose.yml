@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  rag-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag_webui
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./books:/app/books
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - MODEL=qwen2.5:7b
+      - EMBEDDING_MODEL=nomic-embed-text
+    depends_on:
+      - ollama
+    command: python3 web_app.py --host 0.0.0.0 --port 5000
+
+volumes:
+  ollama_data:

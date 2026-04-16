@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir flask==3.0.0 \
+    pypdf==4.0.1 \
+    chromadb==0.4.24 \
+    langchain==0.1.0 \
+    langchain-community==0.0.10 \
+    langchain-ollama \
+    openpyxl==3.1.2 \
+    pandas==2.1.4 \
+    numpy==1.26.2 \
+    gunicorn==21.2.0
+
+RUN git clone https://github.com/open-webui/open-webui.git /app/open-webui
+
+WORKDIR /app/open-webui
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENV OLLAMA_API_BASE_URL=http://host.docker.internal:11434/api
+ENV WEBUI_SECRET_KEY=changeme123
+
+EXPOSE 8080
+
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "4", "main:app"]

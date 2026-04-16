@@ -1,0 +1,411 @@
+{
+	"info": {
+		"_postman_id": "dhara-ai-report-testing",
+		"name": "Dhara AI — Report Generator Testing",
+		"description": "End-to-end testing for the report generation pipeline.\n\n**Setup:**\nToken is permanent (never expires) — no setup needed.\nChange `society_id` variable if testing with a different society.\n\n**Flow:**\n- Use \"1. Orchestrator\" folder for full E2E (agent calls all microservices)\n- Use \"2. Report Generator Direct\" folder to test templates directly (no agent)\n- Use \"3. Individual Microservices\" to test each service standalone",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "orchestrator_url",
+			"value": "http://localhost:8000"
+		},
+		{
+			"key": "report_url",
+			"value": "http://localhost:8005"
+		},
+		{
+			"key": "token",
+			"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjMzQzNjJjOC0wNzU3LTQ3MDktODMwOC0zNTVjNzk0NTU2MzkiLCJlbWFpbCI6ImFkbWluQGRoYXJhYWkuY29tIiwicm9sZSI6IkFETUlOIiwibmFtZSI6IkRoYXJhIEFJIFRlc3QgQWRtaW4iLCJpYXQiOjE3NzYyNzQ2MDUsImlzcyI6ImRoYXJhLWFpIn0.hS2Ll-eSk0mzuoE3yOFRJ80ddoh7AH_BvCVYKqYzn04"
+		},
+		{
+			"key": "society_id",
+			"value": "cf9dcb2e-f499-4548-9e73-179df7ea090a"
+		},
+		{
+			"key": "report_id",
+			"value": ""
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "0. Health Checks",
+			"item": [
+				{
+					"name": "Orchestrator Health",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"url": "{{orchestrator_url}}/health"
+					}
+				},
+				{
+					"name": "Report Generator Health",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"url": "{{report_url}}/health"
+					}
+				}
+			]
+		},
+		{
+			"name": "1. Orchestrator — Full E2E",
+			"description": "Full pipeline: Society → Agent → All Microservices → Report.\nTakes ~2 minutes. Poll the GET endpoint until status=completed.",
+			"item": [
+				{
+					"name": "1a. Trigger Feasibility Report",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var json = pm.response.json();",
+									"if (json.id) {",
+									"    pm.collectionVariables.set('report_id', json.id);",
+									"    console.log('Report ID saved: ' + json.id);",
+									"}",
+									"pm.test('Status is 201', function() {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"pm.test('Status is pending', function() {",
+									"    pm.expect(json.status).to.eql('pending');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"url": "{{orchestrator_url}}/api/feasibility-reports",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"society_id\": \"{{society_id}}\",\n    \"title\": \"Postman E2E Test\"\n}"
+						}
+					}
+				},
+				{
+					"name": "1b. Poll Report Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var json = pm.response.json();",
+									"console.log('Status: ' + json.status);",
+									"",
+									"if (json.status === 'processing' || json.status === 'pending') {",
+									"    console.log('Still processing... run again in 10s');",
+									"}",
+									"",
+									"if (json.status === 'completed') {",
+									"    console.log('DONE!');",
+									"    var od = json.output_data || {};",
+									"    console.log('Reports: ' + (od.reports_count || 0));",
+									"    console.log('Tool calls: ' + (od.tool_calls || 0));",
+									"    if (od.all_reports) {",
+									"        od.all_reports.forEach(function(r) {",
+									"            console.log('  → ' + r.scheme + ' (' + r.redevelopment_type + '): ' + r.path);",
+									"        });",
+									"    }",
+									"    if (od.tool_log) {",
+									"        od.tool_log.forEach(function(t) {",
+									"            var err = t.result.error ? ' ERROR: ' + t.result.error : '';",
+									"            console.log('  [' + t.tool + ']' + err);",
+									"        });",
+									"    }",
+									"}",
+									"",
+									"pm.test('Status is not failed', function() {",
+									"    pm.expect(json.status).to.not.eql('failed');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{orchestrator_url}}/api/feasibility-reports/{{report_id}}"
+					}
+				},
+				{
+					"name": "1c. List All Reports",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{orchestrator_url}}/api/feasibility-reports?page=1&page_size=10",
+							"host": ["{{orchestrator_url}}"],
+							"path": ["api", "feasibility-reports"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "page_size", "value": "10" }
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Report Generator — Direct",
+			"description": "Call report generator directly (no agent, no auth).\nInstant response — returns .xlsx file.",
+			"item": [
+				{
+					"name": "2a. List Available Templates",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"url": "{{report_url}}/templates/list"
+					}
+				},
+				{
+					"name": "2b. Get Yellow Fields — 33(7)(B) CLUBBING",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"url": {
+							"raw": "{{report_url}}/templates/fields?scheme=33(7)(B)&redevelopment_type=CLUBBING",
+							"host": ["{{report_url}}"],
+							"path": ["templates", "fields"],
+							"query": [
+								{ "key": "scheme", "value": "33(7)(B)" },
+								{ "key": "redevelopment_type", "value": "CLUBBING" }
+							]
+						}
+					}
+				},
+				{
+					"name": "2c. Get Yellow Fields — 33(20)(B) INSITU",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"url": {
+							"raw": "{{report_url}}/templates/fields?scheme=33(20)(B)&redevelopment_type=INSITU",
+							"host": ["{{report_url}}"],
+							"path": ["templates", "fields"],
+							"query": [
+								{ "key": "scheme", "value": "33(20)(B)" },
+								{ "key": "redevelopment_type", "value": "INSITU" }
+							]
+						}
+					}
+				},
+				{
+					"name": "2d. Generate — 33(7)(B) CLUBBING",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(7)(B)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Colaba Heights CHS\",\n    \"plot_area_sqm\": 1264.33,\n    \"road_width_m\": 18,\n    \"num_flats\": 24,\n    \"num_commercial\": 6,\n    \"existing_residential_carpet_sqft\": 14400,\n    \"existing_commercial_carpet_sqft\": 3600,\n    \"sale_rate_per_sqft\": 75000,\n    \"mcgm_property\": {\n        \"area_sqm\": 1264.33\n    },\n    \"dp_report\": {\n        \"road_width_m\": 18,\n        \"reservation_area_sqm\": 0,\n        \"amenity_area_sqm\": 0,\n        \"setback_area_sqm\": 0,\n        \"crz_zone\": false\n    },\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 147320,\n        \"rr_residential_sqm\": 147320\n    },\n    \"premium\": {\n        \"rr_open_land_sqm\": 147320,\n        \"rr_residential_sqm\": 147320\n    },\n    \"financial\": {\n        \"sale_rate_residential\": 75000,\n        \"sale_rate_commercial_gf\": 100000,\n        \"sale_rate_commercial_1f\": 80000\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2e. Generate — 30(A) INSITU",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"30(A)\",\n    \"redevelopment_type\": \"INSITU\",\n    \"society_name\": \"Old Cessed Building CHS\",\n    \"plot_area_sqm\": 800,\n    \"road_width_m\": 12,\n    \"num_flats\": 35,\n    \"num_commercial\": 10,\n    \"existing_residential_carpet_sqft\": 20000,\n    \"existing_commercial_carpet_sqft\": 6000,\n    \"sale_rate_per_sqft\": 50000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 100000,\n        \"rr_residential_sqm\": 95000\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2f. Generate — 33(20)(B) CLUBBING",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(20)(B)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Cluster Redevelopment CHS\",\n    \"plot_area_sqm\": 5000,\n    \"road_width_m\": 24,\n    \"num_flats\": 150,\n    \"num_commercial\": 20,\n    \"existing_residential_carpet_sqft\": 90000,\n    \"existing_commercial_carpet_sqft\": 12000,\n    \"sale_rate_per_sqft\": 60000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 180000,\n        \"rr_residential_sqm\": 160000\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2g. Generate — 33(9) Residential Only",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(9)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Pure Residential CHS\",\n    \"plot_area_sqm\": 3000,\n    \"road_width_m\": 18,\n    \"num_flats\": 80,\n    \"num_commercial\": 0,\n    \"existing_residential_carpet_sqft\": 48000,\n    \"existing_commercial_carpet_sqft\": 0,\n    \"sale_rate_per_sqft\": 45000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 120000,\n        \"rr_residential_sqm\": 110000\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2h. Generate — 33(12)(B) Clubbing",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(12)(B)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Adjacent Plot Clubbing CHS\",\n    \"plot_area_sqm\": 1800,\n    \"road_width_m\": 13.4,\n    \"num_flats\": 36,\n    \"num_commercial\": 0,\n    \"existing_residential_carpet_sqft\": 17700,\n    \"existing_commercial_carpet_sqft\": 0,\n    \"sale_rate_per_sqft\": 100000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 461400,\n        \"rr_residential_sqm\": 180000\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2i. Generate — 33(19) 100% Feasibility",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(19)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Full Plot Utilisation CHS\",\n    \"plot_area_sqm\": 3200,\n    \"road_width_m\": 36,\n    \"num_flats\": 0,\n    \"num_commercial\": 81,\n    \"existing_residential_carpet_sqft\": 0,\n    \"existing_commercial_carpet_sqft\": 29400,\n    \"sale_rate_per_sqft\": 70000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 61580,\n        \"rr_residential_sqm\": 0\n    }\n}"
+						}
+					}
+				},
+				{
+					"name": "2j. Generate — 33(7)(A) Self-Redevelopment",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "{{report_url}}/generate/template",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scheme\": \"33(7)(A)\",\n    \"redevelopment_type\": \"CLUBBING\",\n    \"society_name\": \"Self Redevelopment CHS\",\n    \"plot_area_sqm\": 640,\n    \"road_width_m\": 13.4,\n    \"num_flats\": 13,\n    \"num_commercial\": 0,\n    \"existing_residential_carpet_sqft\": 7500,\n    \"existing_commercial_carpet_sqft\": 0,\n    \"sale_rate_per_sqft\": 25000,\n    \"ready_reckoner\": {\n        \"rr_open_land_sqm\": 160160,\n        \"rr_residential_sqm\": 100000\n    }\n}"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Individual Microservices",
+			"description": "Test each microservice independently.",
+			"item": [
+				{
+					"name": "3a. MCGM Property Lookup",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8008/lookup",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ward\": \"A\",\n    \"village\": \"COLABA\",\n    \"cts_no\": \"1/100\",\n    \"include_nearby\": true\n}"
+						}
+					}
+				},
+				{
+					"name": "3b. Site Analysis",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8011/analyse",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"address\": \"CTS 1/100, Colaba, Mumbai 400005\",\n    \"ward\": \"A\",\n    \"plot_no\": \"1/100\"\n}"
+						}
+					}
+				},
+				{
+					"name": "3c. DP Remarks",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8009/fetch",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ward\": \"A\",\n    \"village\": \"COLABA\",\n    \"cts_no\": \"1/100\",\n    \"lat\": 18.9153095,\n    \"lng\": 72.8240048\n}"
+						}
+					}
+				},
+				{
+					"name": "3d. Max Height (NOCAS)",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8002/check-height",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"lat\": 18.9153095,\n    \"lng\": 72.8240048,\n    \"site_elevation\": 0\n}"
+						}
+					}
+				},
+				{
+					"name": "3e. Calculate Premiums",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8004/calculate",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"district\": \"mumbai\",\n    \"taluka\": \"mumbai-city\",\n    \"locality\": \"colaba\",\n    \"zone\": \"1\",\n    \"sub_zone\": \"\",\n    \"scheme\": \"33(7)(B)\",\n    \"property_type\": \"residential\",\n    \"plot_area_sqm\": 1264.33,\n    \"permissible_bua_sqft\": 54440,\n    \"residential_bua_sqft\": 38108,\n    \"commercial_bua_sqft\": 16332,\n    \"fungible_residential_sqft\": 13338,\n    \"premium_fsi_ratio\": 0.50\n}"
+						}
+					}
+				},
+				{
+					"name": "3f. Query Regulations (RAG)",
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"url": "http://localhost:8007/api/query",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"FSI incentive BUA and premium percentages for residential society redevelopment scheme 33(7)(B) DCPR 2034\",\n    \"scheme\": \"33(7)(B)\"\n}"
+						}
+					}
+				}
+			]
+		}
+	]
+}
