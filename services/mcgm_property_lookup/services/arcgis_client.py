@@ -100,57 +100,36 @@ class ArcGISClient:
 
         query_url = f"{layer_url}/query"
 
-        # ── Ward Normalisation ───────────────────────────────────────────────
-        ward_variants = [ward]
-        w_up = ward.strip().upper()
-        mapping = {
-            "K/E": "K/EAST",
-            "K/W": "K/WEST",
-            "P/S": "P/SOUTH",
-            "P/N": "P/NORTH",
-            "R/S": "R/SOUTH",
-            "R/C": "R/CENTRAL",
-            "R/N": "R/NORTH",
-            "H/E": "H/EAST",
-            "H/W": "H/WEST",
-        }
-        if w_up in mapping:
-            ward_variants.append(mapping[w_up])
-        
-        # ── Query Loop ───────────────────────────────────────────────────────
-        for w_variant in ward_variants:
-            where_clauses = []
-            if w_variant:
-                where_clauses.append(f"WARD='{_esc(w_variant)}'")
-            if village:
-                where_clauses.append(f"UPPER(VILLAGE)=UPPER('{_esc(village)}')")
+        where_base = [f"WARD='{_esc(ward)}'"]
+        if village:
+            where_base.append(f"UPPER(VILLAGE)=UPPER('{_esc(village)}')")
 
-            # Try CTS_CS_NO first, then FP_NO as fallback
-            cts_where = " AND ".join(where_clauses + [f"CTS_CS_NO='{_esc(cts_no)}'"])
-            fp_where = " AND ".join(where_clauses + [f"FP_NO='{_esc(cts_no)}'"])
+        # Try CTS_CS_NO first, then FP_NO as fallback
+        cts_where = " AND ".join(where_base + [f"CTS_CS_NO='{_esc(cts_no)}'"])
+        fp_where = " AND ".join(where_base + [f"FP_NO='{_esc(cts_no)}'"])
 
-            out_fields = "WARD,VILLAGE,CTS_CS_NO,TPS_NAME,FP_NO,PLOT_NO,TYPE,AREA_APP_SQ_MTRS,SHAPE.AREA,SHAPE.LEN"
+        out_fields = "WARD,VILLAGE,CTS_CS_NO,TPS_NAME,FP_NO,PLOT_NO,TYPE,AREA_APP_SQ_MTRS,SHAPE.AREA,SHAPE.LEN"
 
-            for where in [cts_where, fp_where]:
-                params = {
-                    "f": "json",
-                    "where": where,
-                    "outFields": out_fields,
-                    "returnGeometry": "true",
-                    "outSR": "4326",
-                }
+        for where in [cts_where, fp_where]:
+            params = {
+                "f": "json",
+                "where": where,
+                "outFields": out_fields,
+                "returnGeometry": "true",
+                "outSR": "4326",
+            }
 
-                try:
-                    resp = await http.get(query_url, params=params, timeout=20.0)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        features = data.get("features", [])
-                        if features:
-                            logger.info("Direct API success for where=%s", where)
-                            return features[0]
-                except Exception as e:
-                    logger.warning("ArcGIS variant query failed: %s", e)
-                    continue
+            try:
+                resp = await http.get(query_url, params=params, timeout=20.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    features = data.get("features", [])
+                    if features:
+                        logger.info("Direct API success for where=%s", where)
+                        return features[0]
+            except Exception as e:
+                logger.warning("ArcGIS query failed: %s", e)
+                continue
 
         logger.info("No features found for ward=%s village=%s cts_no=%s", ward, village, cts_no)
         return None

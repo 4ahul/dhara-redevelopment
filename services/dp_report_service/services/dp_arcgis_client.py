@@ -9,6 +9,7 @@ Strategy:
   4. Return parsed DP zone attributes.
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -21,9 +22,9 @@ logger = logging.getLogger(__name__)
 MCGM_PORTAL_URL = "https://mcgm.maps.arcgis.com"
 
 # Fields we look for in DP zone layers (various naming conventions)
-_ZONE_FIELDS = {"ZONE_CODE", "ZONE", "LANDUSE", "LAND_USE", "DP_ZONE", "ZONING"}
+_ZONE_FIELDS = {"ZONE_CODE", "ZONE_CODE2", "ZONE", "LANDUSE", "LAND_USE", "DP_ZONE", "ZONING"}
 _REMARK_FIELDS = {"DP_REMARKS", "DP_REMARK", "REMARKS", "REMARK", "DESCRIPTION", "DESC"}
-_ROAD_FIELDS = {"ROAD_WIDTH", "RD_WIDTH", "ROAD_WID", "ROAD_W"}
+_ROAD_FIELDS = {"ROAD_WIDTH", "RD_WIDTH", "ROAD_WID", "ROAD_W", "RD_WIDTH_M", "WIDTH", "PROPOSED_W"}
 
 
 class DPArcGISClient:
@@ -68,7 +69,8 @@ class DPArcGISClient:
 
         # ── Fallback ──────────────────────────────────────────────────────────
         # If discovery fails, use known stable DP 2034 MapServer layers
-        fallback_url = "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Plan_2034/MapServer/11"
+        # Layer 0 is REVISED PLU ZONES (DP 2034)
+        fallback_url = "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Plan_2034/MapServer/0"
         logger.warning("Discovery failed. Using fallback DP layer: %s", fallback_url)
         DPArcGISClient._zone_layer_url = fallback_url
         return fallback_url
@@ -146,12 +148,15 @@ class DPArcGISClient:
         lng: float,
         http: httpx.AsyncClient,
     ) -> Optional[dict]:
-        """Identify which DP zone polygon contains the given WGS84 point."""
+        """Identify DP zone, road, and reservation data for a point."""
         layer_url = await self.discover_zone_layer(http)
         if not layer_url:
             return None
 
-        # Convert WGS84 to Web Mercator for the ArcGIS query
+        # Base URL for other layers
+        base_url = layer_url.rsplit("/", 1)[0]
+        
+        # Convert WGS84 to Web Mercator
         x, y = _wgs84_to_web_mercator(lng, lat)
         geometry = json.dumps({"x": x, "y": y, "spatialReference": {"wkid": 102100}})
 
@@ -164,16 +169,55 @@ class DPArcGISClient:
             "returnGeometry": "false",
         }
 
-        try:
-            resp = await http.get(f"{layer_url}/query", params=params, timeout=30.0)
-            resp.raise_for_status()
-            data = resp.json()
-            features = data.get("features", [])
-            if features:
-                logger.info("DP zone found via point query (%d feature(s))", len(features))
-                return features[0].get("attributes", {})
-        except Exception as e:
-            logger.warning("DP point query failed: %s", e)
+        merged_attrs = {}
+        
+        # Try Layers in priority: 0 (Zone), 44 (Exist Road), 45 (Prop Road), 46 (Reservations), 
+        # 1128 (ROADS), 1527 (ROAD), 193 (Traffic RoadLines), 194 (Survey RoadLines)
+        target_layers = [0, 44, 45, 46, 1128, 1527, 193, 194]
+        
+        async def fetch_layer(l_id):
+            try:
+                url = f"{base_url}/{l_id}"
+                # For road/line layers, use a buffer (envelope) as they are line features
+                q_params = params.copy()
+                if l_id != 0:
+                    # 50 meter buffer in Web Mercator to catch nearby roads
+                    buffer = 50.0
+                    q_params["geometry"] = json.dumps({
+                        "xmin": x - buffer, "ymin": y - buffer, 
+                        "xmax": x + buffer, "ymax": y + buffer,
+                        "spatialReference": {"wkid": 102100}
+                    })
+                    q_params["geometryType"] = "esriGeometryEnvelope"
+                
+                resp = await http.get(f"{url}/query", params=q_params, timeout=15.0)
+                if resp.status_code == 200:
+                    features = resp.json().get("features", [])
+                    if features:
+                        # For roads, pick the one with a non-zero width if multiple exist
+                        if l_id != 0:
+                            for f in features:
+                                attrs = f.get("attributes", {})
+                                for k in _ROAD_FIELDS:
+                                    val = attrs.get(k)
+                                    try:
+                                        if val and float(val) > 0:
+                                            return attrs
+                                    except (ValueError, TypeError):
+                                        continue
+                        return features[0].get("attributes", {})
+            except Exception as e:
+                logger.debug("Querying layer %d failed: %s", l_id, e)
+            return {}
+
+        results = await asyncio.gather(*(fetch_layer(lid) for lid in target_layers))
+        for attr_set in results:
+            merged_attrs.update(attr_set)
+
+        if merged_attrs:
+            logger.info("DP data merged from multiple layers. Keys: %s", list(merged_attrs.keys()))
+            logger.info("Merged attributes: %s", json.dumps(merged_attrs))
+            return merged_attrs
 
         return None
 

@@ -70,7 +70,7 @@ This directly constrains the number of floors the project can have.
 ### Step 5 — query_regulations
 Query for the DCPR 2034 scheme applicable to this property.
 Use the ward from the input. Example query:
-  "FSI incentive BUA and premium percentages for residential society redevelopment scheme 33(7)(B) DCPR 2034 ward [WARD]"
+  "FSI incentive BUA and premium percentages for residential society redevelopment scheme 33(20)(B) DCPR 2034 ward [WARD]"
 IMPORTANT: Use the FSI percentages returned by this tool — do not rely on your training data alone.
 Cross-validate against fsi from Step 2 (get_dp_remarks) if available.
 

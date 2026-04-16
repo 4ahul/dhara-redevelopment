@@ -206,12 +206,6 @@ class MCGMBrowserScraper:
             page, label_text="Ward", option_value=ward
         )
         if not ward_selected:
-            # Try partial match for ward too
-            ward_selected = await self._select_dropdown_option(
-                page, label_text="Ward", option_value=ward, partial=True
-            )
-
-        if not ward_selected:
             return {
                 "feature": None,
                 "screenshot_b64": None,

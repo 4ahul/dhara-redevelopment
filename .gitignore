@@ -184,5 +184,21 @@ test_login.json
 test_login.py
 test_status.py
 test_wait.py
+test_height_api.py
+test_site_analysis_api.py
+test_mcgm_property_api.py
+test_premium_api.py
+test_dp_parser_api.py
+test_dp_fetch_api.py
+test_dp_parser_api_2034.py
+test_dp_parser_api_1991.py
+test_pr_card_api.py
+test_pr_card_all_cts.py
+test_pr_card_853.py
+test_full_pipeline.py
+pipeline_test_result.json
+debug_arcgis_dp.py
+list_dp_layers.py
+screenshot.png
 # traefik.yml
 # docker-compose.yml

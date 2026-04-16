@@ -141,6 +141,9 @@ services:
     build: ./services/height_service
     ports:
       - "8002:8002"
+    environment:
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - SERP_API_KEY=${SERP_API_KEY}
     networks:
       - dhara_net
     healthcheck:

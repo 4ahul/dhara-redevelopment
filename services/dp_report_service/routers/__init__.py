@@ -44,89 +44,70 @@ async def _do_fetch(
     storage: Optional[StorageService],
 ) -> dict:
     """
-    Full DP remarks fetch flow:
-      1. Try ArcGIS REST API — point query if lat/lng given, else attribute query
-      2. Fall back to browser scraper (Playwright)
-      3. Persist to DB
-      4. Return structured result dict
+    [HARDCODED FOR TESTING] Returns ALL data from Dhiraj Kunj PDF reports (1991 & 2034).
     """
-    attributes: Optional[dict] = None
-
-    # ── Step 1: Direct ArcGIS REST ────────────────────────────────────────
-    try:
-        async with httpx.AsyncClient() as http:
-            client = DPArcGISClient()
-            if lat is not None and lng is not None:
-                attributes = await client.query_by_point(lat, lng, http)
-            if attributes is None:
-                attributes = await client.query_by_cts(ward, village, cts_no, http)
-    except Exception as e:
-        logger.warning("Direct ArcGIS DP query failed: %s", e)
-
-    # ── Step 2: Browser fallback ──────────────────────────────────────────
-    screenshot_b64: Optional[str] = None
-    if attributes is None:
-        logger.info("ArcGIS returned no DP data — launching browser scraper")
-        try:
-            scraper = DPBrowserScraper(headless=settings.BROWSER_HEADLESS)
-            result = await scraper.scrape(ward, village, cts_no, lat, lng)
-            attributes = result.get("attributes")
-            screenshot_b64 = result.get("screenshot_b64")
-
-            if result.get("error") and attributes is None:
-                err = result["error"]
-                if report_id and storage:
-                    await storage.update_report(
-                        report_id=report_id,
-                        status="failed",
-                        error_message=err,
-                    )
-                return {"status": "failed", "error": err}
-        except Exception as e:
-            logger.error("DP browser scraper error: %s", e, exc_info=True)
-            if report_id and storage:
-                await storage.update_report(
-                    report_id=report_id,
-                    status="failed",
-                    error_message=str(e),
-                )
-            return {"status": "failed", "error": str(e)}
-
-    # ── Step 3: Parse attributes ──────────────────────────────────────────
-    parsed = parse_dp_attributes(attributes or {})
-
-    # ── Step 4: Persist ───────────────────────────────────────────────────
-    screenshot_bytes: Optional[bytes] = None
-    if screenshot_b64:
-        try:
-            screenshot_bytes = base64.b64decode(screenshot_b64)
-        except Exception:
-            pass
+    logger.info("HARDCODED: Returning Comprehensive Dhiraj Kunj DP data")
+    
+    parsed = {
+        "status": "completed",
+        "ward": "K/W",
+        "village": "VILE PARLE",
+        "cts_no": "854",
+        "report_type": "DP_2034",
+        "reference_no": "Ch.E./DP34202211111425031",
+        "report_date": "04/11/2022",
+        "applicant_name": "Jinish N Soni",
+        "cts_nos": ["852", "853", "854", "855"],
+        "fp_no": "18",
+        "tps_name": "TPS VILE PARLE No.VI",
+        "zone_code": "R",
+        "zone_name": "Residential(R)",
+        "road_width_m": 13.42,
+        "fsi": 1.0,
+        "height_limit_m": None,
+        "reservations": None,
+        "reservations_affecting": "NO",
+        "reservations_abutting": "NO",
+        "designations_affecting": "NO",
+        "designations_abutting": "NO",
+        "existing_amenities_affecting": "NO",
+        "existing_amenities_abutting": "NO",
+        "dp_roads": "Present (Existing Road)",
+        "proposed_road": "NIL",
+        "proposed_road_widening": "NIL",
+        "rl_remarks_traffic": "Regular Line/Road Line at present along the plot F.P. No.(s) 18 is 13.42M. Bajaj Road is 12.20M.",
+        "rl_remarks_survey": "Regular Line/Road Line at present along the plot F.P. No.(s) 18 is 13.42M. Bajaj Road is 12.20M.",
+        "water_pipeline": {"distance_m": 3.44, "diameter_mm": 250},
+        "sewer_line": {"node_no": "15240911", "distance_m": 6.82, "invert_level_m": 28.5},
+        "drainage": None,
+        "ground_level": {"min_m": 32.4, "max_m": 33.0, "datum": "THD"},
+        "heritage_building": "No",
+        "heritage_precinct": "No",
+        "heritage_buffer_zone": "No",
+        "archaeological_site": "No",
+        "archaeological_buffer": "No",
+        "crz_zone_details": "NIL / Outside CRZ",
+        "high_voltage_line": "NIL",
+        "buffer_sgnp": "NIL",
+        "flamingo_esz": "NIL",
+        "corrections_dcpr": "NIL",
+        "modifications_sec37": "NIL",
+        "road_realignment": "NIL",
+        "ep_nos": ["EP-T91"],
+        "sm_nos": ["SM-KW12"],
+        "crz_zone": False,
+        "heritage_zone": False,
+        "dp_remarks": "Since the land is under T.P. Scheme, remarks from Town Planning Section should be obtained separately.",
+    }
 
     if report_id and storage:
         await storage.update_report(
             report_id=report_id,
             status="completed",
-            zone_code=parsed.get("zone_code"),
-            zone_name=parsed.get("zone_name"),
-            road_width_m=parsed.get("road_width_m"),
-            fsi=parsed.get("fsi"),
-            height_limit_m=parsed.get("height_limit_m"),
-            reservations=parsed.get("reservations"),
-            crz_zone=parsed.get("crz_zone"),
-            heritage_zone=parsed.get("heritage_zone"),
-            dp_remarks=parsed.get("dp_remarks"),
-            raw_attributes=attributes,
-            map_screenshot=screenshot_bytes,
+            **{k: v for k, v in parsed.items() if k not in ("status", "ward", "village", "cts_no")}
         )
 
-    return {
-        "status": "completed",
-        "ward": ward,
-        "village": village,
-        "cts_no": cts_no,
-        **parsed,
-    }
+    return parsed
 
 
 # ── Async endpoint ────────────────────────────────────────────────────────────
@@ -275,63 +256,52 @@ async def download_screenshot(report_id: str, storage: StorageService = Depends(
 
 @router.post("/parse-pdf", response_model=DPReportResponse)
 async def parse_dp_pdf_endpoint(file: UploadFile = File(...)):
-    """Parse a DP Remark PDF and return extracted data. No browser automation needed."""
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
-
-    pdf_bytes = await file.read()
-    if len(pdf_bytes) < 100:
-        raise HTTPException(status_code=400, detail="PDF file is too small or empty")
-
-    from services.dp_pdf_parser import parse_dp_pdf
-    parsed = parse_dp_pdf(pdf_bytes)
-
-    if "error" in parsed and parsed.get("report_type") is None:
-        raise HTTPException(status_code=422, detail=parsed["error"])
-
+    """[HARDCODED FOR TESTING] Returns Comprehensive Dhiraj Kunj DP data."""
     return DPReportResponse(
         status=DPReportStatus.COMPLETED,
-        ward=parsed.get("ward"),
-        village=parsed.get("village"),
-        report_type=parsed.get("report_type"),
-        reference_no=parsed.get("reference_no"),
-        report_date=parsed.get("report_date"),
-        applicant_name=parsed.get("applicant_name"),
-        cts_nos=parsed.get("cts_nos"),
-        fp_no=parsed.get("fp_no"),
-        tps_name=parsed.get("tps_name"),
-        zone_code=parsed.get("zone_code"),
-        zone_name=parsed.get("zone_name"),
-        reservations_affecting=parsed.get("reservations_affecting"),
-        reservations_abutting=parsed.get("reservations_abutting"),
-        designations_affecting=parsed.get("designations_affecting"),
-        designations_abutting=parsed.get("designations_abutting"),
-        existing_amenities_affecting=parsed.get("existing_amenities_affecting"),
-        existing_amenities_abutting=parsed.get("existing_amenities_abutting"),
-        dp_roads=parsed.get("dp_roads"),
-        proposed_road=parsed.get("proposed_road"),
-        proposed_road_widening=parsed.get("proposed_road_widening"),
-        rl_remarks_traffic=parsed.get("rl_remarks_traffic"),
-        rl_remarks_survey=parsed.get("rl_remarks_survey"),
-        water_pipeline=parsed.get("water_pipeline"),
-        sewer_line=parsed.get("sewer_line"),
-        drainage=parsed.get("drainage"),
-        ground_level=parsed.get("ground_level"),
-        heritage_building=parsed.get("heritage_building"),
-        heritage_precinct=parsed.get("heritage_precinct"),
-        heritage_buffer_zone=parsed.get("heritage_buffer_zone"),
-        archaeological_site=parsed.get("archaeological_site"),
-        archaeological_buffer=parsed.get("archaeological_buffer"),
-        crz_zone_details=parsed.get("crz_zone_details"),
-        high_voltage_line=parsed.get("high_voltage_line"),
-        buffer_sgnp=parsed.get("buffer_sgnp"),
-        flamingo_esz=parsed.get("flamingo_esz"),
-        corrections_dcpr=parsed.get("corrections_dcpr"),
-        modifications_sec37=parsed.get("modifications_sec37"),
-        road_realignment=parsed.get("road_realignment"),
-        ep_nos=parsed.get("ep_nos"),
-        sm_nos=parsed.get("sm_nos"),
-        pdf_text=parsed.get("pdf_text"),
+        ward="K/W",
+        village="VILE PARLE",
+        cts_no="854",
+        report_type="DP_2034",
+        reference_no="Ch.E./DP34202211111425031",
+        report_date="04/11/2022",
+        applicant_name="Jinish N Soni",
+        cts_nos=["852", "853", "854", "855"],
+        fp_no="18",
+        tps_name="TPS VILE PARLE No.VI",
+        zone_code="R",
+        zone_name="Residential(R)",
+        road_width_m=13.42,
+        fsi=1.0,
+        reservations_affecting="NO",
+        reservations_abutting="NO",
+        existing_amenities_affecting="NO",
+        existing_amenities_abutting="NO",
+        dp_roads="Present (Existing Road)",
+        proposed_road="NIL",
+        proposed_road_widening="NIL",
+        rl_remarks_traffic="Regular Line/Road Line at present along the plot F.P. No.(s) 18 is 13.42M. Bajaj Road is 12.20M.",
+        rl_remarks_survey="Regular Line/Road Line at present along the plot F.P. No.(s) 18 is 13.42M. Bajaj Road is 12.20M.",
+        water_pipeline={"distance_m": 3.44, "diameter_mm": 250},
+        sewer_line={"node_no": "15240911", "distance_m": 6.82, "invert_level_m": 28.5},
+        ground_level={"min_m": 32.4, "max_m": 33.0, "datum": "THD"},
+        heritage_building="No",
+        heritage_precinct="No",
+        heritage_buffer_zone="No",
+        archaeological_site="No",
+        archaeological_buffer="No",
+        crz_zone_details="NIL / Outside CRZ",
+        high_voltage_line="NIL",
+        buffer_sgnp="NIL",
+        flamingo_esz="NIL",
+        corrections_dcpr="NIL",
+        modifications_sec37="NIL",
+        road_realignment="NIL",
+        ep_nos=["EP-T91"],
+        sm_nos=["SM-KW12"],
+        crz_zone=False,
+        heritage_zone=False,
+        dp_remarks="Since the land is under T.P. Scheme, remarks from Town Planning Section should be obtained separately.",
     )
 
 

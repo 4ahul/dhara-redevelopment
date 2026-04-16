@@ -6,14 +6,54 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+class Ward(str, Enum):
+    """The 24 MCGM administrative wards, exactly as stored in the ArcGIS layer
+    and shown in the WebApp Ward dropdown."""
+
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+    E = "E"
+    F_N = "F/N"
+    F_S = "F/S"
+    G_N = "G/N"
+    G_S = "G/S"
+    H_E = "H/E"
+    H_W = "H/W"
+    K_E = "K/E"
+    K_W = "K/W"
+    L = "L"
+    M_E = "M/E"
+    M_W = "M/W"
+    N = "N"
+    P_N = "P/N"
+    P_S = "P/S"
+    R_C = "R/C"
+    R_N = "R/N"
+    R_S = "R/S"
+    S = "S"
+    T = "T"
 
 
 class PropertyLookupRequest(BaseModel):
-    ward: str                   # e.g. "B"
-    village: str                # e.g. "MANDVI"
-    cts_no: str                 # e.g. "100"
+    ward: Ward                   # e.g. "K/W" — must be one of the 24 MCGM wards
+    village: str                 # e.g. "MANDVI" — normalised to uppercase
+    cts_no: str                  # e.g. "854", "1234/56", "123/1/A", "123-124", "123+124"
     include_nearby: bool = True  # also fetch adjacent plot CTS numbers
+
+    @field_validator("village")
+    @classmethod
+    def _upper_village(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("cts_no")
+    @classmethod
+    def _clean_cts(cls, v: str) -> str:
+        return v.strip()
 
 
 class PropertyLookupStatus(str, Enum):

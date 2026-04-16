@@ -1,22 +1,24 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 
 
 class HeightRequest(BaseModel):
     lat: float
     lng: float
-    site_elevation: Optional[float] = 0.0
+    site_elevation: Optional[float] = None
 
 
 class HeightResponse(BaseModel):
     lat: float
     lng: float
-    max_height_m: float
-    max_floors: int
+    site_elevation: float
+    elevation_source: Optional[str] = None
+    max_height_m: Optional[float] = None
+    max_floors: Optional[int] = None
     restriction_reason: str
-    nocas_reference: str
-    aai_zone: str
-    rl_datum_m: float
+    nocas_reference: Optional[str] = None
+    aai_zone: Optional[str] = None
+    rl_datum_m: Optional[float] = None
     is_real_data: bool = True
     data_source: str = "aai_nocas"
-    attempt: int = 1
+    error: Optional[str] = None
