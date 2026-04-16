@@ -172,3 +172,16 @@ logs/
 !docs/*.xlsx
 !test_docs/*.pdf
 !test_docs/*.png
+
+# Postman & Collections
+*.postman_collection.json
+*_Collection.json
+
+# Local Test Scripts & Configs
+test_flow.py
+test_login.json
+test_login.py
+test_status.py
+test_wait.py
+# traefik.yml
+# docker-compose.yml
