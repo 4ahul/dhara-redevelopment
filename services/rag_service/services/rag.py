@@ -613,8 +613,12 @@ class RAGAgent:
         # Use Milvus if available
         if use_milvus and MILVUS_AVAILABLE:
             try:
-                self.vectorstore = MilvusVectorStore(self.embeddings)
-                print("Using Milvus vector store")
+                collection_name = os.environ.get(
+                    "MILVUS_COLLECTION_RAG",
+                    os.environ.get("MILVUS_COLLECTION", "documents"),
+                )
+                self.vectorstore = MilvusVectorStore(self.embeddings, collection_name=collection_name)
+                print(f"Using Milvus vector store on collection '{collection_name}'")
             except Exception as e:
                 print(f"Milvus failed: {e}, using simple store")
                 self.vectorstore = SimpleVectorStore(self.embeddings)
