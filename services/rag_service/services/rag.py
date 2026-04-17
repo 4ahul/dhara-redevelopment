@@ -15,11 +15,10 @@ import requests
 # LangGraph
 try:
     from langchain_ollama import ChatOllama
-
     LANGGRAPH_AVAILABLE = True
-except:
+except ImportError:
     LANGGRAPH_AVAILABLE = False
-    from langchain_ollama import ChatOllama
+    ChatOllama = None
 
 # Milvus imports
 try:
@@ -608,7 +607,14 @@ class RAGAgent:
         from langchain_openai import OpenAIEmbeddings
 
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        self.llm = ChatOllama(model=model)
+
+        if LANGGRAPH_AVAILABLE and ChatOllama is not None:
+            self.llm = ChatOllama(model=model)
+        else:
+            from langchain_openai import OpenAI
+
+            print("LangChain Ollama not available; using OpenAI fallback.")
+            self.llm = OpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
 
         # Use Milvus if available
         if use_milvus and MILVUS_AVAILABLE:
