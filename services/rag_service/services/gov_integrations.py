@@ -4,11 +4,17 @@ Real Government Data Source Integrations
 BMC, Bhulekh, NOCAS, MCGM Property Lookup
 """
 
+import os
+import re
+import json
+import time
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
+from dataclasses import dataclass
 import requests
+from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -597,15 +603,15 @@ def cmd_fetch_all(args):
         args.survey_no, args.district, args.taluka, args.village
     )
 
-    print(f"\nProperty Data for {args.survey_no}:")
-    print(f"Sources: {', '.join(data['sources'])}")
-    print("\n--- Summary ---")
+    logger.info(f"\nProperty Data for {args.survey_no}:")
+    logger.info(f"Sources: {', '.join(data['sources'])}")
+    logger.info("\n--- Summary ---")
     for source, content in data["data"].items():
-        print(f"\n{source.upper()}:")
+        logger.info(f"\n{source.upper()}:")
         if isinstance(content, dict):
             for key, value in content.items():
                 if not key.startswith("_"):
-                    print(f"  {key}: {value}")
+                    logger.info(f"  {key}: {value}")
 
 
 def cmd_property_report(args):
@@ -613,11 +619,11 @@ def cmd_property_report(args):
     agg = AggregatedPropertyData()
     report = agg.generate_property_report(args.survey_no)
 
-    print(f"\nProperty Report: {report['property_id']}")
-    print(f"Sources: {', '.join(report['data_sources'])}")
-    print("\n--- Summary ---")
+    logger.info(f"\nProperty Report: {report['property_id']}")
+    logger.info(f"Sources: {', '.join(report['data_sources'])}")
+    logger.info("\n--- Summary ---")
     for key, value in report["summary"].items():
-        print(f"  {key}: {value}")
+        logger.info(f"  {key}: {value}")
 
 
 def cmd_check_rera(args):
@@ -626,13 +632,13 @@ def cmd_check_rera(args):
     data = rera.get_project_details(args.rera_no)
 
     if data:
-        print(f"\nRERA Registration: {args.rera_no}")
-        print(f"  Project: {data.get('project_name')}")
-        print(f"  Builder: {data.get('builder_name')}")
-        print(f"  Valid Until: {data.get('valid_upto')}")
-        print(f"  Status: {data.get('status')}")
+        logger.info(f"\nRERA Registration: {args.rera_no}")
+        logger.info(f"  Project: {data.get('project_name')}")
+        logger.info(f"  Builder: {data.get('builder_name')}")
+        logger.info(f"  Valid Until: {data.get('valid_upto')}")
+        logger.info(f"  Status: {data.get('status')}")
     else:
-        print(f"RERA {args.rera_no} not found or error fetching data")
+        logger.warning(f"RERA {args.rera_no} not found or error fetching data")
 
 
 if __name__ == "__main__":

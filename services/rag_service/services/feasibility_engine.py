@@ -5,12 +5,16 @@ Analyzes property cards and recommends best DCPR clauses with RAG-powered reason
 """
 
 import os
+import sys
 import json
 import re
+import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field, asdict
+
+logger = logging.getLogger(__name__)
 
 env_file = Path(__file__).parent / ".env"
 if env_file.exists():
@@ -100,7 +104,7 @@ class IntelligentOCR:
         self.reader = None
         if EASYOCR_AVAILABLE:
             self.reader = easyocr.Reader(["en"], gpu=use_gpu)
-            print("  [OCR] EasyOCR initialized")
+            logger.info("  [OCR] EasyOCR initialized")
 
     def _extract_with_ai(self, raw_text: str) -> PropertyDetails:
         """Use LLM to extract property details from OCR text"""
@@ -126,7 +130,7 @@ Return ONLY the JSON, no other text."""
 
         try:
             response = client.chat.completions.create(
-                model=os.environ.get("OPENAI_MODEL", "llama-3.3-70b-versatile"),
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
@@ -165,12 +169,12 @@ Return ONLY the JSON, no other text."""
 
             return prop
         except Exception as e:
-            print(f"  [AI Extraction] Failed: {e}, falling back to regex")
+            logger.warning(f"  [AI Extraction] Failed: {e}, falling back to regex")
             return None
 
     def extract_from_file(self, file_path: str) -> PropertyDetails:
         """Extract property details from PDF or image"""
-        from property_card_workflow import PropertyCardOCR
+        from .property_card_workflow import PropertyCardOCR
 
         if file_path.lower().endswith(".pdf"):
             card = PropertyCardOCR()
@@ -182,7 +186,7 @@ Return ONLY the JSON, no other text."""
 
             # Build raw text from OCR
             raw_text = "\n".join([r[1] for r in result])
-            print("  [OCR] Raw text extracted, using AI for parsing...")
+            logger.info(f"  [OCR] Raw text extracted, using AI for parsing...")
 
             # Try AI extraction first
             prop = self._extract_with_ai(raw_text)
@@ -190,7 +194,7 @@ Return ONLY the JSON, no other text."""
                 return prop
 
             # Fallback to regex extraction
-            print("  [OCR] Falling back to regex extraction...")
+            logger.info(f"  [OCR] Falling back to regex extraction...")
             return self._extract_from_ocr_result(result)
 
     def _card_to_property(self, card) -> PropertyDetails:
@@ -355,7 +359,7 @@ class DCPRClauseFinder:
     @property
     def agent(self):
         if self._agent is None:
-            from rag import RAGAgent
+            from .rag import RAGAgent
 
             self._agent = RAGAgent(use_milvus=True)
         return self._agent
@@ -387,7 +391,7 @@ class DCPRClauseFinder:
         """Build targeted queries based on property"""
         queries = [
             f"FSI {prop.zone_type} zone {prop.road_width_m}m road",
-            "DCPR 33(7B) 33(20B) residential redevelopment clauses",
+            f"DCPR 33(7B) 33(20B) residential redevelopment clauses",
             f"open space marginal setbacks {prop.zone_type}",
             f"building permission {prop.zone_type} zone DCPR requirements",
         ]
@@ -395,9 +399,9 @@ class DCPRClauseFinder:
         if prop.plot_area_sq_m < 4000:
             queries.append(f"FSI table plots under 4000 sqm {prop.road_width_m}m")
         if prop.road_width_m >= 12:
-            queries.append("FSI 12 meter road width residential maximum")
+            queries.append(f"FSI 12 meter road width residential maximum")
         if prop.zone_type == "Residential":
-            queries.append("residential zone DCPR clause building requirements")
+            queries.append(f"residential zone DCPR clause building requirements")
 
         return queries
 
@@ -456,11 +460,11 @@ class DCPRClauseFinder:
 
         if "33(7B)" in text or "33(7)" in clause_id:
             reasons.append(
-                "33(7B) provides basic FSI of 0.5 for rehabilitation-focused redevelopment"
+                f"33(7B) provides basic FSI of 0.5 for rehabilitation-focused redevelopment"
             )
         if "33(20B)" in text or "33(20)" in clause_id:
             reasons.append(
-                "33(20B) offers higher basic FSI of 2.5 for residential areas"
+                f"33(20B) offers higher basic FSI of 2.5 for residential areas"
             )
         if "incentive" in text.lower():
             reasons.append("Contains incentive FSI provisions for eligible projects")
@@ -602,22 +606,22 @@ class SchemeCalculator:
                 return 3.5
         return 2.5
 
-    def get_marginal_distances(
-        self, area_sqm: float, road_width: float, height: float = 15.0
-    ) -> Dict[str, float]:
+    def get_marginal_distances(self, area_sqm: float, road_width: float, height: float = 15.0) -> Dict[str, float]:
         """Get marginal open spaces (setbacks) per Pune DCPR 2017"""
         # Simplified Pune Residential Setbacks
         front_margin = 3.0
-        if road_width >= 18:
-            front_margin = 6.0
-        elif road_width >= 12:
-            front_margin = 4.5
-
+        if road_width >= 18: front_margin = 6.0
+        elif road_width >= 12: front_margin = 4.5
+        
         side_margin = 3.0
         if height > 15:
             side_margin = max(3.0, height / 4.0)
-
-        return {"front": front_margin, "side": side_margin, "rear": side_margin}
+            
+        return {
+            "front": front_margin,
+            "side": side_margin,
+            "rear": side_margin
+        }
 
     def analyze_scheme(
         self, scheme_id: str, prop: PropertyDetails, affordable_pct: float = 70
@@ -672,7 +676,7 @@ class SchemeCalculator:
     def _get_applicability_reason(self, scheme_id: str, prop: PropertyDetails) -> str:
         """Get reason for applicability"""
         reasons = {
-            "33(7B)": "Residential zone qualifies for rehabilitation-focused redevelopment",
+            "33(7B)": f"Residential zone qualifies for rehabilitation-focused redevelopment",
             "33(20B)": f"Standard redevelopment clause for {prop.zone_type} buildings",
             "33(11)": "For permanent transit camp tenements",
             "30(A)": f"Road width {prop.road_width_m}m meets TOD requirements",
@@ -712,36 +716,36 @@ class FeasibilityEngine:
         Returns:
             FeasibilityReport with full analysis and recommendations
         """
-        print(f"\n{'=' * 60}")
-        print("INTELLIGENT FEASIBILITY ANALYSIS")
-        print(f"{'=' * 60}\n")
+        logger.info(f"{'=' * 60}")
+        logger.info("INTELLIGENT FEASIBILITY ANALYSIS")
+        logger.info(f"{'=' * 60}")
 
-        print("[1/5] Extracting property details from file...")
+        logger.info("[1/5] Extracting property details from file...")
         prop = self.ocr.extract_from_file(file_path)
         if not prop.survey_no:
             prop.survey_no = "EXTRACTED_FROM_FILE"
-        print(f"  Survey No: {prop.survey_no}")
-        print(
+        logger.info(f"  Survey No: {prop.survey_no}")
+        logger.info(
             f"  Area: {prop.plot_area_sq_m:.0f} sq.m ({prop.plot_area_sq_ft:.0f} sq.ft)"
         )
-        print(f"  Road Width: {prop.road_width_m}m")
-        print(f"  Zone: {prop.zone_type}")
+        logger.info(f"  Road Width: {prop.road_width_m}m")
+        logger.info(f"  Zone: {prop.zone_type}")
 
-        print("\n[2/5] Searching DCPR for applicable clauses (RAG)...")
+        logger.info("[2/5] Searching DCPR for applicable clauses (RAG)...")
         clauses = self.clause_finder.find_applicable_clauses(prop)
-        print(f"  Found {len(clauses)} relevant clauses")
+        logger.info(f"  Found {len(clauses)} relevant clauses")
 
-        print("\n[3/5] Analyzing DCPR schemes...")
+        logger.info("[3/5] Analyzing DCPR schemes...")
         schemes = {}
         for scheme_id in ["33(7B)", "33(20B)", "33(11)", "30(A)"]:
             analysis = self.calculator.analyze_scheme(scheme_id, prop, affordable_pct)
             schemes[scheme_id] = analysis
             status = "APPLICABLE" if analysis.is_applicable else "NOT APPLICABLE"
-            print(
+            logger.info(
                 f"  {scheme_id}: Basic {analysis.basic_fsi} + Incentive {analysis.incentive_fsi} = Total {analysis.total_fsi} [{status}]"
             )
 
-        print("\n[4/5] Generating recommendations...")
+        logger.info("[4/5] Generating recommendations...")
         best_scheme = self._find_best_scheme(schemes, prop)
         recommendations = self._generate_recommendations(
             prop, schemes, clauses, best_scheme
@@ -749,7 +753,7 @@ class FeasibilityEngine:
         reasoning = self._generate_reasoning_chain(prop, schemes, clauses, best_scheme)
         next_steps = self._generate_next_steps(prop, best_scheme, clauses)
 
-        print("\n[5/5] Building financial summary...")
+        logger.info("[5/5] Building financial summary...")
         financial = self._build_financial_summary(prop, schemes[best_scheme])
 
         report = FeasibilityReport(
@@ -765,13 +769,13 @@ class FeasibilityEngine:
             next_steps=next_steps,
         )
 
-        print(f"\n{'=' * 60}")
-        print(f"BEST SCHEME: {best_scheme}")
-        print(f"TOTAL FSI: {schemes[best_scheme].total_fsi}")
-        print(
+        logger.info(f"{'=' * 60}")
+        logger.info(f"BEST SCHEME: {best_scheme}")
+        logger.info(f"TOTAL FSI: {schemes[best_scheme].total_fsi}")
+        logger.info(
             f"RECOMMENDATION: {recommendations[0] if recommendations else 'See full report'}"
         )
-        print(f"{'=' * 60}\n")
+        logger.info(f"{'=' * 60}")
 
         return report
 
@@ -989,7 +993,7 @@ class FeasibilityEngine:
         data = asdict(report)
         with open(output_path, "w") as f:
             json.dump(data, f, indent=2)
-        print(f"  Exported to: {output_path}")
+        logger.info(f"  Exported to: {output_path}")
 
     def export_to_excel(self, report: FeasibilityReport, output_path: str):
         """Export report to Excel with multiple sheets"""
@@ -1342,7 +1346,7 @@ class FeasibilityEngine:
 
         # Save
         wb.save(output_path)
-        print(f"  Exported to: {output_path}")
+        logger.info(f"  Exported to: {output_path}")
 
     def export_to_text(self, report: FeasibilityReport, output_path: str):
         """Export report to readable text"""
@@ -1405,7 +1409,7 @@ class FeasibilityEngine:
 
         with open(output_path, "w") as f:
             f.write("\n".join(lines))
-        print(f"  Exported to: {output_path}")
+        logger.info(f"  Exported to: {output_path}")
 
 
 if __name__ == "__main__":
@@ -1434,7 +1438,7 @@ if __name__ == "__main__":
             args.survey_no, args.area, args.road_width or 12, args.zone, args.affordable
         )
     else:
-        print("Provide either --file or (--survey-no and --area)")
+        logger.error("Provide either --file or (--survey-no and --area)")
         exit(1)
 
     output_base = f"{args.output}{report.report_id}"
@@ -1442,7 +1446,7 @@ if __name__ == "__main__":
     engine.export_to_text(report, f"{output_base}.txt")
     engine.export_to_excel(report, f"{output_base}.xlsx")
 
-    print("\nReports saved to:")
-    print(f"  - {output_base}.json")
-    print(f"  - {output_base}.txt")
-    print(f"  - {output_base}.xlsx")
+    logger.info(f"\nReports saved to:")
+    logger.info(f"  - {output_base}.json")
+    logger.info(f"  - {output_base}.txt")
+    logger.info(f"  - {output_base}.xlsx")

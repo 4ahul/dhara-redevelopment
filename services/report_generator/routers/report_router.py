@@ -1,5 +1,12 @@
 import asyncio
 import uuid
+import os
+import sys
+
+service_dir = os.path.dirname(os.path.abspath(__file__))
+if service_dir not in sys.path:
+    sys.path.insert(0, service_dir)
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from io import BytesIO
@@ -13,7 +20,6 @@ from schemas.report import (
 )
 from services.data_normalizer import normalize_report_data
 from services.pdf_builder import build_feasibility_pdf
-from services.excel_builder import build_feasibility_report
 from services.template_service import template_service
 from services.excel_to_pdf import generate_report_with_pdf
 from core.config import OUTPUT_DIR, settings, resolve_scheme_key
@@ -59,7 +65,8 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
 async def generate_report(req: ReportRequest):
     """
     Generate the feasibility report PDF.
-    Also saves an Excel copy alongside as a secondary artifact.
+    Excel copy is produced from the hardcoded 33(20)(B) CLUBBING template
+    (testing mode — see template_service._FORCED_TEMPLATE_NAME).
     """
     report_id = str(uuid.uuid4())[:8].upper()
     safe_name = req.society_name.replace(" ", "_")
@@ -68,15 +75,42 @@ async def generate_report(req: ReportRequest):
     pdf_path = str(OUTPUT_DIR / pdf_filename)
     xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
+    # Testing mode: every /generate call uses the fixed 33(20)(B) CLUBBING template.
+    target_scheme = "33(20)(B)"
+    target_rd_type = "CLUBBING"
+
+    all_data = {
+        "society_name": req.society_name,
+        "scheme": target_scheme,
+        "plot_area_sqm": req.plot_area_sqm,
+        "road_width_m": req.road_width_m,
+        "num_flats": req.num_flats,
+        "num_commercial": req.num_commercial,
+        "site_analysis": req.site_analysis or {},
+        "height": req.height or {},
+        "premium": req.premium or {},
+        "dp_report": req.dp_report or {},
+        "mcgm_property": req.mcgm_property or {},
+        "zone_regulations": req.zone_regulations or {},
+        "ready_reckoner": req.ready_reckoner or {},
+        "financial": req.financial or {},
+        "fsi": req.fsi or {},
+        "bua": req.bua or {},
+        "manual_inputs": req.manual_inputs or {},
+    }
+
     try:
-        # 1. Normalise flat LLM input → per-scheme nested structure
         normalized = normalize_report_data(req.model_dump())
 
-        # 2. Generate PDF (primary output returned to caller)
         await asyncio.to_thread(build_feasibility_pdf, normalized, pdf_path)
 
-        # 3. Generate Excel as secondary artifact (saved to disk, not returned)
-        await asyncio.to_thread(build_feasibility_report, normalized, xlsx_path)
+        await asyncio.to_thread(
+            template_service.generate_full_report,
+            scheme=target_scheme,
+            all_data=all_data,
+            output_path=xlsx_path,
+            redevelopment_type=target_rd_type,
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
@@ -183,7 +217,7 @@ async def generate_template_report(req: TemplateReportRequest):
         report_id = str(uuid.uuid4())[:8].upper()
         safe_name = req.society_name.replace(" ", "_")
         
-        target_scheme = "33(20)(B)"
+        target_scheme = "33(7)(B)"
         target_rd_type = req.redevelopment_type.value if hasattr(req.redevelopment_type, "value") else str(req.redevelopment_type)
 
         all_data = _build_all_data(req)

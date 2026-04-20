@@ -441,15 +441,15 @@ def get_llm_client() -> LLMClient:
     3. OLLAMA_BASE_URL  → OllamaClient
     4. OPENAI_BASE_URL  → OpenAICompatibleClient
     """
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key and not gemini_key.startswith("YOUR_"):
-        logger.info("Using GeminiClient (model: %s)", os.getenv("GEMINI_MODEL") or "gemini-3.1-pro-preview")
-        return GeminiClient()
+    from core.config import settings
 
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if anthropic_key and not anthropic_key.startswith("sk-ant-your-"):
+    if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your_"):
+        logger.info("Using GeminiClient (model: %s)", settings.GEMINI_MODEL or "gemini-3.1-pro-preview")
+        return GeminiClient(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+
+    if settings.ANTHROPIC_API_KEY and not settings.ANTHROPIC_API_KEY.startswith("sk-ant-your-"):
         logger.info("Using AnthropicClient")
-        return AnthropicClient()
+        return AnthropicClient(api_key=settings.ANTHROPIC_API_KEY)
 
     if os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_MODEL"):
         logger.info("Using OllamaClient")

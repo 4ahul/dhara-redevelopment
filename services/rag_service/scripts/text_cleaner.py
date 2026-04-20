@@ -5,7 +5,7 @@ Handles Devanagari normalization, OCR artifacts, language detection.
 
 import re
 import unicodedata
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 # ---------------------------------------------------------------------------

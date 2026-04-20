@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@postgres:5432/redevelopment"
+        "postgresql://redevelopment:redevelopment@localhost:5435/pr_card_scraper_db"
     )
 
     MAHABHUMI_URL: str = "https://bhulekh.mahabhumi.gov.in"

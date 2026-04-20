@@ -5,8 +5,9 @@ Maintains context and preserves logical sections.
 """
 
 import re
-from typing import List, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
+from langchain_core.documents import Document
 
 
 @dataclass

@@ -14,10 +14,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# Add the service directory to sys.path to resolve internal imports
 service_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(service_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 if service_dir not in sys.path:
-    sys.path.append(service_dir)
+    sys.path.insert(0, service_dir)
 
 from core.config import settings
 from core.logging_config import setup_logging
@@ -29,15 +31,15 @@ from core.middleware import (
     response_cache_middleware,
 )
 
-# ─── Setup ───────────────────────────────────────────────────────────────────
+from core.banner import print_banner as _print_banner
+_print_banner()
 
 setup_logging()
 logger = logging.getLogger("gateway")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
-    logger.info("DB URL: %s", settings.DATABASE_URL)
+    logger.info("Initializing Orchestrator | DB: %s", settings.DATABASE_URL)
 
     # 1. PostgreSQL
     from db import init_db

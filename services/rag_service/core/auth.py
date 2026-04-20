@@ -1,83 +1,46 @@
-from datetime import datetime, timedelta
-from typing import Optional
-import uuid
-import hashlib
 import os
+import logging
+from typing import Optional
 import jwt
-import bcrypt
+import uuid
 
-_secret = os.environ.get("SECRET_KEY", "")
-if not _secret:
-    raise RuntimeError(
-        "SECRET_KEY environment variable is required. "
-        "Set a strong random secret in .env or your deployment config."
-    )
-SECRET_KEY = _secret
+logger = logging.getLogger(__name__)
 
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
-
-EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = 24
-PASSWORD_RESET_TOKEN_EXPIRE_HOURS = 1
-
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-
-
-def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    try:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-        )
-    except Exception:
-        return False
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
+# Clerk configuration
+CLERK_JWT_KEY = os.environ.get("CLERK_JWT_KEY", "")
+# Fallback for local development/testing without Clerk
+SECRET_KEY = os.environ.get("SECRET_KEY", "temporary-secret-key-for-dhara-rag")
+ALGORITHM = "RS256" if CLERK_JWT_KEY.startswith("-----BEGIN PUBLIC KEY-----") else "HS256"
 
 def decode_token(token: str) -> Optional[dict]:
+    """
+    Decodes and validates a JWT token, trying Clerk RS256 first, then local HS256.
+    """
+    # 1. Try Clerk RS256 if CLERK_JWT_KEY configured
+    if CLERK_JWT_KEY:
+        try:
+            return jwt.decode(token, CLERK_JWT_KEY, algorithms=["RS256"],
+                               options={"verify_aud": False})
+        except jwt.InvalidTokenError:
+            logger.debug("Clerk RS256 token decoding failed, trying HS256.")
+            pass  # Fall through to HS256
+        except Exception as e:
+            logger.error(f"Unexpected error decoding Clerk RS256 token: {e}")
+            pass # Fall through in case of other errors
+    
+    # 2. Try local HS256 (frontend's own login/register flow)
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
+        logger.warning("Local HS256 token expired")
         return None
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid local HS256 token: {e}")
         return None
-
-
-def create_verification_token() -> str:
-    return str(uuid.uuid4()) + "-" + str(uuid.uuid4())
-
-
-def create_session_token() -> str:
-    return str(uuid.uuid4())
-
+    except Exception as e:
+        logger.error(f"Unexpected error decoding local HS256 token: {e}")
+        return None
 
 def generate_session_id() -> str:
-    return str(uuid.uuid4())
-
-
-def hash_verification_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def create_email_verification_link(token: str, base_url: str = None) -> str:
-    url = base_url or FRONTEND_URL
-    return f"{url}/auth/verify-email?token={token}"
-
-
-def create_password_reset_link(token: str, base_url: str = None) -> str:
-    url = base_url or FRONTEND_URL
-    return f"{url}/auth/reset-password?token={token}"
+    """Generates a random short session ID."""
+    return str(uuid.uuid4())[:8]

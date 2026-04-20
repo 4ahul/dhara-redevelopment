@@ -7,12 +7,13 @@ For receiving compliance updates from government groups
 import os
 import re
 import json
+import time
 import logging
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
-from dataclasses import dataclass
+from typing import List, Dict, Optional
+from dataclasses import dataclass, asdict
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -490,28 +491,28 @@ def main():
     whatsapp = WhatsAppIntegration()
 
     if args.cmd == "import":
-        print(f"Importing from {args.file}...")
+        logger.info(f"Importing from {args.file}...")
         count = whatsapp.import_from_file(args.file)
-        print(f"Imported {count} messages")
+        logger.info(f"Imported {count} messages")
 
     elif args.cmd == "updates":
         if args.action_required:
             updates = whatsapp.get_action_required()
-            print(f"\n{len(updates)} updates requiring action:\n")
+            logger.info(f"\n{len(updates)} updates requiring action:\n")
         else:
             updates = whatsapp.get_pending_compliances(args.days)
-            print(f"\n{len(updates)} compliance updates (last {args.days} days):\n")
+            logger.info(f"\n{len(updates)} compliance updates (last {args.days} days):\n")
 
         for i, u in enumerate(updates, 1):
-            print(f"{i}. [{u.category.upper()}] {u.title[:60]}")
-            print(f"   Date: {u.date} | Urgency: {u.urgency}")
+            logger.info(f"{i}. [{u.category.upper()}] {u.title[:60]}")
+            logger.info(f"   Date: {u.date} | Urgency: {u.urgency}")
             if u.action_required:
-                print("   ⚠️ ACTION REQUIRED")
-            print()
+                logger.warning(f"   ⚠️ ACTION REQUIRED")
+            logger.info("")
 
     elif args.cmd == "send":
         result = whatsapp.send_message(args.to, args.message)
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     else:
         parser.print_help()

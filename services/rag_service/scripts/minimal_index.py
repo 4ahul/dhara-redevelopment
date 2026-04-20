@@ -39,7 +39,7 @@ def process_pdf(pdf_path: Path, collection, embeddings):
             all_text += text + "\n"
 
     if len(all_text) < 100:
-        print("  No text extracted")
+        print(f"  No text extracted")
         return 0
 
     # Simple chunking

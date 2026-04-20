@@ -9,6 +9,15 @@ from pathlib import Path
 from io import BytesIO
 from typing import Optional, Tuple
 from datetime import datetime
+import os
+import sys
+
+service_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(service_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+if service_dir not in sys.path:
+    sys.path.insert(0, service_dir)
 
 logger = logging.getLogger(__name__)
 

@@ -11,15 +11,35 @@ from pydantic import BaseModel, Field
 
 # ─── Society ─────────────────────────────────────────────────────────────────
 
+
 class SocietyCreate(BaseModel):
     """Create a new society record."""
+
     name: str = Field(min_length=2, max_length=500)
     address: str = Field(min_length=5, max_length=2000)
     cts_no: Optional[str] = Field(default=None, max_length=100)
-    ward: Optional[str] = Field(default=None, max_length=20)
-    village: Optional[str] = Field(default=None, max_length=255)
-    taluka: Optional[str] = Field(default=None, max_length=255)
-    district: Optional[str] = Field(default=None, max_length=255)
+    # ward, village, taluka, district are now auto-resolved from address via web search
+    # Kept as optional for manual override
+    ward: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Auto-resolved from address if not provided",
+    )
+    village: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Auto-resolved from address if not provided",
+    )
+    taluka: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Auto-resolved from address if not provided",
+    )
+    district: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Auto-resolved from address if not provided",
+    )
     plot_area_sqm: Optional[float] = Field(default=None, ge=0)
     plot_area_with_tp: Optional[float] = Field(default=None, ge=0)
     road_width_m: Optional[float] = Field(default=None, ge=0)
@@ -32,6 +52,7 @@ class SocietyCreate(BaseModel):
 
 class SocietyUpdate(BaseModel):
     """Partial update for society details."""
+
     name: Optional[str] = Field(default=None, max_length=500)
     address: Optional[str] = Field(default=None, max_length=2000)
     cts_no: Optional[str] = Field(default=None, max_length=100)
@@ -52,6 +73,7 @@ class SocietyUpdate(BaseModel):
 
 class SocietyResponse(BaseModel):
     """Full society detail response."""
+
     id: UUID
     name: str
     address: str
@@ -80,6 +102,7 @@ class SocietyResponse(BaseModel):
 
 class SocietyListItem(BaseModel):
     """Abbreviated society item for list views."""
+
     id: UUID
     name: str
     address: str
@@ -94,14 +117,17 @@ class SocietyListItem(BaseModel):
 
 # ─── Society Reports ────────────────────────────────────────────────────────
 
+
 class ReportCreate(BaseModel):
     """Create a society report."""
+
     title: str = Field(min_length=2, max_length=500)
     report_type: str = Field(default="feasibility", max_length=100)
 
 
 class ReportResponse(BaseModel):
     """Society report response."""
+
     id: UUID
     society_id: UUID
     title: str
@@ -116,8 +142,10 @@ class ReportResponse(BaseModel):
 
 # ─── Society Tenders ─────────────────────────────────────────────────────────
 
+
 class TenderCreate(BaseModel):
     """Create a tender for a society."""
+
     title: str = Field(min_length=2, max_length=500)
     description: Optional[str] = Field(default=None, max_length=5000)
     requirements: Optional[str] = Field(default=None, max_length=5000)
@@ -128,6 +156,7 @@ class TenderCreate(BaseModel):
 
 class TenderResponse(BaseModel):
     """Tender response."""
+
     id: UUID
     society_id: UUID
     title: str
@@ -146,14 +175,17 @@ class TenderResponse(BaseModel):
 
 # ─── Feasibility Reports ────────────────────────────────────────────────────
 
+
 class FeasibilityReportCreate(BaseModel):
     """Trigger a feasibility report generation."""
+
     society_id: UUID
     title: Optional[str] = Field(default="Feasibility Report", max_length=500)
 
 
 class FeasibilityReportUpdate(BaseModel):
     """Partial update on a feasibility report."""
+
     title: Optional[str] = Field(default=None, max_length=500)
     status: Optional[str] = None
     llm_analysis: Optional[str] = None
@@ -161,6 +193,7 @@ class FeasibilityReportUpdate(BaseModel):
 
 class FeasibilityReportResponse(BaseModel):
     """Feasibility report response."""
+
     id: UUID
     society_id: UUID
     user_id: UUID

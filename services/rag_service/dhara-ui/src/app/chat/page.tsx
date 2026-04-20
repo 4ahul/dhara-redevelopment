@@ -115,7 +115,7 @@ export default function ChatPage() {
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions`, {
+      const response = await fetch(`${API_URL}/sessions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -136,7 +136,7 @@ export default function ChatPage() {
     setCurrentSession(session);
     setIsIncognito(session.is_incognito);
     try {
-      const response = await fetch(`${API_URL}/api/sessions/${session.session_id}/history`, {
+      const response = await fetch(`${API_URL}/sessions/${session.session_id}/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -156,7 +156,7 @@ export default function ChatPage() {
   const createNewSession = async (title?: string) => {
     const chatTitle = title || "New Chat";
     try {
-      const response = await fetch(`${API_URL}/api/sessions`, {
+      const response = await fetch(`${API_URL}/sessions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -184,7 +184,7 @@ export default function ChatPage() {
 
   const updateSessionTitle = async (sessionId: string, newTitle: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -243,7 +243,7 @@ export default function ChatPage() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/chat/stream`, {
+      const response = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -386,7 +386,7 @@ export default function ChatPage() {
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -406,7 +406,7 @@ export default function ChatPage() {
     try {
       const session = sessions.find((s) => s.session_id === sessionId);
       if (!session) return;
-      const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+      const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

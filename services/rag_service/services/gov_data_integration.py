@@ -4,11 +4,16 @@ Government Data Integration - Hybrid Mode
 API when available, OCR/Document Upload when API fails
 """
 
+import os
 import json
+import base64
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 from dataclasses import dataclass, asdict
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -173,7 +178,7 @@ class GovernmentDataIntegration:
         Process uploaded document (Property Card, 7/12, etc.)
         Uses OCR to extract data
         """
-        from property_card_workflow import PropertyCardOCR
+        from .property_card_workflow import PropertyCardOCR
 
         ocr = PropertyCardOCR()
 
@@ -419,7 +424,7 @@ class WhatsAppComplianceReader:
 
             return count
         except Exception as e:
-            print(f"Import error: {e}")
+            logger.error(f"Import error: {e}", exc_info=True)
             return 0
 
 
@@ -427,6 +432,7 @@ class WhatsAppComplianceReader:
 def add_data_endpoints(app):
     """Add data integration endpoints to FastAPI app"""
     from fastapi import HTTPException, UploadFile, File, Form
+    from typing import Optional
 
     integration = GovernmentDataIntegration()
     whatsapp_reader = WhatsAppComplianceReader()
@@ -531,20 +537,20 @@ if __name__ == "__main__":
     # Test the integration
     integration = GovernmentDataIntegration()
 
-    print("Government Data Integration")
-    print("=" * 50)
-    print(f"API Available: {integration.api_available}")
-    print()
+    logger.info("Government Data Integration")
+    logger.info("=" * 50)
+    logger.info(f"API Available: {integration.api_available}")
+    logger.info("")
 
     # Get property data
     data = integration.get_property_data(
         "123/456", "Mumbai Suburban", "Andheri", "Andheri"
     )
 
-    print(f"Survey No: {data.survey_no}")
-    print(f"Fetch Method: {data.fetch_method}")
-    print(f"Confidence: {data.confidence}")
-    print(f"Verification: {data.verification_status}")
-    print()
-    print("DP Remarks / Next Steps:")
-    print(data.dp_remarks)
+    logger.info(f"Survey No: {data.survey_no}")
+    logger.info(f"Fetch Method: {data.fetch_method}")
+    logger.info(f"Confidence: {data.confidence}")
+    logger.info(f"Verification: {data.verification_status}")
+    logger.info("")
+    logger.info("DP Remarks / Next Steps:")
+    logger.info(data.dp_remarks)

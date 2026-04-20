@@ -1,18 +1,25 @@
-import redis
 import os
 import json
+import logging
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 
 class RedisCache:
     def __init__(self):
         self.redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
         try:
+            import redis
             self.client = redis.from_url(self.redis_url, decode_responses=True)
             self.client.ping()
             self.available = True
+        except ImportError:
+            logger.warning("Redis not available: package not installed")
+            self.client = None
+            self.available = False
         except Exception as e:
-            print(f"Redis not available: {e}")
+            logger.warning(f"Redis not available: {e}")
             self.client = None
             self.available = False
 
@@ -24,7 +31,7 @@ class RedisCache:
             if data:
                 return json.loads(data)
         except Exception as e:
-            print(f"Redis get error: {e}")
+            logger.error(f"Redis get error: {e}", exc_info=True)
         return None
 
     def set(self, key: str, value: Any, expire: int = 3600):
@@ -34,7 +41,7 @@ class RedisCache:
             self.client.setex(key, expire, json.dumps(value))
             return True
         except Exception as e:
-            print(f"Redis set error: {e}")
+            logger.error(f"Redis set error: {e}", exc_info=True)
             return False
 
     def delete(self, key: str):
@@ -43,7 +50,7 @@ class RedisCache:
         try:
             self.client.delete(key)
         except Exception as e:
-            print(f"Redis delete error: {e}")
+            logger.error(f"Redis delete error: {e}", exc_info=True)
 
     def clear_pattern(self, pattern: str):
         if not self.available:
@@ -53,7 +60,8 @@ class RedisCache:
             if keys:
                 self.client.delete(*keys)
         except Exception as e:
-            print(f"Redis clear error: {e}")
+            logger.error(f"Redis clear error: {e}", exc_info=True)
 
 
+# Global cache instance
 cache = RedisCache()

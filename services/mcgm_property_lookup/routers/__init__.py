@@ -219,8 +219,9 @@ async def _do_lookup(
 async def lookup_property(req: PropertyLookupRequest, background_tasks: BackgroundTasks):
     """Submit a property lookup (processed in background). Poll GET /status/{id}."""
     storage = get_storage()
+    ward_str = req.ward.value
     lookup_id = await storage.create_lookup(
-        ward=req.ward,
+        ward=ward_str,
         village=req.village,
         cts_no=req.cts_no,
     )
@@ -228,7 +229,7 @@ async def lookup_property(req: PropertyLookupRequest, background_tasks: Backgrou
     background_tasks.add_task(
         _do_lookup,
         lookup_id,
-        req.ward,
+        ward_str,
         req.village,
         req.cts_no,
         req.include_nearby,
@@ -255,15 +256,16 @@ async def lookup_property(req: PropertyLookupRequest, background_tasks: Backgrou
 async def lookup_property_sync(req: PropertyLookupRequest, request: Request):
     """Synchronous lookup — waits for full result. Suited for orchestrator calls."""
     storage = get_storage()
+    ward_str = req.ward.value
     lookup_id = await storage.create_lookup(
-        ward=req.ward,
+        ward=ward_str,
         village=req.village,
         cts_no=req.cts_no,
     )
 
     result = await _do_lookup(
         lookup_id,
-        req.ward,
+        ward_str,
         req.village,
         req.cts_no,
         req.include_nearby,

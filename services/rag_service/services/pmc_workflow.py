@@ -4,13 +4,17 @@ PMC Workflow System
 Redemption, Deemed Conveyance, Feasibility Reports, Project Tracking
 """
 
+import os
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 import uuid
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("data")
 WORKFLOWS_DIR = DATA_DIR / "workflows"
@@ -951,6 +955,7 @@ class TenderManager:
 # CLI Commands
 def cmd_create_project(args):
     """Create new project"""
+    from .property_card_workflow import PropertyCard
 
     engine = PMCWorkflowEngine()
 
@@ -975,13 +980,13 @@ def cmd_create_project(args):
     # Create project
     project = engine.create_project(args.project_name, society, plot, args.pmc)
 
-    print(f"✓ Project created: {project.project_id}")
-    print(f"  Name: {project.name}")
-    print(f"  Society: {society.name}")
-    print(f"  Survey No: {plot.survey_no}")
-    print(f"  Plot Area: {plot.area_sq_m} sq.m")
-    print(f"  Workflow Steps: {len(project.workflow_steps)}")
-    print(f"\nNext: python3 pmc_workflow.py progress {project.project_id}")
+    logger.info(f"✓ Project created: {project.project_id}")
+    logger.info(f"  Name: {project.name}")
+    logger.info(f"  Society: {society.name}")
+    logger.info(f"  Survey No: {plot.survey_no}")
+    logger.info(f"  Plot Area: {plot.area_sq_m} sq.m")
+    logger.info(f"  Workflow Steps: {len(project.workflow_steps)}")
+    logger.info(f"\nNext: python3 pmc_workflow.py progress {project.project_id}")
 
 
 def cmd_generate_report(args):
@@ -990,9 +995,9 @@ def cmd_generate_report(args):
     project = engine.load_project(args.project_id)
 
     doc = engine.generate_document(project, args.doc_type)
-    print(f"✓ Document generated: {doc.title}")
-    print(f"  File: {doc.file_path}")
-    print(f"  Doc ID: {doc.doc_id}")
+    logger.info(f"✓ Document generated: {doc.title}")
+    logger.info(f"  File: {doc.file_path}")
+    logger.info(f"  Doc ID: {doc.doc_id}")
 
 
 def cmd_progress(args):
@@ -1002,28 +1007,28 @@ def cmd_progress(args):
 
     progress = engine.get_project_progress(project)
 
-    print(f"\n{'=' * 60}")
-    print(f"PROJECT: {project.name} ({project.project_id})")
-    print(f"{'=' * 60}")
-    print(f"Status: {project.status.value.upper()}")
-    print(f"Stage: {project.current_stage.value.upper().replace('_', ' ')}")
-    print(f"\nProgress: {progress['progress_pct']}%")
-    print(f"  Completed: {progress['completed']}/{progress['total_steps']}")
-    print(f"  In Progress: {progress['in_progress']}")
-    print(f"  Pending: {progress['pending']}")
+    logger.info(f"\n{'=' * 60}")
+    logger.info(f"PROJECT: {project.name} ({project.project_id})")
+    logger.info(f"{'=' * 60}")
+    logger.info(f"Status: {project.status.value.upper()}")
+    logger.info(f"Stage: {project.current_stage.value.upper().replace('_', ' ')}")
+    logger.info(f"\nProgress: {progress['progress_pct']}%")
+    logger.info(f"  Completed: {progress['completed']}/{progress['total_steps']}")
+    logger.info(f"  In Progress: {progress['in_progress']}")
+    logger.info(f"  Pending: {progress['pending']}")
 
     if progress["days_remaining"] > 0:
-        print(
+        logger.info(
             f"\nTimeline: {progress['days_elapsed']} days elapsed, ~{progress['days_remaining']} days remaining"
         )
 
-    print("\nAvailable Actions:")
+    logger.info(f"\nAvailable Actions:")
     for step_name in progress["available_steps"]:
-        print(f"  → {step_name}")
+        logger.info(f"  → {step_name}")
 
-    print(f"\nDocuments ({len(project.documents)}):")
+    logger.info(f"\nDocuments ({len(project.documents)}):")
     for doc in project.documents:
-        print(f"  - {doc.doc_type}: {doc.status}")
+        logger.info(f"  - {doc.doc_type}: {doc.status}")
 
 
 def cmd_list_projects(args):
@@ -1031,10 +1036,10 @@ def cmd_list_projects(args):
     engine = PMCWorkflowEngine()
     projects = engine.list_projects()
 
-    print(f"\n{'ID':<12} {'Name':<30} {'Status':<15} {'Stage':<20} {'Society'}")
-    print("-" * 100)
+    logger.info(f"\n{'ID':<12} {'Name':<30} {'Status':<15} {'Stage':<20} {'Society'}")
+    logger.info("-" * 100)
     for p in projects:
-        print(
+        logger.info(
             f"{p['project_id']:<12} {p['name'][:28]:<30} {p['status']:<15} "
             f"{p['stage']:<20} {p.get('society', '')[:20]}"
         )
@@ -1052,9 +1057,9 @@ def cmd_init_deemed_conveyance(args):
         lawyer_name=args.lawyer,
     )
 
-    print(f"✓ Deemed Conveyance initiated for project {project.project_id}")
-    print(f"  Lawyer: {args.lawyer}")
-    print(f"  Developer: {args.developer}")
+    logger.info(f"✓ Deemed Conveyance initiated for project {project.project_id}")
+    logger.info(f"  Lawyer: {args.lawyer}")
+    logger.info(f"  Developer: {args.developer}")
 
 
 if __name__ == "__main__":

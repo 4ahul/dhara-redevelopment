@@ -9,6 +9,11 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3.1-pro-preview"
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
     # ── Google Maps ──────────────────────────────────────
     GOOGLE_MAPS_API_KEY: str = ""
@@ -25,7 +30,7 @@ class Settings(BaseSettings):
 
     # ── PostgreSQL ───────────────────────────────────────
     DATABASE_URL: str = (
-        "postgresql+asyncpg://redevelopment:redevelopment@localhost:5432/redevelopment"
+        "postgresql+asyncpg://redevelopment:redevelopment@localhost:5435/orchestrator_db"
     )
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
@@ -50,13 +55,13 @@ class Settings(BaseSettings):
 
     # ── Service URLs ─────────────────────────────────────
     SITE_ANALYSIS_URL: str = "http://site_analysis:8001"
-    HEIGHT_URL: str = "http://height_service:8002"
-    PREMIUM_URL: str = "http://premium_checker:8004"
-    REPORT_URL: str = "http://report_generator:8005"
-    PR_CARD_URL: str = "http://pr_card_scraper:8006"
-    RAG_URL: str = "http://rag_service:8007"
-    MCGM_PROPERTY_URL: str = "http://mcgm_property_lookup:8008"
-    DP_REPORT_URL: str = "http://dp_report_service:8009"
+    HEIGHT_URL: str = "http://aviation_height:8002"
+    PREMIUM_URL: str = "http://ready_reckoner:8003"
+    REPORT_URL: str = "http://report_generator:8004"
+    PR_CARD_URL: str = "http://pr_card_scraper:8005"
+    RAG_URL: str = "http://rag_service:8006"
+    MCGM_PROPERTY_URL: str = "http://mcgm_property_lookup:8007"
+    DP_REPORT_URL: str = "http://dp_remarks_report:8008"
     READY_RECKONER_URL: str = "http://ready_reckoner:8003"
     REPORT_OUTPUT_DIR: str = "/tmp/reports"
 
@@ -73,8 +78,7 @@ class Settings(BaseSettings):
     MAX_PAGE_SIZE: int = 100
 
     class Config:
-        import os
-        env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+        env_file = ".env"
         case_sensitive = True
         extra = "ignore"
 

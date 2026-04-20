@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@postgres:5432/redevelopment"
+        "postgresql://redevelopment:redevelopment@localhost:5435/mcgm_property_lookup_db"
     )
 
     # ArcGIS / MCGM

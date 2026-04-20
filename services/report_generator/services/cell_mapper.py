@@ -36,139 +36,83 @@ class CellMapping:
 # Shared base mappings used by both templates (30(A)/33(7)(B) and 33(20)(B))
 _DETAILS_COMMON: List[CellMapping] = [
     # ── Plot & Site Data ──────────────────────────────────────────────────
-    CellMapping("Details", "P5",  "mcgm_property.area_sqm|plot_area_sqm",        "float"),
-    CellMapping("Details", "Q5",  "dp_report.amenity_area_sqm",                  "float", 0),
-    CellMapping("Details", "P8",  "dp_report.setback_area_sqm",                  "float", 0),
-    # Q8 = P5*5% ← formula, skip
-    # P15 = P6 ← formula, skip
-    CellMapping("Details", "N19", "dp_report.reservation_area_sqm",              "float", 0),
-    CellMapping("Details", "R19", "dp_report.road_width_m|road_width_m",         "float", 18.3),
-    # B21 = N21 ← formula, skip
-    CellMapping("Details", "J22", "manual_inputs.protected_area_sqm",            "float", 0),
-    CellMapping("Details", "N22", "manual_inputs.old_setback_sqm",               "float", 0),
+    CellMapping("Details", "P4",  "mcgm_property.area_sqm|plot_area_sqm",        "float"),
+    CellMapping("Details", "Q4",  "dp_report.amenity_area_sqm",                  "float", 0),
+    CellMapping("Details", "P7",  "dp_report.setback_area_sqm",                  "float", 0),
+    CellMapping("Details", "N17", "dp_report.reservation_area_sqm",              "float", 0),
+    CellMapping("Details", "R17", "dp_report.road_width_m|road_width_m",         "float", 18.3),
+    CellMapping("Details", "B19", "manual_inputs.protected_area_sqm",            "float", 0),
+    CellMapping("Details", "N20", "manual_inputs.old_setback_sqm",               "float", 0),
 
     # ── NOC Toggles (0=not needed, 1=needed) ──────────────────────────────
-    CellMapping("Details", "R27", "manual_inputs.noc_highway",                   "int",   0),
-    CellMapping("Details", "R28", "manual_inputs.noc_mmrda",                     "int",   0),
-    # R29 = formula based on Construction Cost, skip
-    CellMapping("Details", "R30", "manual_inputs.noc_railway",                   "int",   0),
-    CellMapping("Details", "R31", "manual_inputs.noc_asi",                       "int",   0),
-    CellMapping("Details", "R32", "manual_inputs.noc_mhcc",                      "int",   0),
-    CellMapping("Details", "R33", "manual_inputs.noc_civil_aviation",            "int",   0),
-    CellMapping("Details", "R34", "dp_report.crz_zone",                          "bool_toggle", 0),
-    CellMapping("Details", "R35", "manual_inputs.noc_other",                     "int",   0),
+    CellMapping("Details", "R28", "manual_inputs.noc_railway",                   "int",   0),
+    CellMapping("Details", "R31", "manual_inputs.noc_civil_aviation",            "int",   0),
 
     # ── Existing Areas ────────────────────────────────────────────────────
-    # J33, K33 = formulas (gross FSI), skip
-    # O34 = P54 formula, skip
-    CellMapping("Details", "O35", "manual_inputs.existing_commercial_bua_sqm",   "float", 490.52),
-    CellMapping("Details", "G36", "manual_inputs.commercial_extra_multiplier",   "float", 1.35),
-    CellMapping("Details", "G43", "manual_inputs.residential_extra_multiplier",  "float", 1.40),
+    CellMapping("Details", "O32", "manual_inputs.existing_residential_bua_sqm",  "float", 0),
+    CellMapping("Details", "O33", "manual_inputs.existing_commercial_bua_sqm",   "float", 0),
+    CellMapping("Details", "G34", "manual_inputs.commercial_extra_multiplier",   "float", 1.28),
+    CellMapping("Details", "G39", "manual_inputs.residential_extra_multiplier",  "float", 1.30),
 
     # ── RR Rates & Road Frontage ──────────────────────────────────────────
-    CellMapping("Details", "O44", "manual_inputs.plot_road_length_m",            "float", 100),
-    CellMapping("Details", "P44", "ready_reckoner.rr_residential_sqm|premium.rr_residential_sqm",  "float", 120000),
-    CellMapping("Details", "Q44", "ready_reckoner.rr_open_land_sqm|premium.rr_open_land_sqm",      "float", 165850),
-
-    # ── Sale Component ────────────────────────────────────────────────────
-    CellMapping("Details", "J51", "manual_inputs.sale_commercial_bua_sqm",       "float", 2500),
-    # K51 = J51*10.7642 formula, skip
+    CellMapping("Details", "O40", "manual_inputs.plot_road_length_m",            "float", 100),
+    CellMapping("Details", "J54", "ready_reckoner.rr_open_land_sqm|premium.rr_open_land_sqm",      "float", 128870),
 
     # ── Society Details: Existing Carpet Areas ────────────────────────────
-    CellMapping("Details", "O53", "existing_commercial_carpet_sqft",             "float", 4800),
-    CellMapping("Details", "Q53", "existing_residential_carpet_sqft",            "float", 69300),
+    CellMapping("Details", "N47", "existing_commercial_carpet_sqft",             "float", 0),
+    CellMapping("Details", "Q47", "existing_residential_carpet_sqft",            "float", 22305),
 
     # ── Tenement Counts ───────────────────────────────────────────────────
-    CellMapping("Details", "N55", "num_commercial",                              "int",   12),
-    CellMapping("Details", "P55", "num_flats",                                   "int",   138),
+    CellMapping("Details", "N49", "num_commercial",                              "int",   12),
+    CellMapping("Details", "P49", "num_flats",                                   "int",   138),
 
     # ── Rent Rates (₹/sqft/month) ─────────────────────────────────────────
-    CellMapping("Details", "O56", "manual_inputs.rent_commercial",               "float", 150),
-    CellMapping("Details", "Q56", "manual_inputs.rent_residential",              "float", 100),
+    CellMapping("Details", "O50", "manual_inputs.rent_commercial",               "float", 150),
+    CellMapping("Details", "Q50", "manual_inputs.rent_residential",              "float", 125),
 
     # ── Corpus Fund (₹/sqft) ──────────────────────────────────────────────
-    CellMapping("Details", "O57", "manual_inputs.corpus_commercial",             "float", 1500),
-    CellMapping("Details", "Q57", "manual_inputs.corpus_residential",            "float", 1000),
+    CellMapping("Details", "O51", "manual_inputs.corpus_commercial",             "float", 1500),
+    CellMapping("Details", "Q51", "manual_inputs.corpus_residential",            "float", 1500),
 
     # ── Brokerage & Shifting (₹ per member, one-time) ─────────────────────
-    CellMapping("Details", "O58", "manual_inputs.brokerage_commercial",          "float", 50000),
-    CellMapping("Details", "Q58", "manual_inputs.brokerage_residential",         "float", 50000),
-    CellMapping("Details", "O59", "manual_inputs.shifting_commercial",           "float", 50000),
-    CellMapping("Details", "Q59", "manual_inputs.shifting_residential",          "float", 50000),
+    CellMapping("Details", "O52", "manual_inputs.brokerage_commercial",          "float", 125),
+    CellMapping("Details", "Q52", "manual_inputs.brokerage_residential",         "float", 125),
+    CellMapping("Details", "O53", "manual_inputs.shifting_commercial",           "float", 30000),
+    CellMapping("Details", "Q53", "manual_inputs.shifting_residential",          "float", 30000),
 
     # ── Ready Reckoner Land Rate ──────────────────────────────────────────
-    CellMapping("Details", "J61", "ready_reckoner.rr_open_land_sqm|premium.rr_open_land_sqm", "float", 75910),
-
-    # ── Deposits ──────────────────────────────────────────────────────────
-    CellMapping("Details", "O61", "manual_inputs.deposit_commercial",            "float", 0),
-    CellMapping("Details", "Q61", "manual_inputs.deposit_residential",           "float", 0),
+    CellMapping("Details", "J54", "ready_reckoner.rr_open_land_sqm|premium.rr_open_land_sqm", "float", 128870),
 
     # ── Period of Completion (months) ─────────────────────────────────────
-    CellMapping("Details", "O62", "manual_inputs.completion_months_commercial",  "float", 24),
-    CellMapping("Details", "Q62", "manual_inputs.completion_months_residential", "float", 46),
-
-    # ── Technical Ratios (rarely changed — use defaults) ──────────────────
-    CellMapping("Details", "N69", "manual_inputs.osd_ratio",                     "float", 0.2),
-    CellMapping("Details", "N70", "manual_inputs.staircase_ratio",               "float", 0.25),
-    CellMapping("Details", "O71", "manual_inputs.construction_area_multiplier",  "float", 1.4),
-    CellMapping("Details", "N72", "manual_inputs.podium_ratio",                  "float", 0.6),
-    CellMapping("Details", "O72", "manual_inputs.podium_floors",                 "int",   5),
-    CellMapping("Details", "N73", "manual_inputs.basement_ratio",                "float", 0.4),
-    CellMapping("Details", "O73", "manual_inputs.basement_count",                "int",   1),
+    CellMapping("Details", "Q55", "manual_inputs.completion_months_residential", "float", 36),
 ]
 
 _CONSTRUCTION_COST_COMMON: List[CellMapping] = [
-    CellMapping("Construction Cost", "D8",  "manual_inputs.const_rate_commercial",   "float", 3800),
-    CellMapping("Construction Cost", "D12", "manual_inputs.const_rate_residential",  "float", 3800),
-    CellMapping("Construction Cost", "D15", "manual_inputs.const_rate_podium",       "float", 1700),
-    CellMapping("Construction Cost", "F21", "manual_inputs.const_rate_basement",     "float", 2000),
-    CellMapping("Construction Cost", "F27", "manual_inputs.excavation_rate_brass",   "float", 1350),
-    # F32 = Details!P75 ← formula, skip
+    CellMapping("Construction Cost", "D8",  "manual_inputs.const_rate_commercial",   "float", 3600),
+    CellMapping("Construction Cost", "D12", "manual_inputs.const_rate_residential",  "float", 3600),
+    CellMapping("Construction Cost", "D15", "manual_inputs.const_rate_podium",       "float", 2200),
 ]
 
 _MCGM_COMMON: List[CellMapping] = [
     CellMapping("MCGM PAYMENTS", "D5",  "manual_inputs.scrutiny_rate_1",  "float", 156),
-    CellMapping("MCGM PAYMENTS", "D7",  "manual_inputs.scrutiny_rate_2",  "float", 156),
-    CellMapping("MCGM PAYMENTS", "D9",  "manual_inputs.scrutiny_rate_3",  "float", 279),
-    CellMapping("MCGM PAYMENTS", "J278", "manual_inputs.pco_rate",        "float", 10),
 ]
 
 # 33(20)(B) has TDR rate cells + different row offsets in MCGM PAYMENTS
-_MCGM_2020B_EXTRA: List[CellMapping] = [
-    CellMapping("MCGM PAYMENTS", "C214", "manual_inputs.slum_tdr_rate",   "float", 0.9),
-    CellMapping("MCGM PAYMENTS", "C219", "manual_inputs.gen_tdr_rate",    "float", 0.65),
-    CellMapping("MCGM PAYMENTS", "J274", "manual_inputs.tree_noc_rate",   "float", 5),
-]
+_MCGM_2020B_EXTRA: List[CellMapping] = []
 
 # STAMP DUTY: B44 = formula (Details!N55+Details!P55), skip
 
 _SUMMARY1_COMMON: List[CellMapping] = [
-    # I27–I37 are all formulas referencing MCGM PAYMENTS and Details, skip
     CellMapping("SUMMARY 1", "D75",  "manual_inputs.toggle_section_75",   "int", 1),
-    CellMapping("SUMMARY 1", "D77",  "manual_inputs.toggle_section_77",   "int", 1),
-    CellMapping("SUMMARY 1", "D84",  "manual_inputs.toggle_section_84",   "int", 1),
-    CellMapping("SUMMARY 1", "D86",  "manual_inputs.toggle_section_86",   "int", 1),
     CellMapping("SUMMARY 1", "I87",  "manual_inputs.land_acquisition_cost",      "float", 0),
-    # I94 = formula, skip
-    # I108 = formula, skip
-    # I111 = formula, skip
-    CellMapping("SUMMARY 1", "I114", "manual_inputs.donations_misc",             "float", 0),
-    CellMapping("SUMMARY 1", "I116", "manual_inputs.special_approval_1",         "float", 2500000),
-    CellMapping("SUMMARY 1", "I117", "manual_inputs.special_approval_2",         "float", 20000000),
 ]
 
 _PNL_COMMON: List[CellMapping] = [
-    # C19 = C18/2 ← formula, skip
     CellMapping("Profit & Loss Statement", "D19", "financial.sale_rate_commercial_gf",   "float", 75000),
-    # C20 = C19 ← formula, skip
     CellMapping("Profit & Loss Statement", "D20", "financial.sale_rate_commercial_1f",   "float", 60000),
-    CellMapping("Profit & Loss Statement", "C21", "manual_inputs.commercial_2f_area",    "float", 0),
-    CellMapping("Profit & Loss Statement", "D21", "financial.sale_rate_commercial_2f",   "float", 0),
-    # C22 = formula, skip
-    CellMapping("Profit & Loss Statement", "D22", "financial.sale_rate_commercial_other","float", 0),
-    CellMapping("Profit & Loss Statement", "D28", "financial.sale_rate_residential|sale_rate_per_sqft", "float", 35000),
-    CellMapping("Profit & Loss Statement", "C30", "manual_inputs.parking_units_for_sale","int",   250),
-    CellMapping("Profit & Loss Statement", "D30", "financial.parking_price_per_unit",    "float", 1000000),
+    CellMapping("Profit & Loss Statement", "D28", "financial.sale_rate_residential|sale_rate_per_sqft", "float", 50000),
+    CellMapping("Profit & Loss Statement", "C30", "manual_inputs.parking_units_for_sale","int",   75),
+    CellMapping("Profit & Loss Statement", "D30", "financial.parking_price_per_unit",    "float", 1200000),
 ]
 
 
@@ -451,7 +395,124 @@ _PNL_INSITU: List[CellMapping] = [
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# 33(20)(B) CLUBBING — Corrected coordinates from template scan
+# 33(20)(B) — FORCED TEMPLATE mapping for
+#   "33 (20) B feasibility Clubbing  Format 10.04.2025.xlsx"
+# Coordinates verified against the template's actual yellow input cells.
+# Used whenever template_service._FORCED_TEMPLATE_NAME is set.
+# ────────────────────────────────────────────────────────────────────────────
+
+_DETAILS_FORCED: List[CellMapping] = [
+    # ── Plot & Site Data ──────────────────────────────────────────────────
+    CellMapping("Details", "P3",  "mcgm_property.area_sqm|plot_area_sqm",        "float"),
+    CellMapping("Details", "P6",  "manual_inputs.plot_area_conveyance_sqm",      "float", 0),
+    CellMapping("Details", "P13", "mcgm_property.area_sqm|plot_area_sqm",        "float"),
+    CellMapping("Details", "N16", "dp_report.reservation_area_sqm",              "float", 0),
+    CellMapping("Details", "R16", "dp_report.road_width_m|road_width_m",         "float", 18.3),
+    CellMapping("Details", "B18", "num_flats",                                   "int",   0),
+    CellMapping("Details", "N19", "manual_inputs.old_setback_sqm",               "float", 0),
+
+    # ── NOC Toggles (R24–R32) — 0=no, 1=yes ───────────────────────────────
+    CellMapping("Details", "R24", "manual_inputs.noc_highway",                   "int", 0),
+    CellMapping("Details", "R25", "manual_inputs.noc_mmrda",                     "int", 0),
+    CellMapping("Details", "R26", "manual_inputs.noc_moef",                      "int", 0),
+    CellMapping("Details", "R27", "manual_inputs.noc_railway",                   "int", 0),
+    CellMapping("Details", "R28", "manual_inputs.noc_asi",                       "int", 0),
+    CellMapping("Details", "R29", "manual_inputs.noc_mhcc",                      "int", 0),
+    CellMapping("Details", "R30", "manual_inputs.noc_civil_aviation",            "int", 0),
+    CellMapping("Details", "R31", "dp_report.crz_zone",                          "bool_toggle", 0),
+    CellMapping("Details", "R32", "manual_inputs.noc_other",                     "int", 0),
+
+    # ── NOC Rates (Q24–Q32) — only set when override provided ─────────────
+    CellMapping("Details", "Q24", "manual_inputs.noc_highway_rate",              "float", 500000),
+    CellMapping("Details", "Q25", "manual_inputs.noc_mmrda_rate",                "float", 200000),
+    CellMapping("Details", "Q26", "manual_inputs.noc_moef_rate",                 "float", 2500000),
+    CellMapping("Details", "Q27", "manual_inputs.noc_railway_rate",              "float", 500000),
+    CellMapping("Details", "Q28", "manual_inputs.noc_asi_rate",                  "float", 500000),
+    CellMapping("Details", "Q29", "manual_inputs.noc_mhcc_rate",                 "float", 100000),
+    CellMapping("Details", "Q30", "manual_inputs.noc_civil_aviation_rate",       "float", 1500000),
+    CellMapping("Details", "Q31", "manual_inputs.noc_crz_rate",                  "float", 1000000),
+    CellMapping("Details", "Q32", "manual_inputs.noc_other_rate",                "float", 1500000),
+
+    # ── BUA Multipliers ───────────────────────────────────────────────────
+    CellMapping("Details", "G33", "manual_inputs.commercial_extra_multiplier",   "float", 1.2),
+    CellMapping("Details", "G38", "manual_inputs.residential_extra_multiplier",  "float", 1.2),
+
+    # ── Plot Frontage / RR Rate ───────────────────────────────────────────
+    CellMapping("Details", "O39", "manual_inputs.plot_road_length_m",            "float", 45),
+    CellMapping("Details", "Q39", "ready_reckoner.rr_residential_sqm|premium.rr_residential_sqm", "float", 233720),
+
+    # ── Sale Component ────────────────────────────────────────────────────
+    CellMapping("Details", "J44", "manual_inputs.sale_commercial_mun_bua_sqm",   "float", 350),
+
+    # ── Existing Society Areas ────────────────────────────────────────────
+    CellMapping("Details", "O46", "existing_commercial_carpet_sqft",             "float", 660),
+    CellMapping("Details", "Q46", "existing_residential_carpet_sqft",            "float", 32440.5),
+    CellMapping("Details", "N48", "num_commercial",                              "int", 3),
+    CellMapping("Details", "P48", "num_flats",                                   "int", 51),
+
+    # ── Compensations (Rent, Corpus, Brokerage, Shifting) ─────────────────
+    CellMapping("Details", "O49", "manual_inputs.rent_commercial",               "float", 200),
+    CellMapping("Details", "Q49", "manual_inputs.rent_residential",              "float", 100),
+    CellMapping("Details", "O50", "manual_inputs.corpus_commercial",             "float", 1000),
+    CellMapping("Details", "Q50", "manual_inputs.corpus_residential",            "float", 1000),
+    CellMapping("Details", "O51", "manual_inputs.brokerage_commercial",          "float", 35000),
+    CellMapping("Details", "O52", "manual_inputs.shifting_commercial",           "float", 50000),
+    CellMapping("Details", "Q52", "manual_inputs.shifting_residential",          "float", 50000),
+
+    # ── Ready Reckoner / Deposit / Completion Period ──────────────────────
+    CellMapping("Details", "J53", "ready_reckoner.rr_residential_sqm|premium.rr_residential_sqm", "float", 128450),
+    CellMapping("Details", "O53", "manual_inputs.deposit_commercial",            "float", 0),
+    CellMapping("Details", "Q53", "manual_inputs.deposit_residential",           "float", 0),
+    CellMapping("Details", "O54", "manual_inputs.completion_months_commercial",  "float", 36),
+    CellMapping("Details", "Q54", "manual_inputs.completion_months_residential", "float", 36),
+
+    # ── Technical Ratios (N61–O65) ────────────────────────────────────────
+    CellMapping("Details", "N61", "manual_inputs.osd_ratio",                     "float", 0.4),
+    CellMapping("Details", "N62", "manual_inputs.staircase_ratio",               "float", 0.25),
+    CellMapping("Details", "O63", "manual_inputs.construction_area_multiplier",  "float", 1.5),
+    CellMapping("Details", "N64", "manual_inputs.podium_ratio",                  "float", 0.6),
+    CellMapping("Details", "O64", "manual_inputs.podium_floors",                 "int", 1),
+    CellMapping("Details", "N65", "manual_inputs.basement_ratio",                "float", 0.6),
+    CellMapping("Details", "O65", "manual_inputs.basement_count",                "int", 2),
+]
+
+_MCGM_FORCED: List[CellMapping] = [
+    # Road-width-dependent MCGM rates (above / below 24 m)
+    CellMapping("MCGM PAYMENTS", "C233", "manual_inputs.mcgm_rate_above_24m",    "float", 159),
+    CellMapping("MCGM PAYMENTS", "C235", "manual_inputs.mcgm_rate_below_24m",    "float", 80),
+]
+
+_STAMP_DUTY_FORCED: List[CellMapping] = [
+    # Car parking units handed over to society
+    CellMapping("STAMP DUTY", "B44", "manual_inputs.parking_given_to_society",   "int", 54),
+]
+
+_SUMMARY1_FORCED: List[CellMapping] = [
+    CellMapping("SUMMARY 1", "D75", "manual_inputs.toggle_section_75", "int", 1),
+    CellMapping("SUMMARY 1", "D79", "manual_inputs.toggle_section_79", "int", 1),
+    CellMapping("SUMMARY 1", "D81", "manual_inputs.toggle_section_81", "int", 1),
+    CellMapping("SUMMARY 1", "D83", "manual_inputs.toggle_section_83", "int", 1),
+    CellMapping("SUMMARY 1", "I102", "manual_inputs.cost_79a_acquisition",       "float", 0),
+    CellMapping("SUMMARY 1", "I105", "manual_inputs.donations_misc",             "float", 500000),
+    CellMapping("SUMMARY 1", "I107", "manual_inputs.special_approval_1",         "float", 1500000),
+    CellMapping("SUMMARY 1", "I108", "manual_inputs.special_approval_2",         "float", 0),
+]
+
+_PNL_FORCED: List[CellMapping] = [
+    CellMapping("Profit & Loss Statement", "D19", "financial.sale_rate_commercial_gf",   "float", 55000),
+    CellMapping("Profit & Loss Statement", "C20", "manual_inputs.commercial_1f_area",    "float", 0),
+    CellMapping("Profit & Loss Statement", "D20", "financial.sale_rate_commercial_1f",   "float", 0),
+    CellMapping("Profit & Loss Statement", "C21", "manual_inputs.commercial_2f_area",    "float", 0),
+    CellMapping("Profit & Loss Statement", "D21", "financial.sale_rate_commercial_2f",   "float", 0),
+    CellMapping("Profit & Loss Statement", "D22", "financial.sale_rate_commercial_other","float", 0),
+    CellMapping("Profit & Loss Statement", "D28", "financial.sale_rate_residential|sale_rate_per_sqft", "float", 38000),
+    CellMapping("Profit & Loss Statement", "C30", "manual_inputs.parking_units_for_sale","int",   75),
+    CellMapping("Profit & Loss Statement", "D30", "financial.parking_price_per_unit",    "float", 1000000),
+]
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Legacy 33(20)(B) CLUBBING — kept for reference only; not active while forced
 # ────────────────────────────────────────────────────────────────────────────
 
 _DETAILS_2020B_CLUBBING: List[CellMapping] = [
@@ -875,6 +936,36 @@ CELL_MAPPINGS: Dict[str, List[CellMapping]] = {
         + _MCGM_COMMON
         + _SUMMARY1_COMMON
         + _PNL_COMMON
+        # ── Overrides/additions for current 33(7)(B) template (FINAL TEMPLATE _ 33 (7)(B) .xlsx)
+        + [
+            # Details sheet specifics
+            CellMapping("Details", "B19",  "manual_inputs.tenements_approved",              "int",   0),
+            CellMapping("Details", "G34",  "manual_inputs.commercial_extra_multiplier",     "float", 1.2),
+            CellMapping("Details", "G39",  "manual_inputs.residential_extra_multiplier",    "float", 1.2),
+            CellMapping("Details", "J45",  "manual_inputs.sale_commercial_mun_bua_sqm",     "float", 0),
+            CellMapping("Details", "J54",  "ready_reckoner.rr_open_land_sqm|premium.rr_open_land_sqm", "float", 0),
+            CellMapping("Details", "N20",  "manual_inputs.protected_area_sqm",              "float", 0),
+            CellMapping("Details", "P14",  "manual_inputs.encroachment_area_sqm",           "float", 0),
+
+            # Construction Cost inputs
+            CellMapping("Construction Cost", "D8",  "manual_inputs.const_rate_commercial",   "float", 0),
+            CellMapping("Construction Cost", "D12", "manual_inputs.const_rate_residential",  "float", 0),
+            CellMapping("Construction Cost", "D15", "manual_inputs.const_rate_podium",       "float", 0),
+            CellMapping("Construction Cost", "H21", "manual_inputs.const_rate_basement",     "float", 0),
+
+            # Summary 1 adjustments
+            CellMapping("SUMMARY 1", "I27",  "manual_inputs.nalla_remarks",                 "float", 0),
+            CellMapping("SUMMARY 1", "I98",  "manual_inputs.cost_79a_acquisition",          "float", 0),
+            CellMapping("SUMMARY 1", "I103", "manual_inputs.special_approval_1",             "float", 0),
+
+            # P&L specifics
+            CellMapping("Profit & Loss Statement", "D28", "financial.sale_rate_residential|sale_rate_per_sqft", "float", 0),
+            CellMapping("Profit & Loss Statement", "C30", "manual_inputs.parking_units_for_sale",               "int",   0),
+            CellMapping("Profit & Loss Statement", "D30", "financial.parking_price_per_unit",                   "float", 0),
+
+            # MCGM Payments quick input
+            CellMapping("MCGM PAYMENTS", "B277", "manual_inputs.tree_noc_rate",             "float", 0),
+        ]
     ),
     "30(A)": (
         _DETAILS_COMMON
@@ -884,12 +975,11 @@ CELL_MAPPINGS: Dict[str, List[CellMapping]] = {
         + _PNL_COMMON
     ),
     "33(20)(B)": (
-        _DETAILS_2020B_CLUBBING
-        + _CONSTRUCTION_COST_COMMON
-        + _MCGM_COMMON
-        + _MCGM_2020B_EXTRA
-        + _SUMMARY1_2020B
-        + _PNL_COMMON
+        _DETAILS_FORCED
+        + _MCGM_FORCED
+        + _STAMP_DUTY_FORCED
+        + _SUMMARY1_FORCED
+        + _PNL_FORCED
     ),
     # ── New CLUBBING schemes ──────────────────────────────────────────
     "33(12)(B)": (

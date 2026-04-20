@@ -4,6 +4,7 @@ Seeds default admin user and roles on first run.
 """
 
 import logging
+import os
 from sqlalchemy import select, func
 from db import async_session_factory
 from core.security import hash_password
@@ -25,7 +26,7 @@ async def seed_defaults():
                 email="admin@dharaai.com",
                 name="Dhara AI Admin",
                 role=UserRole.ADMIN,
-                password_hash=hash_password("admin@123"),
+                password_hash=hash_password(os.getenv("INITIAL_ADMIN_PASSWORD", "admin@123")),
                 is_active=True,
             )
             db.add(admin)

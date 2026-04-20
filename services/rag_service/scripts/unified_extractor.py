@@ -9,7 +9,7 @@ import sys
 import time
 import hashlib
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -153,7 +153,7 @@ def extract_pdf_text(filepath: Path) -> List[ExtractedPage]:
                         method="pypdf",
                     )
                 )
-    except Exception:
+    except Exception as e:
         pass
     return pages
 
@@ -267,7 +267,7 @@ def extract_docx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 
         if text.strip():
             return [ExtractedPage(text=text.strip(), page_num=1, method="docx")], "docx"
-    except Exception:
+    except Exception as e:
         pass
     return [], "none"
 

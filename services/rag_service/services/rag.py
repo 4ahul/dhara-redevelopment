@@ -7,18 +7,24 @@ import os
 import json
 import re
 import argparse
+import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import requests
+
+logger = logging.getLogger(__name__)
 
 # LangGraph
 try:
+    from langgraph.graph import StateGraph
     from langchain_ollama import ChatOllama
+    from langchain_core.messages import HumanMessage, AIMessage
+
     LANGGRAPH_AVAILABLE = True
-except ImportError:
+except:
     LANGGRAPH_AVAILABLE = False
-    ChatOllama = None
+    from langchain_ollama import ChatOllama
 
 # Milvus imports
 try:
@@ -41,7 +47,6 @@ DEFAULT_EMBEDDING = os.environ.get("EMBEDDING_MODEL", "nomic-embed-text")
 MILVUS_HOST = os.environ.get("MILVUS_HOST", "localhost")
 MILVUS_PORT = os.environ.get("MILVUS_PORT", "19530")
 MILVUS_TOKEN = os.environ.get("MILVUS_TOKEN", "")
-MILVUS_URI = os.environ.get("MILVUS_URI", "")
 
 # Clean host for Zilliz (remove https:// if present)
 if MILVUS_HOST.startswith("https://"):
@@ -166,6 +171,7 @@ class ExcelTool:
         self.excel_available = False
         try:
             import pandas as pd
+            import openpyxl
 
             self.pd = pd
             self.excel_available = True
@@ -289,21 +295,11 @@ class MilvusVectorStore:
         self._connect()
 
     def _connect(self):
-        """Connect to Milvus/Zilliz — prefers cloud URI if configured."""
+        """Connect to Milvus/Zilliz"""
         try:
-            if MILVUS_URI and MILVUS_TOKEN:
-                # Zilliz Cloud via URI + token
-                uri = MILVUS_URI if MILVUS_URI.startswith("https://") else f"https://{MILVUS_URI}"
-                print(f"Connecting to Zilliz Cloud at {uri}...")
-                connections.connect(
-                    alias="default",
-                    uri=uri,
-                    token=MILVUS_TOKEN,
-                    timeout=15,
-                )
-            elif MILVUS_TOKEN:
-                # Cloud via host + token (legacy)
-                print(f"Connecting to Zilliz Cloud at {MILVUS_HOST}...")
+            # For Zilliz/Cloud: use token and secure=True
+            if MILVUS_TOKEN:
+                logger.info(f"Connecting to Zilliz Cloud at {MILVUS_HOST}...")
                 connections.connect(
                     alias="default",
                     host=MILVUS_HOST,
@@ -313,14 +309,14 @@ class MilvusVectorStore:
                     timeout=10,
                 )
             else:
-                # Local Milvus
+                # Local connection
                 connections.connect(
                     alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=5
                 )
-            print(f"[OK] Connected to Milvus/Zilliz")
+            logger.info(f"[OK] Connected to Milvus/Zilliz at {MILVUS_HOST}")
             self._setup_collection()
         except Exception as e:
-            print(f"[FAIL] Milvus connection failed: {e}")
+            logger.error(f"[FAIL] Milvus connection failed: {e}", exc_info=True)
             raise
 
     def _setup_collection(self):
@@ -328,7 +324,7 @@ class MilvusVectorStore:
         if utility.has_collection(self.collection_name):
             self.collection = Collection(self.collection_name)
             self.collection.load()
-            print(f"[OK] Loaded collection: {self.collection_name}")
+            logger.info(f"[OK] Loaded collection: {self.collection_name}")
         else:
             dim = int(
                 os.environ.get("EMBEDDING_DIM", "1536")
@@ -360,14 +356,14 @@ class MilvusVectorStore:
             self.collection.create_index(
                 field_name="embedding", index_params=index_params
             )
-            print(
+            logger.info(
                 f"[OK] Created collection: {self.collection_name} (HNSW, {dim}d COSINE)"
             )
 
     def add_documents(self, documents: List) -> int:
         """Add documents to Milvus with metadata support."""
         texts = [doc.page_content for doc in documents]
-        print(f"Embedding {len(texts)} docs...")
+        logger.info(f"Embedding {len(texts)} docs...")
 
         batch_size = 10
         all_texts = []
@@ -420,7 +416,7 @@ class MilvusVectorStore:
         ]
         self.collection.insert(entities)
         self.collection.flush()
-        print(f"[OK] Added {len(texts)} docs to Milvus")
+        logger.info(f"[OK] Added {len(texts)} docs to Milvus")
         return len(texts)
 
     def search(self, query: str, k: int = 10) -> List[tuple]:
@@ -461,7 +457,7 @@ class MilvusVectorStore:
                     )
             return output
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.error(f"Search error: {e}", exc_info=True)
             return []
 
 
@@ -480,7 +476,7 @@ class SimpleVectorStore:
             self.documents = data.get("documents", [])
             self.vectors = data.get("vectors", [])
             self.loaded_doc = filepath.stem
-            print(f"[OK] Loaded {len(self.documents)} docs")
+            logger.info(f"[OK] Loaded {len(self.documents)} docs")
 
     def save_to_file(self, filepath: Path):
         data = {"documents": self.documents, "vectors": self.vectors}
@@ -488,7 +484,7 @@ class SimpleVectorStore:
 
     def add_documents(self, documents: List) -> int:
         texts = [doc.page_content for doc in documents]
-        print(f"Embedding {len(texts)} docs...")
+        logger.info(f"Embedding {len(texts)} docs...")
 
         batch_size = 10
         all_vectors = []
@@ -525,7 +521,7 @@ class SimpleVectorStore:
             results.sort(reverse=True)
             return results[:k]
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.error(f"Search error: {e}", exc_info=True)
             return []
 
 
@@ -561,7 +557,7 @@ class DocumentLoader:
         """
         if strategy == "semantic":
             try:
-                from scripts.semantic_chunker import SemanticChunker
+                from ..scripts.semantic_chunker import SemanticChunker
 
                 chunker = SemanticChunker(
                     min_chunk_size=100,
@@ -573,10 +569,11 @@ class DocumentLoader:
                     Document(page_content=c[0], metadata={"type": c[1]}) for c in chunks
                 ]
             except ImportError:
-                print("Warning: SemanticChunker not found, falling back to fixed")
+                logger.warning("Warning: SemanticChunker not found, falling back to fixed")
 
         # Default to langchain's RecursiveCharacterTextSplitter
         from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_core.documents import Document
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -602,35 +599,24 @@ class RAGAgent:
     """Main RAG Agent with LangGraph and Tools"""
 
     def __init__(self, model: str = DEFAULT_MODEL, use_milvus: bool = True):
-        print("Initializing RAG Agent with Tools...")
+        logger.info("Initializing RAG Agent with Tools...")
 
         from langchain_openai import OpenAIEmbeddings
 
         self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-
-        if LANGGRAPH_AVAILABLE and ChatOllama is not None:
-            self.llm = ChatOllama(model=model)
-        else:
-            from langchain_openai import OpenAI
-
-            print("LangChain Ollama not available; using OpenAI fallback.")
-            self.llm = OpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
+        self.llm = ChatOllama(model=model)
 
         # Use Milvus if available
         if use_milvus and MILVUS_AVAILABLE:
             try:
-                collection_name = os.environ.get(
-                    "MILVUS_COLLECTION_RAG",
-                    os.environ.get("MILVUS_COLLECTION", "documents"),
-                )
-                self.vectorstore = MilvusVectorStore(self.embeddings, collection_name=collection_name)
-                print(f"Using Milvus vector store on collection '{collection_name}'")
+                self.vectorstore = MilvusVectorStore(self.embeddings)
+                logger.info("Using Milvus vector store")
             except Exception as e:
-                print(f"Milvus failed: {e}, using simple store")
+                logger.warning(f"Milvus failed: {e}, using simple store")
                 self.vectorstore = SimpleVectorStore(self.embeddings)
         else:
             self.vectorstore = SimpleVectorStore(self.embeddings)
-            print("Using simple vector store")
+            logger.info("Using simple vector store")
 
         # Initialize tools
         self.math_tool = MathCalculatorTool()
@@ -678,7 +664,7 @@ class RAGAgent:
         self.current_doc = None
         self.query_count = 0
 
-        print(f"[OK] Agent ready with {len(self.tools)} tools")
+        logger.info(f"[OK] Agent ready with {len(self.tools)} tools")
 
     def _search(self, query: str, k: int = 10) -> str:
         results = self.vectorstore.search(query, k=k)
@@ -698,16 +684,16 @@ class RAGAgent:
             self.current_doc = filepath.stem
             return len(self.vectorstore.documents)
 
-        print(f"Loading: {filepath.name}")
+        logger.info(f"Loading: {filepath.name}")
         text = DocumentLoader.load_pdf(filepath)
-        print(f"Text: {len(text):,} chars")
+        logger.info(f"Text: {len(text):,} chars")
 
         # Save text
         (DOCS_DIR / f"{filepath.stem}.txt").write_text(text)
 
         # Chunk
         docs = DocumentLoader.chunk_text(text)
-        print(f"Chunks: {len(docs)}")
+        logger.info(f"Chunks: {len(docs)}")
 
         # Index
         self.vectorstore.add_documents(docs)
@@ -894,16 +880,16 @@ def main():
     if args.cmd == "stats":
         agent = RAGAgent()
         s = agent.get_stats()
-        print("\n=== STATS ===")
-        print(f"Queries: {s['queries']}")
-        print(f"Document: {s['current_doc']}")
-        print(f"Chunks: {s['documents']}")
-        print(f"Feedback: {s['feedback']} ({s['approved']} approved)")
+        logger.info(f"\n=== STATS ===")
+        logger.info(f"Queries: {s['queries']}")
+        logger.info(f"Document: {s['current_doc']}")
+        logger.info(f"Chunks: {s['documents']}")
+        logger.info(f"Feedback: {s['feedback']} ({s['approved']} approved)")
 
     elif args.cmd == "calculate":
         agent = RAGAgent()
         result = agent.math_tool.calculate(args.expression)
-        print(f"Result: {result}")
+        logger.info(f"Result: {result}")
 
     elif args.cmd == "excel":
         agent = RAGAgent()
@@ -911,14 +897,14 @@ def main():
             result = agent.excel_tool.analyze_data(args.file)
         else:
             result = agent.excel_tool.read_excel(args.file)
-        print(result)
+        logger.info(result)
 
     elif args.cmd in ["query", "interactive"]:
         agent = RAGAgent()
 
         pdf = Path(args.pdf)
         if not pdf.exists():
-            print(f"Error: {pdf} not found")
+            logger.error(f"Error: {pdf} not found")
             return
 
         # Load doc
@@ -927,13 +913,13 @@ def main():
 
         if args.cmd == "query":
             result = agent.answer(args.question)
-            print(f"\nAnswer:\n{result['answer']}")
-            print(f"\n[Query: {result['query_count']}]")
+            logger.info(f"\nAnswer:\n{result['answer']}")
+            logger.info(f"\n[Query: {result['query_count']}]")
 
         else:
-            print("\n=== Interactive Mode ===")
-            print(f"Document: {agent.current_doc}")
-            print("Commands: quit, stats\n")
+            logger.info("\n=== Interactive Mode ===")
+            logger.info(f"Document: {agent.current_doc}")
+            logger.info("Commands: quit, stats\n")
 
             while True:
                 try:
@@ -942,11 +928,11 @@ def main():
                         break
                     if q.lower() == "stats":
                         s = agent.get_stats()
-                        print(f"Queries: {s['queries']}, Chunks: {s['documents']}")
+                        logger.info(f"Queries: {s['queries']}, Chunks: {s['documents']}")
                         continue
 
                     result = agent.answer(q)
-                    print(f"\nAnswer:\n{result['answer']}\n")
+                    logger.info(f"\nAnswer:\n{result['answer']}\n")
                 except KeyboardInterrupt:
                     break
 
