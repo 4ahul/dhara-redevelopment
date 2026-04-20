@@ -1,0 +1,3 @@
+[wsl2]
+memory=8GB  # This allocates 8GB of RAM to your WSL 2 VM. Increase this if needed.
+processors=4 # This allocates 4 CPU cores to your WSL 2 VM. Adjust based on your CPU.
