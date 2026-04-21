@@ -18,8 +18,6 @@ class SocietyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=500)
     address: str = Field(min_length=5, max_length=2000)
     cts_no: Optional[str] = Field(default=None, max_length=100)
-    # ward, village, taluka, district are now auto-resolved from address via web search
-    # Kept as optional for manual override
     ward: Optional[str] = Field(
         default=None,
         max_length=20,

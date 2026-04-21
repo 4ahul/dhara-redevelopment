@@ -17,7 +17,6 @@ from models.enums import ReportStatus
 from schemas.society import FeasibilityReportCreate, FeasibilityReportUpdate
 from repositories import society_repository
 from db import async_session_factory
-from services.address_resolver import address_resolver
 from agent import run_agent
 
 logger = logging.getLogger(__name__)
@@ -64,34 +63,17 @@ class FeasibilityService:
         )
         if not soc:
             return None
-
-        # Resolve ward and village from address if not present
-        ward = soc.ward
-        village = soc.village
-        district = soc.district
-        taluka = soc.taluka
-
-        if not ward and soc.address:
-            # Try to resolve ward/village from address via web search
-            resolved = await address_resolver.resolve_address(soc.address)
-            ward = resolved.get("ward")
-            village = resolved.get("village")
-            district = resolved.get("district")
-            taluka = resolved.get("taluka")
-            logger.info(
-                f"Resolved address {soc.address} -> ward={ward}, village={village}"
-            )
-
+        
         # Prepare input data block for the AI Agent
         input_data = {
             "society_name": soc.name,
             "address": soc.address,
             "cts_no": soc.cts_no,
-            "ward": ward or "G/S",
+            "ward": soc.ward,
             # Maharashtra land records — used by get_pr_card tool
-            "district": district,
-            "taluka": taluka,
-            "village": village,
+            "district": soc.district,
+            "taluka": soc.taluka,
+            "village": soc.village,
             "survey_no": soc.cts_no,  # CTS number = survey number on Mahabhumi
             "plot_area_sqm": soc.plot_area_sqm or 0,
             "plot_area_with_tp": soc.plot_area_with_tp or soc.plot_area_sqm or 0,

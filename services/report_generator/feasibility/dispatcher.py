@@ -47,3 +47,56 @@ def resolve_entry(entry: MappingEntry, ctx: dict):
         if v is not None:
             return v
     raise MissingData(entry.cell)
+
+
+import io
+import openpyxl
+from .mapping_loader import load_mapping, topological_sort, validate_against_workbook
+from .writer import Writer
+from .response import FeasibilityReportResponse
+
+
+def generate(
+    request: dict,
+    mapping_path: str,
+    template_path: str,
+    output_path: str | None = None,
+) -> FeasibilityReportResponse:
+    mapping = load_mapping(mapping_path)
+    wb = openpyxl.load_workbook(template_path, data_only=False)
+    validate_against_workbook(mapping, wb)
+
+    entries = topological_sort(mapping.cells)
+    ctx = {"request": request, "resolved": {}, "errors": []}
+    missing: list[str] = []
+    writer = Writer()
+
+    for entry in entries:
+        try:
+            value = resolve_entry(entry, ctx)
+        except MissingData:
+            missing.append(entry.cell)
+            value = entry.fallback
+        except Exception as e:
+            ctx["errors"].append((entry.cell, repr(e)))
+            value = entry.fallback
+        value = apply_transform(value, entry.transform)
+        ctx["resolved"][entry.semantic_name] = value
+        writer.stage(entry.cell, value)
+
+    write_report = writer.flush(wb)
+
+    if output_path:
+        wb.save(output_path)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    return FeasibilityReportResponse(
+        excel_bytes=buf.getvalue(),
+        file_path=output_path,
+        cells_written=len(write_report["written"]),
+        missing_fields=missing,
+        calculation_errors=ctx["errors"],
+        skipped_formula_cells=write_report["skipped_formula_cells"],
+    )
