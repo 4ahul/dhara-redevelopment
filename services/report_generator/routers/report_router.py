@@ -7,6 +7,9 @@ service_dir = os.path.dirname(os.path.abspath(__file__))
 if service_dir not in sys.path:
     sys.path.insert(0, service_dir)
 
+# Root of the report_generator service (one level above routers/)
+_svc_root = os.path.dirname(service_dir)
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from io import BytesIO
@@ -23,6 +26,11 @@ from services.pdf_builder import build_feasibility_pdf
 from services.template_service import template_service
 from services.excel_to_pdf import generate_report_with_pdf
 from core.config import OUTPUT_DIR, settings, resolve_scheme_key
+from feasibility.dispatcher import generate as feasibility_generate
+from feasibility import calcs as _feasibility_calcs  # noqa: F401 — registers @register decorators
+
+MAPPING_PATH = os.path.join(_svc_root, "mappings", "33_7_B.yaml")
+TEMPLATE_PATH = os.path.join(_svc_root, "templates", "FINAL TEMPLATE _ 33 (7)(B) .xlsx")
 
 router = APIRouter()
 
@@ -292,3 +300,38 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
         raise HTTPException(
             status_code=500, detail=f"Template report with PDF generation failed: {e}"
         )
+
+
+@router.post("/generate/feasibility-report")
+async def generate_feasibility_report(req: TemplateReportRequest):
+    """Fill the 33(7)(B) template with microservice + user-input data."""
+    try:
+        safe_name = req.society_name.replace(" ", "_")
+        report_id = str(uuid.uuid4())[:8].upper()
+        xlsx_filename = f"Feasibility_33_7_B_{safe_name}_{report_id}.xlsx"
+        xlsx_path = str(OUTPUT_DIR / xlsx_filename)
+
+        resp = await asyncio.to_thread(
+            feasibility_generate,
+            request=_build_all_data(req),
+            mapping_path=MAPPING_PATH,
+            template_path=TEMPLATE_PATH,
+            output_path=xlsx_path,
+        )
+
+        return StreamingResponse(
+            BytesIO(resp.excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={xlsx_filename}",
+                "X-Report-Missing-Fields": str(len(resp.missing_fields)),
+                "X-Report-Calc-Errors": str(len(resp.calculation_errors)),
+                "X-Report-Skipped-Formulas": str(len(resp.skipped_formula_cells)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Feasibility report generation failed: {e}"
+        )
+
+

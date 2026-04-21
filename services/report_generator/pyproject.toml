@@ -22,6 +22,10 @@ include = ["routers*", "services*", "core*", "schemas*", "feasibility*"]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
