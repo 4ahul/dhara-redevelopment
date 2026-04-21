@@ -51,8 +51,26 @@ _ENTRY_FIELDS = {
     "calc", "calc_args", "fallback", "transform", "description", "notes",
 }
 
+_VALUE_SOURCE_KEYS = {"from", "sources", "const", "calc"}
+_KINDS = {"yellow", "black"}
+
+
+def validate_entry_shape(raw: dict) -> None:
+    if "cell" not in raw:
+        raise MappingError("entry missing 'cell'")
+    if "kind" not in raw or raw["kind"] not in _KINDS:
+        raise MappingError(f"entry {raw.get('cell')}: kind must be one of {_KINDS}")
+    if "semantic_name" not in raw or not isinstance(raw["semantic_name"], str):
+        raise MappingError(f"entry {raw.get('cell')}: semantic_name missing")
+    present = _VALUE_SOURCE_KEYS & set(raw)
+    if len(present) != 1:
+        raise MappingError(
+            f"entry {raw['cell']}: exactly one of {_VALUE_SOURCE_KEYS} required, got {present or 'none'}"
+        )
+
 
 def _parse_entry(raw: dict) -> MappingEntry:
+    validate_entry_shape(raw)
     unknown = set(raw) - _ENTRY_FIELDS
     if unknown:
         raise MappingError(f"Unknown entry field(s): {unknown} in {raw.get('cell')}")
@@ -80,6 +98,15 @@ def load_mapping(path: str) -> MappingFile:
     if not isinstance(raw, dict):
         raise MappingError(f"Mapping file {path} is not a YAML mapping at top level")
     cells = [_parse_entry(c) for c in raw.get("cells", [])]
+    seen_cells: set[str] = set()
+    seen_names: set[str] = set()
+    for c in cells:
+        if c.cell in seen_cells:
+            raise MappingError(f"Duplicate cell: {c.cell}")
+        if c.semantic_name in seen_names:
+            raise MappingError(f"Duplicate semantic_name: {c.semantic_name}")
+        seen_cells.add(c.cell)
+        seen_names.add(c.semantic_name)
     return MappingFile(
         template=raw["template"],
         scheme=raw["scheme"],
