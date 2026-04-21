@@ -7,7 +7,10 @@ signals per cell.
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import date
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 import openpyxl
 from openpyxl.workbook import Workbook
@@ -167,3 +170,56 @@ def suggest_mapping(kind: str, signals: Dict[str, Any]) -> Dict[str, Any]:
         "suggested_source": suggested,
         "review_required": review,
     }
+
+
+def build_dossier(template_path: str, scheme: str, out_path: str | None = None) -> Dict[str, Any]:
+    wb = openpyxl.load_workbook(template_path, data_only=False)
+    cells_raw = enumerate_fillable_cells(wb)
+    cells_out: List[Dict[str, Any]] = []
+    for rec in cells_raw:
+        ws = wb[rec["sheet"]]
+        cell = ws[rec["coord"]]
+        signals = extract_signals(ws, cell)
+        suggestion = suggest_mapping(kind=rec["kind"], signals=signals)
+        is_formula = isinstance(rec["current_value"], str) and rec["current_value"].startswith("=")
+        cells_out.append(
+            {
+                "cell": f"{rec['sheet']}!{rec['coord']}",
+                "kind": rec["kind"],
+                "fill_rgb": rec["fill_rgb"],
+                "current_value": rec["current_value"],
+                "is_formula": is_formula,
+                "signals": signals,
+                "review": suggestion,
+            }
+        )
+
+    dossier = {
+        "template": Path(template_path).as_posix(),
+        "scheme": scheme,
+        "generated_at": date.today().isoformat(),
+        "cells": cells_out,
+    }
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(out_path).write_text(json.dumps(dossier, indent=2, default=str))
+    return dossier
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    p = argparse.ArgumentParser(description="Build dossier for a feasibility template.")
+    p.add_argument("--template", required=True)
+    p.add_argument("--scheme", required=True)
+    p.add_argument("--out", required=True)
+    args = p.parse_args(argv)
+
+    d = build_dossier(args.template, args.scheme, args.out)
+    print(f"Wrote {args.out} with {len(d['cells'])} cells.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

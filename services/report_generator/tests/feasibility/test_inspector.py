@@ -105,3 +105,30 @@ def test_review_required_when_no_signals():
     signals = {"placeholder_text": None, "row_label": None, "section_header": None, "column_header": None, "merged_master": None, "neighbor_3x3": [[None]*3]*3}
     s = suggest_mapping(kind="yellow", signals=signals)
     assert s["review_required"] is True
+
+
+def test_build_dossier_end_to_end(tmp_path):
+    from feasibility.inspector import build_dossier
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Details"
+    yellow = PatternFill("solid", fgColor="FFFFFF00")
+    black = PatternFill("solid", fgColor="FF000000")
+    ws["A3"].value = "Highway NOC"
+    ws["D3"].value = "DP remark report if yes mark 1 otherwise 0"
+    ws["D3"].fill = black
+    ws["B1"].value = "User input"
+    ws["B1"].fill = yellow
+    path = tmp_path / "t.xlsx"
+    wb.save(path)
+
+    out_path = tmp_path / "d.json"
+    dossier = build_dossier(str(path), scheme="33(7)(B)", out_path=str(out_path))
+    assert dossier["scheme"] == "33(7)(B)"
+    assert len(dossier["cells"]) == 2
+    assert out_path.exists()
+
+    import json
+    loaded = json.loads(out_path.read_text())
+    assert loaded["template"].endswith("t.xlsx")
