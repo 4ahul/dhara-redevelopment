@@ -25,3 +25,25 @@ def apply_transform(value: Any, kind: Optional[str]) -> Any:
     if kind == "percent":
         return float(value) / 100.0
     return value
+
+
+from .exceptions import MissingData
+from .value_resolver import lookup
+from .calc_registry import get as calc_get
+from .mapping_loader import MappingEntry
+
+
+def resolve_entry(entry: MappingEntry, ctx: dict):
+    if entry.const is not None:
+        return entry.const
+
+    if entry.calc:
+        fn = calc_get(entry.calc)
+        return fn(ctx, **(entry.calc_args or {}))
+
+    paths = entry.sources or ([entry.from_] if entry.from_ else [])
+    for p in paths:
+        v = lookup(ctx["request"], p)
+        if v is not None:
+            return v
+    raise MissingData(entry.cell)
