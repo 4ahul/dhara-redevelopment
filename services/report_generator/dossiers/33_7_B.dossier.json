@@ -1,0 +1,2275 @@
+{
+  "template": "templates/FINAL TEMPLATE _ 33 (7)(B) .xlsx",
+  "scheme": "33(7)(B)",
+  "generated_at": "2026-04-21",
+  "cells": [
+    {
+      "cell": "Details!A1",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+        "row_label": null,
+        "column_header": null,
+        "section_header": null,
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "cell",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!M1",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Cts No. /FP No.:- 63",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Cts No. /FP No.:- 63",
+        "row_label": "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+        "column_header": null,
+        "section_header": null,
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "Cts No. /FP No.:- 63",
+            null
+          ],
+          [
+            null,
+            "Village :-",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "maheshwar_mansion_chs_ltd_33_7_b_f_p_no_63_of_tps_vi_vileparle",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!M2",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Village :-",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Village :-",
+        "row_label": null,
+        "column_header": null,
+        "section_header": "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Cts No. /FP No.:- 63",
+            null
+          ],
+          [
+            null,
+            "Village :-",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "maheshwar_mansion_chs_ltd_33_7_b_f_p_no_63_of_tps_vi_vileparle",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!P4",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Get from TP Remark/PR card  ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Get from TP Remark/PR card",
+        "row_label": "=IF((R17>=27),(P10),(0))",
+        "column_header": null,
+        "section_header": "MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "Get from TP Remark/PR card",
+            "==IF(P4>4000, (P4-P7)*5%, 0)"
+          ],
+          [
+            null,
+            "=P4-N17-N20-P7",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "if_r17_27_p10_0",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!P7",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "Set back of road area get from DP Map 2034 ka 3rd sheet ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Set back of road area get from DP Map 2034 ka 3rd sheet",
+        "row_label": "=IF(AND(9<=R17, R17<12),(P10),(0))",
+        "column_header": "Get from TP Remark/PR card",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Setback Area",
+            null
+          ],
+          [
+            null,
+            "Set back of road area get from DP Map 2034 ka 3rd sheet",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "if_and_9_r17_r17_12_p10_0",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!P14",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "total built up proposed area ( user input), for all CTS ( Or we can OCR From Old plans)",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "total built up proposed area ( user input), for all CTS ( Or we can OCR From Old plans)",
+        "row_label": "=IF(AND(18<=R17, R17<27),(N5*0.9),(0))",
+        "column_header": "Set back of road area get from DP Map 2034 ka 3rd sheet",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Plot Area for PD",
+            null
+          ],
+          [
+            null,
+            "total built up proposed area ( user input), for all CTS ( Or we can OCR From Old plans)",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "if_and_18_r17_r17_27_n5_0_9_0",
+        "suggested_source": "from: manual_inputs.if_and_18_r17_r17_27_n5_0_9_0",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!N17",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "this should total area of reserved area. DP map ( Excluding road calculated other reservations ( nalla ( blue (Exclude CRZ)), hatch areas, normal area) ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "this should total area of reserved area. DP map ( Excluding road calculated other reservations ( nalla ( blue (Exclude CRZ)), hatch areas, normal area)",
+        "row_label": "Reservation TDR",
+        "column_header": null,
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Setback Area",
+            "=P7",
+            null
+          ],
+          [
+            "Reservation TDR",
+            "this should total area of reserved area. DP map ( Excluding road calculated other reservations ( nalla ( blue (Exclude CRZ)), hatch areas, normal area)",
+            null
+          ],
+          [
+            "no of Commercial",
+            "=N49",
+            "=N18/10.764"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "reservation_tdr",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!R17",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "Max Road width with max in mtr ( TP/DP map)",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Max Road width with max in mtr ( TP/DP map)",
+        "row_label": "Road",
+        "column_header": null,
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            "Road",
+            "Max Road width with max in mtr ( TP/DP map)",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "road",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!B19",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "If society age is more than 30 years, then this will be equal to residential tenaments or 15% of existing built up area . keep which ever is higher here ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "If society age is more than 30 years, then this will be equal to residential tenaments or 15% of existing built up area . keep which ever is higher here",
+        "row_label": null,
+        "column_header": "Plot Area as per PR CARD",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "15% or 10 SQ.M. on existing bua / no of tenants whichever is more 33(7)B",
+            null
+          ],
+          [
+            null,
+            "If society age is more than 30 years, then this will be equal to residential tenaments or 15% of existing built up area . keep which ever is higher here",
+            "X"
+          ],
+          [
+            null,
+            "Protected Area",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "plot_area_as_per_pr_card",
+        "suggested_source": "calc: bank_guarantee_15pct(based_on=<fill_in>)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!N20",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "From proforma of OC ( Take input/conduct ocr)",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "From proforma of OC ( Take input/conduct ocr)",
+        "row_label": "Old Set Back Area",
+        "column_header": "=P49",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "no of tenants",
+            "=P49",
+            null
+          ],
+          [
+            "Old Set Back Area",
+            "From proforma of OC ( Take input/conduct ocr)",
+            null
+          ],
+          [
+            "CA residnetial tenents",
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "old_set_back_area",
+        "suggested_source": "from: mcgm_property.old_set_back_area",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R25",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "Highway NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "highway_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=highway_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R26",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "MMRDA NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "mmrda_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=mmrda_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R27",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "MOEF NOC/ MPCB NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "moef_noc_mpcb_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=moef_noc_mpcb_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R28",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "Railway NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "railway_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=railway_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R29",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "ASI NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "asi_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=asi_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R30",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "MHCC/MA NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "mhcc_ma_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=mhcc_ma_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R31",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "Civil Aviation NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "civil_aviation_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=civil_aviation_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R32",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "CRZ NOC",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "DETAILS",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "crz_noc",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=crz_noc)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!R33",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report if yes mark 1",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report if yes mark 1",
+        "row_label": "Other NOCs, if any",
+        "column_header": "Max Road width with max in mtr ( TP/DP map)",
+        "section_header": "Calculation for existing member",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            "DP remark report if yes mark 1",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "other_nocs_if_any",
+        "suggested_source": "calc: noc_flag_from_dp(noc_type=other_nocs_if_any)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!O40",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "Total length of road touching the property ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Total length of road touching the property",
+        "row_label": "Plot length abutting road",
+        "column_header": null,
+        "section_header": "Calculation for existing member",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "Total length of road touching the property",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "plot_length_abutting_road",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!J45",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "User input",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "User input",
+        "row_label": "Sale Commercial MUN BUA",
+        "column_header": "=(B40*C40*E40)",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "=J29-J36-J41-J26",
+            "=J44*10.7642"
+          ],
+          [
+            null,
+            "User input",
+            "=J45*10.7642"
+          ],
+          [
+            null,
+            "=J45*1.35",
+            "=J46*10.7642"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "sale_commercial_mun_bua",
+        "suggested_source": "from: manual_inputs.sale_commercial_mun_bua",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!O47",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "Input or Read Old plan",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Input or Read Old plan",
+        "row_label": "=O47/10.764",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Sq. Mtr.",
+            "Sq. Ft.",
+            "Sq. Mtr."
+          ],
+          [
+            "=O47/10.764",
+            "Input or Read Old plan",
+            "=Q47/10.764"
+          ],
+          [
+            "=O48/10.764",
+            "=O47*1.1",
+            "=Q48/10.764"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "o47_10_764",
+        "suggested_source": "from: mcgm_property.o47_10_764",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!Q47",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "Input or Read Old plan",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Input or Read Old plan",
+        "row_label": "=Q47/10.764",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Sq. Mtr.",
+            "Sq. Ft.",
+            null
+          ],
+          [
+            "=Q47/10.764",
+            "Input or Read Old plan",
+            null
+          ],
+          [
+            "=Q48/10.764",
+            "=Q47*1.06",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "q47_10_764",
+        "suggested_source": "from: mcgm_property.q47_10_764",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!N49",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "No. of shop( user input/ocr old plan ) only commerical ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "No. of shop( user input/ocr old plan ) only commerical",
+        "row_label": "No. of existing tenements",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Existing BUA",
+            "=O48/10.764",
+            "=O47*1.1"
+          ],
+          [
+            "No. of existing tenements",
+            "No. of shop( user input/ocr old plan ) only commerical",
+            null
+          ],
+          [
+            "Rent",
+            "\u20b9",
+            "Fetch from Housing/jll etc"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "no_of_existing_tenements",
+        "suggested_source": "from: manual_inputs.no_of_existing_tenements",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!P49",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "No. of flats ( user input/ocr old plan ) only residential ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "No. of flats ( user input/ocr old plan ) only residential",
+        "row_label": "No. of shop( user input/ocr old plan ) only commerical",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "=O47*1.1",
+            "=Q48/10.764",
+            "=Q47*1.06"
+          ],
+          [
+            null,
+            "No. of flats ( user input/ocr old plan ) only residential",
+            null
+          ],
+          [
+            "Fetch from Housing/jll etc",
+            "\u20b9",
+            "Fetch from Housing/jll etc"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "no_of_shop_user_input_ocr_old_plan_only_commerical",
+        "suggested_source": "from: manual_inputs.no_of_shop_user_input_ocr_old_plan_only_commerical",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!N50",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "\u20b9",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "\u20b9",
+        "row_label": "Rent",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "No. of existing tenements",
+            "No. of shop( user input/ocr old plan ) only commerical",
+            null
+          ],
+          [
+            "Rent",
+            "\u20b9",
+            "Fetch from Housing/jll etc"
+          ],
+          [
+            "Corpus Fund",
+            null,
+            "User input"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "rent",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O50",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Fetch from Housing/jll etc",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Fetch from Housing/jll etc",
+        "row_label": "\u20b9",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "No. of shop( user input/ocr old plan ) only commerical",
+            null,
+            "No. of flats ( user input/ocr old plan ) only residential"
+          ],
+          [
+            "\u20b9",
+            "Fetch from Housing/jll etc",
+            "\u20b9"
+          ],
+          [
+            null,
+            "User input",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "unknown",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!P50",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "\u20b9",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "\u20b9",
+        "row_label": "Fetch from Housing/jll etc",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "No. of flats ( user input/ocr old plan ) only residential",
+            null
+          ],
+          [
+            "Fetch from Housing/jll etc",
+            "\u20b9",
+            "Fetch from Housing/jll etc"
+          ],
+          [
+            "User input",
+            null,
+            "User input"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "fetch_from_housing_jll_etc",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!Q50",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Fetch from Housing/jll etc",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Fetch from Housing/jll etc",
+        "row_label": "\u20b9",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "No. of flats ( user input/ocr old plan ) only residential",
+            null,
+            null
+          ],
+          [
+            "\u20b9",
+            "Fetch from Housing/jll etc",
+            null
+          ],
+          [
+            null,
+            "User input",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "unknown",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O51",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "User input ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "User input",
+        "row_label": "Corpus Fund",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "\u20b9",
+            "Fetch from Housing/jll etc",
+            "\u20b9"
+          ],
+          [
+            null,
+            "User input",
+            null
+          ],
+          [
+            null,
+            "=O47",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "corpus_fund",
+        "suggested_source": "from: manual_inputs.corpus_fund",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!Q51",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "User input ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "User input",
+        "row_label": "User input",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "\u20b9",
+            "Fetch from Housing/jll etc",
+            null
+          ],
+          [
+            null,
+            "User input",
+            null
+          ],
+          [
+            null,
+            "=Q47",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "user_input",
+        "suggested_source": "from: manual_inputs.user_input",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!J54",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "from ready reckoner (land) ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "from ready reckoner (land)",
+        "row_label": "Ready Recknor Rate",
+        "column_header": "=J48*1.35",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "=J51-J52",
+            "=J53*10.7642"
+          ],
+          [
+            null,
+            "from ready reckoner (land)",
+            "Rs."
+          ],
+          [
+            null,
+            null,
+            "Rs."
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "ready_recknor_rate",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O54",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Calculate 15% annually of user input ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Calculate 15% annually of user input",
+        "row_label": "Bank Gurantee",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "=O50",
+            null
+          ],
+          [
+            null,
+            "Calculate 15% annually of user input",
+            null
+          ],
+          [
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "bank_gurantee",
+        "suggested_source": "calc: bank_guarantee_15pct(based_on=<fill_in>)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!Q54",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Calculate 15% annually of user input ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Calculate 15% annually of user input",
+        "row_label": "Calculate 15% annually of user input",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "=Q50",
+            null
+          ],
+          [
+            null,
+            "Calculate 15% annually of user input",
+            null
+          ],
+          [
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "calculate_15_annually_of_user_input",
+        "suggested_source": "calc: bank_guarantee_15pct(based_on=<fill_in>)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!N55",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "Period of Completion (months)",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Bank Gurantee",
+            null,
+            "Calculate 15% annually of user input"
+          ],
+          [
+            "Period of Completion (months)",
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors"
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "period_of_completion_months",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O55",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+        "row_label": "Period of Completion (months)",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Calculate 15% annually of user input",
+            null
+          ],
+          [
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "period_of_completion_months",
+        "suggested_source": "calc: floors_from_max_height(based_on=max_height_m)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!P55",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+        "column_header": "Sq. Mtr.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Calculate 15% annually of user input",
+            null,
+            "Calculate 15% annually of user input"
+          ],
+          [
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors"
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "note_per_floor_is_3mtr_min_calcuate_no_of_floors_as_per_permissible_height_using_per_floor_min_height_18_months_upto_9_floor_building_36_months_for_9_20_floors_48_months_for_above_20_floors",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!Q55",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+        "row_label": "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+        "column_header": "Sq. Ft.",
+        "section_header": "Calculation for area",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Calculate 15% annually of user input",
+            null
+          ],
+          [
+            null,
+            "Note:\n- Per floor is 3mtr min\n- Calcuate no of floors as per Permissible Height using per floor min height \n18 months upto 9 floor building\n36 months for 9-20 floors\n48 months for above 20 floors",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "note_per_floor_is_3mtr_min_calcuate_no_of_floors_as_per_permissible_height_using_per_floor_min_height_18_months_upto_9_floor_building_36_months_for_9_20_floors_48_months_for_above_20_floors",
+        "suggested_source": "calc: floors_from_max_height(based_on=max_height_m)",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Details!O58",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "DP remark report, if purple color & I written mark it as yes ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "DP remark report, if purple color & I written mark it as yes",
+        "row_label": "I3 to R/C",
+        "column_header": "Sq. Ft.",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "DP remark report, if purple color & I written mark it as yes",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "i3_to_r_c",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!N62",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "If built up area Upto 500sqm : 50%\nupto 1000sqm : 45%\n2000sqm : 40%\n3000sqm: 35%\nAbove 3000sqm: 30%",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "If built up area Upto 500sqm : 50%\nupto 1000sqm : 45%\n2000sqm : 40%\n3000sqm: 35%\nAbove 3000sqm: 30%",
+        "row_label": "OPEN SPACE DEFICIENCY",
+        "column_header": "Sq. Mtr.",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            "OPEN SPACE DEFICIENCY",
+            "If built up area Upto 500sqm : 50%\nupto 1000sqm : 45%\n2000sqm : 40%\n3000sqm: 35%\nAbove 3000sqm: 30%",
+            null
+          ],
+          [
+            "STAIRCASE",
+            "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "open_space_deficiency",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!N63",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+        "row_label": "STAIRCASE",
+        "column_header": "If built up area Upto 500sqm : 50%\nupto 1000sqm : 45%\n2000sqm : 40%\n3000sqm: 35%\nAbove 3000sqm: 30%",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "OPEN SPACE DEFICIENCY",
+            "If built up area Upto 500sqm : 50%\nupto 1000sqm : 45%\n2000sqm : 40%\n3000sqm: 35%\nAbove 3000sqm: 30%",
+            null
+          ],
+          [
+            "STAIRCASE",
+            "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+            null
+          ],
+          [
+            "CONSTRUCTION AREA",
+            null,
+            "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "staircase",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O64",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7",
+        "row_label": "CONSTRUCTION AREA",
+        "column_header": "Sq. Ft.",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+            null,
+            null
+          ],
+          [
+            null,
+            "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7",
+            "TIMES"
+          ],
+          [
+            "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+            "PODIUM FLOORS"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "construction_area",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!N65",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+        "row_label": "PODIUM CONST AREA",
+        "column_header": "Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18%\nupto 70mtr ( 20 floors ) = 25%\nupto anything above that = 30%",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "CONSTRUCTION AREA",
+            null,
+            "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7"
+          ],
+          [
+            "PODIUM CONST AREA",
+            "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2"
+          ],
+          [
+            "BASEMENT CONST AREA",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "podium_const_area",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O65",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+        "row_label": "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+        "column_header": "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            "Permissible hieght upto 32mtr ( 9floors ) = 1.40\nupto 70mtr ( 20 floors ) = 1.5\nupto anything above that = 1.7",
+            "TIMES"
+          ],
+          [
+            "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+            "PODIUM FLOORS"
+          ],
+          [
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "1000mtr_plot_area_no_podium_2500mtr_plot_are_60_5000_40_more_than_5000_20",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!N66",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%\n",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+        "row_label": "BASEMENT CONST AREA",
+        "column_header": "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "PODIUM CONST AREA",
+            "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2"
+          ],
+          [
+            "BASEMENT CONST AREA",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1"
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "basement_const_area",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Details!O66",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1\n",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1",
+        "row_label": "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+        "column_header": "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+        "section_header": "As per last approved plans",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "1000mtr plot area= no podium \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "1000mtr plot area= 0\n2500mtr plot are = Permissible height if more than 57.13 then take 2 \n5000 =  Permissible height if more than 57.13 then take2\nMore than 5000 = Permissible height if more than 57.13 then take 2",
+            "PODIUM FLOORS"
+          ],
+          [
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 70% \n2500mtr plot are = 60%\n5000 = 40%\nMore than 5000 = 20%",
+            "Take user input first : Yes/No\nBASED on Yes follow condition\nUpto 1000 mtr plot area = 3 \n2500mtr plot are = 2\nMore than 2500 = 1",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "take_user_input_first_yes_no_based_on_yes_follow_condition_upto_1000_mtr_plot_area_70_2500mtr_plot_are_60_5000_40_more_than_5000_20",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Construction Cost!D8",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "='MCGM PAYMENTS'!C239",
+        "column_header": null,
+        "section_header": "=Details!A1",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "add staircase, lift ,Chajja,ser.slab etc.area",
+            null,
+            null
+          ],
+          [
+            "='MCGM PAYMENTS'!C239",
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "mcgm_payments_c239",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Construction Cost!D12",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "x",
+        "column_header": null,
+        "section_header": "=Details!A1",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            "x",
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "x",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Construction Cost!D15",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "x",
+        "column_header": null,
+        "section_header": "=Details!A1",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "0.6 of Plot Area x No. of Podiums",
+            null,
+            null
+          ],
+          [
+            "x",
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "x",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Construction Cost!H21",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": null,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "x",
+        "column_header": null,
+        "section_header": "=Details!A1",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            "="
+          ],
+          [
+            "x",
+            null,
+            "="
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "x",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "MCGM PAYMENTS!B327",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "If nalla touching & coming inside the lot then check dp map see blue area then 55000",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "If nalla touching & coming inside the lot then check dp map see blue area then 55000",
+        "row_label": null,
+        "column_header": "Nalla Remarks",
+        "section_header": "=Details!A1",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "If nalla touching & coming inside the lot then check dp map see blue area then 55000",
+            null
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "nalla_remarks",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "SUMMARY 1!I98",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "User input",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "User input",
+        "row_label": "79A Cost/Acquisition",
+        "column_header": "=I95",
+        "section_header": "Miscellanous Cost",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            "User input",
+            "=I98/10000000"
+          ],
+          [
+            null,
+            "=Details!J31*2000",
+            "=I99/10000000"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "79a_cost_acquisition",
+        "suggested_source": "from: manual_inputs.79a_cost_acquisition",
+        "review_required": false
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!C19",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "Ground Floor",
+        "column_header": "AREA IN SQ.FT",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "RERA  Carpet Area",
+            "=C17*3.8%+C17",
+            null
+          ],
+          [
+            "Ground Floor",
+            null,
+            null
+          ],
+          [
+            "1st Floor",
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "ground_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D19",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "Ground Floor",
+        "column_header": "RATE",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "=C17*3.8%+C17",
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            "=(C19*D19)/10000000"
+          ],
+          [
+            null,
+            null,
+            "=(C20*D20)/10000000"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "ground_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!C20",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "1st Floor",
+        "column_header": "AREA IN SQ.FT",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "Ground Floor",
+            null,
+            null
+          ],
+          [
+            "1st Floor",
+            null,
+            null
+          ],
+          [
+            "2nd Floor",
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "1st_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D20",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "1st Floor",
+        "column_header": "RATE",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            "=(C19*D19)/10000000"
+          ],
+          [
+            null,
+            null,
+            "=(C20*D20)/10000000"
+          ],
+          [
+            null,
+            null,
+            "=(C21*D21)/10000000"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "1st_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!C21",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "2nd Floor",
+        "column_header": "AREA IN SQ.FT",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "1st Floor",
+            null,
+            null
+          ],
+          [
+            "2nd Floor",
+            null,
+            null
+          ],
+          [
+            "Other Floors",
+            "=C18-C19-C20-C21",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "2nd_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D21",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "2nd Floor",
+        "column_header": "RATE",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            "=(C20*D20)/10000000"
+          ],
+          [
+            null,
+            null,
+            "=(C21*D21)/10000000"
+          ],
+          [
+            "=C18-C19-C20-C21",
+            null,
+            "=(C22*D22)/10000000"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "2nd_floor",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!C22",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": "=C18-C19-C20-C21",
+      "is_formula": true,
+      "signals": {
+        "placeholder_text": "=C18-C19-C20-C21",
+        "row_label": "Other Floors",
+        "column_header": "AREA IN SQ.FT",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "2nd Floor",
+            null,
+            null
+          ],
+          [
+            "Other Floors",
+            "=C18-C19-C20-C21",
+            null
+          ],
+          [
+            null,
+            "=C18",
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "other_floors",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D22",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 0.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "=C18-C19-C20-C21",
+        "column_header": "RATE",
+        "section_header": "A",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            "=(C21*D21)/10000000"
+          ],
+          [
+            "=C18-C19-C20-C21",
+            null,
+            "=(C22*D22)/10000000"
+          ],
+          [
+            "=C18",
+            null,
+            "=E19+E20+E21+E22"
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "c18_c19_c20_c21",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D28",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 50000.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "=C27",
+        "column_header": "RATE",
+        "section_header": "B",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "=C26*3.5%+C26",
+            null,
+            null
+          ],
+          [
+            "=C27",
+            null,
+            "=C28*D28/10000000"
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "c27",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!C30",
+      "kind": "black",
+      "fill_rgb": "FF000000",
+      "current_value": "Calcuate Car parking no /2 ",
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": "Calcuate Car parking no /2",
+        "row_label": "Cars to sell",
+        "column_header": "=C27",
+        "section_header": "C",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            "PARKING SALE",
+            null,
+            null
+          ],
+          [
+            "Cars to sell",
+            "Calcuate Car parking no /2",
+            null
+          ],
+          [
+            "TOTAL PROJECT REVENUE",
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "cars_to_sell",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    },
+    {
+      "cell": "Profit & Loss Statement!D30",
+      "kind": "yellow",
+      "fill_rgb": "FFFFFF00",
+      "current_value": 1200000.0,
+      "is_formula": false,
+      "signals": {
+        "placeholder_text": null,
+        "row_label": "Calcuate Car parking no /2",
+        "column_header": "RATE",
+        "section_header": "C",
+        "merged_master": null,
+        "neighbor_3x3": [
+          [
+            null,
+            null,
+            null
+          ],
+          [
+            "Calcuate Car parking no /2",
+            null,
+            "=C30*D30/10000000"
+          ],
+          [
+            null,
+            null,
+            null
+          ]
+        ]
+      },
+      "review": {
+        "suggested_semantic_name": "calcuate_car_parking_no_2",
+        "suggested_source": "TODO: human review",
+        "review_required": true
+      }
+    }
+  ]
+}
