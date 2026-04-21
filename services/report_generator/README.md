@@ -198,3 +198,26 @@ report_generator/
 ├── templates/              # Excel templates
 └── output/                # Generated reports
 ```
+
+## Feasibility Report Pipeline (33(7)(B))
+
+New data-driven pipeline under `feasibility/`. Flow:
+
+1. **Inspector** — one-shot dossier for each template:
+   `python -m feasibility.inspector --template templates/<file>.xlsx --scheme "33(7)(B)" --out dossiers/33_7_B.dossier.json`
+2. **Mapping file** — hand-reviewed `mappings/33_7_B.yaml`. Each cell maps to
+   either a `from:` data path or a `calc:` named function.
+3. **Dispatcher** — `feasibility.dispatcher.generate(request, mapping_path, template_path)` returns `FeasibilityReportResponse`.
+
+**Endpoints:**
+- `POST /generate/feasibility-report` — fills the 33(7)(B) template.
+- `GET  /feasibility/dossier?scheme=33(7)(B)` — returns the dossier JSON (dev/debug).
+
+**Adding a new calc:**
+1. Create a function in the appropriate `feasibility/calcs/*.py`.
+2. Decorate with `@register("name")`.
+3. Reference it from `mappings/33_7_B.yaml` as `calc: name`.
+4. Add a unit test under `tests/feasibility/test_calcs/`.
+
+**Design spec:** `docs/superpowers/specs/2026-04-21-end-feasibility-report-design.md`
+**Plan:** `docs/superpowers/plans/2026-04-21-end-feasibility-report.md`
