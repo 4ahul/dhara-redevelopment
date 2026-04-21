@@ -1,0 +1,1 @@
+"""NOC flag calcs."""
