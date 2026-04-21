@@ -1,0 +1,547 @@
+# Mapping file for FINAL TEMPLATE _ 33 (7)(B) .xlsx
+# Generated first-pass from dossiers/33_7_B.dossier.json.
+# Cells marked REVIEW have coord-based placeholder semantic_names.
+# Review flow: for each REVIEW cell, open the template in Excel and decide:
+#   (1) the real semantic_name (e.g. setback_road_area_sqm)
+#   (2) the correct source: from: <microservice.path> OR calc: <fn_name>
+#   (3) a sensible fallback value
+
+template: "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
+scheme: "33(7)(B)"
+version: 1
+generated_from_dossier: dossiers/33_7_B.dossier.json
+last_reviewed_by: <pending>
+last_reviewed_at: 2026-04-21
+cells:
+
+  # REVIEW: ph='MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle'
+  - cell: Details!A1
+    kind: black
+    semantic_name: details_a1
+    from: manual_inputs.details_a1
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Cts No. /FP No.:- 63'
+  #   row='MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of ' section=''
+  - cell: Details!M1
+    kind: black
+    semantic_name: details_m1
+    from: manual_inputs.details_m1
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='Village :-'
+  #   row='' section='MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of '
+  - cell: Details!M2
+    kind: black
+    semantic_name: details_m2
+    from: manual_inputs.details_m2
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Get from TP Remark/PR card'
+  #   row='=IF((R17>=27),(P10),(0))' section='MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of '
+  - cell: Details!P4
+    kind: black
+    semantic_name: details_p4
+    from: manual_inputs.details_p4
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Set back of road area get from DP Map 2034 ka 3rd sheet'
+  #   row='=IF(AND(9<=R17, R17<12),(P10),(0))' section='DETAILS'
+  - cell: Details!P7
+    kind: yellow
+    semantic_name: details_p7
+    from: manual_inputs.details_p7
+    fallback: 0
+    transform: float
+
+  - cell: Details!P14
+    kind: yellow
+    semantic_name: details_p14
+    from: manual_inputs.if_and_18_r17_r17_27_n5_0_9_0
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='this should total area of reserved area. DP map ( Excluding road calculated othe'
+  #   row='Reservation TDR' section='DETAILS'
+  - cell: Details!N17
+    kind: yellow
+    semantic_name: details_n17
+    from: manual_inputs.details_n17
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Max Road width with max in mtr ( TP/DP map)'
+  #   row='Road' section='DETAILS'
+  - cell: Details!R17
+    kind: yellow
+    semantic_name: details_r17
+    from: manual_inputs.details_r17
+    fallback: 0
+    transform: float
+
+  - cell: Details!B19
+    kind: black
+    semantic_name: plot_area_as_per_pr_card
+    calc: bank_guarantee_15pct
+    calc_args: { based_on: <fill_in> }
+    fallback: 0
+    transform: float
+
+  - cell: Details!N20
+    kind: yellow
+    semantic_name: old_set_back_area
+    from: mcgm_property.old_set_back_area
+    fallback: 0
+    transform: float
+
+  - cell: Details!R25
+    kind: black
+    semantic_name: highway_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: highway_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R26
+    kind: black
+    semantic_name: mmrda_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: mmrda_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R27
+    kind: black
+    semantic_name: moef_noc_mpcb_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: moef_noc_mpcb_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R28
+    kind: black
+    semantic_name: railway_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: railway_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R29
+    kind: black
+    semantic_name: asi_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: asi_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R30
+    kind: black
+    semantic_name: mhcc_ma_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: mhcc_ma_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R31
+    kind: black
+    semantic_name: civil_aviation_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: civil_aviation_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R32
+    kind: black
+    semantic_name: crz_noc
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: crz_noc }
+    fallback: 0
+    transform: int
+
+  - cell: Details!R33
+    kind: black
+    semantic_name: other_nocs_if_any
+    calc: noc_flag_from_dp
+    calc_args: { noc_type: other_nocs_if_any }
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='Total length of road touching the property'
+  #   row='Plot length abutting road' section='Calculation for existing member'
+  - cell: Details!O40
+    kind: yellow
+    semantic_name: details_o40
+    from: manual_inputs.details_o40
+    fallback: 0
+    transform: float
+
+  - cell: Details!J45
+    kind: yellow
+    semantic_name: sale_commercial_mun_bua
+    from: manual_inputs.sale_commercial_mun_bua
+    fallback: 0
+    transform: float
+
+  - cell: Details!O47
+    kind: yellow
+    semantic_name: o47_10_764
+    from: mcgm_property.o47_10_764
+    fallback: 0
+    transform: float
+
+  - cell: Details!Q47
+    kind: yellow
+    semantic_name: q47_10_764
+    from: mcgm_property.q47_10_764
+    fallback: 0
+    transform: float
+
+  - cell: Details!N49
+    kind: yellow
+    semantic_name: no_of_existing_tenements
+    from: manual_inputs.no_of_existing_tenements
+    fallback: 0
+    transform: int
+
+  - cell: Details!P49
+    kind: yellow
+    semantic_name: no_of_shop_user_input_ocr_old_plan_only_commerical
+    from: manual_inputs.no_of_shop_user_input_ocr_old_plan_only_commerical
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='₹'
+  #   row='Rent' section='Calculation for area'
+  - cell: Details!N50
+    kind: yellow
+    semantic_name: details_n50
+    from: manual_inputs.details_n50
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Fetch from Housing/jll etc'
+  #   row='₹' section='Calculation for area'
+  - cell: Details!O50
+    kind: black
+    semantic_name: details_o50
+    from: manual_inputs.details_o50
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='₹'
+  #   row='Fetch from Housing/jll etc' section='Calculation for area'
+  - cell: Details!P50
+    kind: yellow
+    semantic_name: details_p50
+    from: manual_inputs.details_p50
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Fetch from Housing/jll etc'
+  #   row='₹' section='Calculation for area'
+  - cell: Details!Q50
+    kind: black
+    semantic_name: details_q50
+    from: manual_inputs.details_q50
+    fallback: 0
+    transform: float
+
+  - cell: Details!O51
+    kind: yellow
+    semantic_name: corpus_fund
+    from: manual_inputs.corpus_fund
+    fallback: 0
+    transform: float
+
+  - cell: Details!Q51
+    kind: yellow
+    semantic_name: user_input
+    from: manual_inputs.user_input
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='from ready reckoner (land)'
+  #   row='Ready Recknor Rate' section='Calculation for area'
+  - cell: Details!J54
+    kind: black
+    semantic_name: details_j54
+    from: manual_inputs.details_j54
+    fallback: 0
+    transform: float
+
+  - cell: Details!O54
+    kind: black
+    semantic_name: bank_gurantee
+    calc: bank_guarantee_15pct
+    calc_args: { based_on: <fill_in> }
+    fallback: 0
+    transform: float
+
+  - cell: Details!Q54
+    kind: black
+    semantic_name: calculate_15_annually_of_user_input
+    calc: bank_guarantee_15pct
+    calc_args: { based_on: <fill_in> }
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph=''
+  #   row='Period of Completion (months)' section='Calculation for area'
+  - cell: Details!N55
+    kind: yellow
+    semantic_name: details_n55
+    from: manual_inputs.details_n55
+    fallback: 0
+    transform: float
+
+  - cell: Details!O55
+    kind: black
+    semantic_name: period_of_completion_months
+    calc: floors_from_max_height
+    calc_args: { based_on: max_height_m }
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph=''
+  #   row='Note: - Per floor is 3mtr min - Calcuate no of flo' section='Calculation for area'
+  - cell: Details!P55
+    kind: yellow
+    semantic_name: details_p55
+    from: manual_inputs.details_p55
+    fallback: 0
+    transform: float
+
+  - cell: Details!Q55
+    kind: black
+    semantic_name: note_per_floor_is_3mtr_min_calcuate_no_of_floors_as_per_permissible_height_using_per_floor_min_height_18_months_upto_9_floor_building_36_months_for_9_20_floors_48_months_for_above_20_floors
+    calc: floors_from_max_height
+    calc_args: { based_on: max_height_m }
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='DP remark report, if purple color & I written mark it as yes'
+  #   row='I3 to R/C' section='As per last approved plans'
+  - cell: Details!O58
+    kind: black
+    semantic_name: details_o58
+    from: manual_inputs.details_o58
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='If built up area Upto 500sqm : 50% upto 1000sqm : 45% 2000sqm : 40% 3000sqm: 35%'
+  #   row='OPEN SPACE DEFICIENCY' section='As per last approved plans'
+  - cell: Details!N62
+    kind: black
+    semantic_name: details_n62
+    from: manual_inputs.details_n62
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Permissible hieght( AMSL-road level) upto 32mtr ( 9floors ) = 18% upto 70mtr ( 2'
+  #   row='STAIRCASE' section='As per last approved plans'
+  - cell: Details!N63
+    kind: black
+    semantic_name: details_n63
+    from: manual_inputs.details_n63
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='Permissible hieght upto 32mtr ( 9floors ) = 1.40 upto 70mtr ( 20 floors ) = 1.5'
+  #   row='CONSTRUCTION AREA' section='As per last approved plans'
+  - cell: Details!O64
+    kind: black
+    semantic_name: details_o64
+    from: manual_inputs.details_o64
+    fallback: 0
+    transform: int
+
+  # REVIEW: ph='1000mtr plot area= no podium  2500mtr plot are = 60% 5000 = 40% More than 5000 ='
+  #   row='PODIUM CONST AREA' section='As per last approved plans'
+  - cell: Details!N65
+    kind: black
+    semantic_name: details_n65
+    from: manual_inputs.details_n65
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='1000mtr plot area= 0 2500mtr plot are = Permissible height if more than 57.13 th'
+  #   row='1000mtr plot area= no podium  2500mtr plot are = 6' section='As per last approved plans'
+  - cell: Details!O65
+    kind: black
+    semantic_name: details_o65
+    from: manual_inputs.details_o65
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Take user input first : Yes/No BASED on Yes follow condition Upto 1000 mtr plot'
+  #   row='BASEMENT CONST AREA' section='As per last approved plans'
+  - cell: Details!N66
+    kind: black
+    semantic_name: details_n66
+    from: manual_inputs.details_n66
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Take user input first : Yes/No BASED on Yes follow condition Upto 1000 mtr plot'
+  #   row='Take user input first : Yes/No BASED on Yes follow' section='As per last approved plans'
+  - cell: Details!O66
+    kind: black
+    semantic_name: details_o66
+    from: manual_inputs.details_o66
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph=''
+  #   row="='MCGM PAYMENTS'!C239" section='=Details!A1'
+  - cell: Construction Cost!D8
+    kind: yellow
+    semantic_name: construction_cost_d8
+    from: manual_inputs.construction_cost_d8
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph=''
+  #   row='x' section='=Details!A1'
+  - cell: Construction Cost!D12
+    kind: yellow
+    semantic_name: construction_cost_d12
+    from: manual_inputs.construction_cost_d12
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph=''
+  #   row='x' section='=Details!A1'
+  - cell: Construction Cost!D15
+    kind: yellow
+    semantic_name: construction_cost_d15
+    from: manual_inputs.construction_cost_d15
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph=''
+  #   row='x' section='=Details!A1'
+  - cell: Construction Cost!H21
+    kind: yellow
+    semantic_name: construction_cost_h21
+    from: manual_inputs.construction_cost_h21
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='If nalla touching & coming inside the lot then check dp map see blue area then 5'
+  #   row='' section='=Details!A1'
+  - cell: MCGM PAYMENTS!B327
+    kind: black
+    semantic_name: mcgm_payments_b327
+    from: manual_inputs.mcgm_payments_b327
+    fallback: 0
+    transform: float
+
+  - cell: SUMMARY 1!I98
+    kind: yellow
+    semantic_name: 79a_cost_acquisition
+    from: manual_inputs.79a_cost_acquisition
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='Ground Floor' section='A'
+  - cell: Profit & Loss Statement!C19
+    kind: yellow
+    semantic_name: profit_loss_statement_c19
+    from: manual_inputs.profit_loss_statement_c19
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='Ground Floor' section='A'
+  - cell: Profit & Loss Statement!D19
+    kind: yellow
+    semantic_name: profit_loss_statement_d19
+    from: manual_inputs.profit_loss_statement_d19
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='1st Floor' section='A'
+  - cell: Profit & Loss Statement!C20
+    kind: yellow
+    semantic_name: profit_loss_statement_c20
+    from: manual_inputs.profit_loss_statement_c20
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='1st Floor' section='A'
+  - cell: Profit & Loss Statement!D20
+    kind: yellow
+    semantic_name: profit_loss_statement_d20
+    from: manual_inputs.profit_loss_statement_d20
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='2nd Floor' section='A'
+  - cell: Profit & Loss Statement!C21
+    kind: yellow
+    semantic_name: profit_loss_statement_c21
+    from: manual_inputs.profit_loss_statement_c21
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='2nd Floor' section='A'
+  - cell: Profit & Loss Statement!D21
+    kind: yellow
+    semantic_name: profit_loss_statement_d21
+    from: manual_inputs.profit_loss_statement_d21
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='=C18-C19-C20-C21'
+  #   row='Other Floors' section='A'
+  - cell: Profit & Loss Statement!C22
+    kind: yellow
+    semantic_name: profit_loss_statement_c22
+    from: manual_inputs.profit_loss_statement_c22
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='0.0'
+  #   row='=C18-C19-C20-C21' section='A'
+  - cell: Profit & Loss Statement!D22
+    kind: yellow
+    semantic_name: profit_loss_statement_d22
+    from: manual_inputs.profit_loss_statement_d22
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='50000.0'
+  #   row='=C27' section='B'
+  - cell: Profit & Loss Statement!D28
+    kind: yellow
+    semantic_name: profit_loss_statement_d28
+    from: manual_inputs.profit_loss_statement_d28
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='Calcuate Car parking no /2'
+  #   row='Cars to sell' section='C'
+  - cell: Profit & Loss Statement!C30
+    kind: black
+    semantic_name: profit_loss_statement_c30
+    from: manual_inputs.profit_loss_statement_c30
+    fallback: 0
+    transform: float
+
+  # REVIEW: ph='1200000.0'
+  #   row='Calcuate Car parking no /2' section='C'
+  - cell: Profit & Loss Statement!D30
+    kind: yellow
+    semantic_name: profit_loss_statement_d30
+    from: manual_inputs.profit_loss_statement_d30
+    fallback: 0
+    transform: float
