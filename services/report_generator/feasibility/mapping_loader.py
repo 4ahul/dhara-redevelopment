@@ -116,3 +116,74 @@ def load_mapping(path: str) -> MappingFile:
         last_reviewed_at=raw.get("last_reviewed_at"),
         generated_from_dossier=raw.get("generated_from_dossier"),
     )
+
+
+def _deps_of(entry: MappingEntry, all_names: set[str]) -> list[str]:
+    if entry.kind != "black" or not entry.calc_args:
+        return []
+    deps = []
+    for v in entry.calc_args.values():
+        if isinstance(v, str) and v in all_names:
+            deps.append(v)
+    return deps
+
+
+def topological_sort(entries: List[MappingEntry]) -> List[MappingEntry]:
+    names = {e.semantic_name for e in entries}
+    by_name = {e.semantic_name: e for e in entries}
+
+    # Strong check: any calc_args key named 'based_on' must reference a known name.
+    for e in entries:
+        if e.kind == "black" and e.calc_args:
+            for k, v in e.calc_args.items():
+                if k == "based_on" and (not isinstance(v, str) or v not in names):
+                    raise MappingError(
+                        f"{e.cell}: calc_args.based_on={v!r} is unknown semantic_name"
+                    )
+
+    # Kahn's algorithm
+    indeg = {n: 0 for n in names}
+    graph: dict[str, list[str]] = {n: [] for n in names}
+    for e in entries:
+        for d in _deps_of(e, names):
+            graph[d].append(e.semantic_name)
+            indeg[e.semantic_name] += 1
+
+    from collections import deque
+    ready = deque(sorted(
+        (n for n, d in indeg.items() if d == 0),
+        key=lambda n: (0 if by_name[n].kind == "yellow" else 1, n),
+    ))
+
+    out: List[MappingEntry] = []
+    while ready:
+        n = ready.popleft()
+        out.append(by_name[n])
+        for m in graph[n]:
+            indeg[m] -= 1
+            if indeg[m] == 0:
+                ready.append(m)
+
+    if len(out) != len(entries):
+        raise MappingError("cycle detected in calc_args dependencies")
+
+    return out
+
+
+from .inspector import _fill_rgb, YELLOW_RGB, BLACK_RGB
+
+
+def validate_against_workbook(mf: MappingFile, wb) -> None:
+    for e in mf.cells:
+        if e.sheet not in wb.sheetnames:
+            raise MappingError(f"{e.cell}: sheet not in workbook")
+        ws = wb[e.sheet]
+        try:
+            cell = ws[e.coord]
+        except Exception:
+            raise MappingError(f"{e.cell}: coord does not exist")
+        rgb = _fill_rgb(cell)
+        if e.kind == "yellow" and rgb != YELLOW_RGB:
+            raise MappingError(f"{e.cell}: kind mismatch — declared yellow, actual fill={rgb}")
+        if e.kind == "black" and rgb != BLACK_RGB:
+            raise MappingError(f"{e.cell}: kind mismatch — declared black, actual fill={rgb}")
