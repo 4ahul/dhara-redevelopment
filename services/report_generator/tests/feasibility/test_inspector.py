@@ -82,3 +82,26 @@ def test_context_signals_for_unlabelled_cell(tmp_path):
     assert sig["row_label"] is None
     assert sig["section_header"] is None
     assert isinstance(sig["neighbor_3x3"], list) and len(sig["neighbor_3x3"]) == 3
+
+
+def test_suggest_user_input_from_placeholder():
+    from feasibility.inspector import suggest_mapping
+    signals = {"placeholder_text": "User input", "row_label": "Corpus Fund", "section_header": None, "column_header": None, "merged_master": None, "neighbor_3x3": []}
+    s = suggest_mapping(kind="yellow", signals=signals)
+    assert s["suggested_source"].startswith("from: manual_inputs.")
+    assert s["review_required"] is False
+
+
+def test_suggest_noc_flag_from_placeholder():
+    from feasibility.inspector import suggest_mapping
+    signals = {"placeholder_text": "DP remark report if yes mark 1 otherwise 0", "row_label": "Highway NOC", "section_header": "NOC REQUIREMENTS", "column_header": None, "merged_master": None, "neighbor_3x3": []}
+    s = suggest_mapping(kind="black", signals=signals)
+    assert s["suggested_source"].startswith("calc: noc_flag_from_dp")
+    assert "highway" in s["suggested_source"].lower()
+
+
+def test_review_required_when_no_signals():
+    from feasibility.inspector import suggest_mapping
+    signals = {"placeholder_text": None, "row_label": None, "section_header": None, "column_header": None, "merged_master": None, "neighbor_3x3": [[None]*3]*3}
+    s = suggest_mapping(kind="yellow", signals=signals)
+    assert s["review_required"] is True

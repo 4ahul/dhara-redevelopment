@@ -7,6 +7,7 @@ signals per cell.
 
 from __future__ import annotations
 
+import re
 from typing import List, Dict, Any, Optional
 import openpyxl
 from openpyxl.workbook import Workbook
@@ -111,4 +112,58 @@ def extract_signals(ws, cell) -> Dict[str, Any]:
         "section_header": _scan_up(ws, cell.row, 1, require_bold=True),
         "merged_master": _merged_master(ws, cell),
         "neighbor_3x3": _neighbor_3x3(ws, cell.row, cell.column),
+    }
+
+
+def _slug(text: str) -> str:
+    t = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    return t or "unknown"
+
+
+def suggest_mapping(kind: str, signals: Dict[str, Any]) -> Dict[str, Any]:
+    """Return {suggested_semantic_name, suggested_source, review_required}.
+
+    Heuristic hints only — human review is authoritative.
+    """
+    ph = (signals.get("placeholder_text") or "").lower()
+    row = signals.get("row_label") or ""
+    sect = signals.get("section_header") or ""
+    header = signals.get("column_header") or ""
+
+    # Review required if all 5 primary signals are empty.
+    primaries = [signals.get(k) for k in
+                 ("placeholder_text", "row_label", "section_header", "column_header", "merged_master")]
+    review = not any(primaries)
+
+    # Build a semantic name guess from the most specific available label.
+    name_seed = row or header or sect or signals.get("merged_master") or "cell"
+    semantic = _slug(name_seed)
+
+    suggested = None
+    if kind == "black":
+        if "mark 1" in ph or "if yes" in ph:
+            noc_slug = _slug(row) if row else "unknown"
+            suggested = f"calc: noc_flag_from_dp(noc_type={noc_slug})"
+        elif "15%" in ph or "annually of user input" in ph:
+            suggested = "calc: bank_guarantee_15pct(based_on=<fill_in>)"
+        elif "calculate no of floors" in ph or "per floor is 3mtr" in ph:
+            suggested = "calc: floors_from_max_height(based_on=max_height_m)"
+    else:  # yellow
+        if "ready reckoner" in ph or "rr " in ph:
+            suggested = f"from: ready_reckoner.{semantic}"
+        elif "user input" in ph or "manual" in ph:
+            suggested = f"from: manual_inputs.{semantic}"
+        elif "dp remark" in ph or "dp report" in ph:
+            suggested = f"from: dp_report.{semantic}"
+        elif "ocr" in ph or "old plan" in ph or "pr card" in ph:
+            suggested = f"from: mcgm_property.{semantic}"
+
+    if not suggested:
+        suggested = "TODO: human review"
+        review = True
+
+    return {
+        "suggested_semantic_name": semantic,
+        "suggested_source": suggested,
+        "review_required": review,
     }
