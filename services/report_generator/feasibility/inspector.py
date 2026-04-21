@@ -10,17 +10,13 @@ from __future__ import annotations
 from typing import List, Dict, Any
 import openpyxl
 from openpyxl.workbook import Workbook
-from openpyxl.styles import PatternFill as _PatternFill
-
 YELLOW_RGB = "FFFFFF00"
 BLACK_RGB = "FF000000"
 
 
 def _fill_rgb(cell) -> str | None:
     f = cell.fill
-    # Unwrap StyleProxy so isinstance works correctly on loaded workbooks.
-    inner = getattr(f, "_StyleProxy__target", f)
-    if not isinstance(inner, _PatternFill) or f.patternType != "solid":
+    if getattr(f, "patternType", None) != "solid":
         return None
     fg = f.fgColor
     rgb = getattr(fg, "rgb", None) if fg else None
