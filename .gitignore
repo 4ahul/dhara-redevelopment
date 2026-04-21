@@ -80,6 +80,8 @@ test_docs/
 tests/
 !services/*/tests/
 !services/*/tests/**
+services/*/tests/**/__pycache__/
+services/*/tests/**/*.pyc
 e2e_tool_log.json
 temp_insert_report.*
 test_save.xlsx
