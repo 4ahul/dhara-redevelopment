@@ -2,6 +2,7 @@ import asyncio
 import uuid
 import os
 import sys
+import json as _json
 
 service_dir = os.path.dirname(os.path.abspath(__file__))
 if service_dir not in sys.path:
@@ -31,6 +32,7 @@ from feasibility import calcs as _feasibility_calcs  # noqa: F401 — registers 
 
 MAPPING_PATH = os.path.join(_svc_root, "mappings", "33_7_B.yaml")
 TEMPLATE_PATH = os.path.join(_svc_root, "templates", "FINAL TEMPLATE _ 33 (7)(B) .xlsx")
+DOSSIER_PATH = os.path.join(_svc_root, "dossiers", "33_7_B.dossier.json")
 
 router = APIRouter()
 
@@ -335,3 +337,12 @@ async def generate_feasibility_report(req: TemplateReportRequest):
         )
 
 
+@router.get("/feasibility/dossier")
+async def get_feasibility_dossier(scheme: str = Query("33(7)(B)")):
+    if scheme != "33(7)(B)":
+        raise HTTPException(status_code=404, detail=f"No dossier for scheme {scheme}")
+    try:
+        with open(DOSSIER_PATH, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dossier not generated yet")
