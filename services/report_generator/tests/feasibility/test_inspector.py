@@ -40,3 +40,45 @@ def test_gradient_fill_is_ignored(tmp_path):
         fill = GradientFill()
 
     assert _fill_rgb(_Cell()) is None
+
+
+def test_context_signals_for_labelled_cell(tmp_path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Details"
+    ws["A1"].value = "NOC REQUIREMENTS"  # section header, bold
+    ws["A1"].font = openpyxl.styles.Font(bold=True)
+    ws["A3"].value = "Highway NOC"       # row label
+    yellow = PatternFill("solid", fgColor="FFFFFF00")
+    ws["D3"].value = "DP remark report if yes mark 1 otherwise 0"
+    ws["D3"].fill = yellow
+    path = tmp_path / "ctx.xlsx"
+    wb.save(path)
+
+    from feasibility.inspector import extract_signals
+    wb2 = openpyxl.load_workbook(path, data_only=False)
+    ws2 = wb2["Details"]
+    sig = extract_signals(ws2, ws2["D3"])
+    assert sig["placeholder_text"] == "DP remark report if yes mark 1 otherwise 0"
+    assert sig["row_label"] == "Highway NOC"
+    assert sig["section_header"] == "NOC REQUIREMENTS"
+
+
+def test_context_signals_for_unlabelled_cell(tmp_path):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Details"
+    yellow = PatternFill("solid", fgColor="FFFFFF00")
+    ws["D3"].value = None
+    ws["D3"].fill = yellow
+    path = tmp_path / "noctx.xlsx"
+    wb.save(path)
+
+    from feasibility.inspector import extract_signals
+    wb2 = openpyxl.load_workbook(path, data_only=False)
+    ws2 = wb2["Details"]
+    sig = extract_signals(ws2, ws2["D3"])
+    assert sig["placeholder_text"] is None
+    assert sig["row_label"] is None
+    assert sig["section_header"] is None
+    assert isinstance(sig["neighbor_3x3"], list) and len(sig["neighbor_3x3"]) == 3
