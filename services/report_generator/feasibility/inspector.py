@@ -7,7 +7,7 @@ signals per cell.
 
 from __future__ import annotations
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 import openpyxl
 from openpyxl.workbook import Workbook
 YELLOW_RGB = "FFFFFF00"
