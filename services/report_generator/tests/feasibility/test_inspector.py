@@ -29,3 +29,14 @@ def test_enumerate_yellow_and_black_only(tmp_path):
     assert ("Details", "C1", "black") in coords
     assert not any(c["coord"] == "A1" for c in cells)
     assert not any(c["coord"] == "D1" for c in cells)
+
+
+def test_gradient_fill_is_ignored(tmp_path):
+    """Cells with GradientFill must not crash enumeration."""
+    from openpyxl.styles import GradientFill
+    from feasibility.inspector import _fill_rgb
+
+    class _Cell:
+        fill = GradientFill()
+
+    assert _fill_rgb(_Cell()) is None
