@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # --- Database Config ---
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", 
-    "postgresql://redevelopment:redevelopment@localhost:5435/rag_service_db"
+    "postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db"
 )
 
 # Convert async URL if passed incorrectly
@@ -45,6 +45,8 @@ class ChatSession(Base):
     id = Column(String(36), primary_key=True, index=True)
     user_id = Column(String(128), index=True, nullable=True)
     title = Column(String(255), nullable=True)
+    is_deleted = Column(Boolean, default=False)
+    last_message_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -54,6 +56,11 @@ class Message(Base):
     session_id = Column(String(36), ForeignKey("sessions.id"), index=True)
     role = Column(String(20)) # user, assistant
     content = Column(Text)
+    sources = Column(Text, nullable=True)
+    clauses = Column(Text, nullable=True)
+    extra_data = Column(Text, nullable=True)
+    feedback = Column(String(20), nullable=True)
+    edited_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class FeedbackLog(Base):

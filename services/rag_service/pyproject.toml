@@ -40,10 +40,6 @@ dependencies = [
     "serpapi",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["services*", "routers*", "core*", "db*", "schemas*"]
-
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"

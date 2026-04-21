@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # Cloud Milvus (Source)
 CLOUD_HOST = os.getenv("CLOUD_MILVUS_HOST", "in03-7ab10f7686b6973.serverless.aws-eu-central-1.cloud.zilliz.com")
 CLOUD_TOKEN = os.getenv("CLOUD_MILVUS_TOKEN", "95ad1dc5854224a3e1108e2fd806dd948f46f7d1db180e1d5aad64791f8868473751b8520f7da41c6545f455662bb16a9719cc8f")
-SOURCE_COLLECTION = "documents"
+SOURCE_COLLECTION = "dcpr_knowledge"
 DEST_COLLECTION = "dcpr_knowledge"
 
 # Local Milvus Lite (Destination)

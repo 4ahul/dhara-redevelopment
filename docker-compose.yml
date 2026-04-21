@@ -34,10 +34,8 @@ services:
       - POSTGRES_USER=redevelopment
       - POSTGRES_PASSWORD=redevelopment
       - POSTGRES_DB=redevelopment
-      - POSTGRES_MULTIPLE_DATABASES=orchestrator_db,rag_service_db,pr_card_scraper_db,mcgm_property_lookup_db,dp_remarks_report_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
     networks:
       - dhara_net
     healthcheck:
@@ -80,7 +78,6 @@ services:
       - DP_REPORT_URL=http://dp_remarks_report:8008
       - READY_RECKONER_URL=http://ready_reckoner:8003
       - SERP_API_KEY=${SERP_API_KEY}
-      - SERPER_API_KEY=${SERPER_API_KEY}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
@@ -182,7 +179,7 @@ services:
       start_period: 10s
 
   milvus:
-    image: milvusdb/milvus:2.6-20260317-200a2d76
+    image: milvusdb/milvus:v2.4.0
     command: ["milvus", "run", "standalone"]
     ports:
       - "19530:19530"
@@ -191,9 +188,9 @@ services:
       - seccomp:unconfined
     environment:
       - ETCD_ENDPOINTS=milvus_etcd:2379
-      - MINIO_ADDRESS=milvus_minio:9000
       - KNOWHERE_SIMD_TYPE=auto
-      - COMMON_STORAGETYPE=minio
+      - COMMON_STORAGETYPE=local
+      - COMMON_LOG_LEVEL=warning
     volumes:
       - milvus_data:/var/lib/milvus
     networks:
@@ -201,15 +198,13 @@ services:
     depends_on:
       milvus_etcd:
         condition: service_healthy
-      milvus_minio:
-        condition: service_healthy
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-      start_period: 10s
-
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 150s
 
   milvus_etcd:
     image: quay.io/coreos/etcd:v3.5.5
@@ -220,7 +215,7 @@ services:
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
       - etcd_data:/etcd
-    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
+    command: etcd -advertise-client-urls=http://milvus_etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - dhara_net
     healthcheck:
@@ -230,22 +225,23 @@ services:
       retries: 3
       start_period: 10s
 
-  milvus_minio:
-    image: minio/minio:latest
+  milvus_attu:
+    image: zilliz/attu:latest
+    ports:
+      - "8081:3000" # Expose Attu on port 8081 on the host
     environment:
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-    volumes:
-      - minio_data:/minio_data
-    command: minio server /minio_data
+      - MILVUS_URL=milvus:19530 # Point to the Milvus service within the Docker network
     networks:
       - dhara_net
+    depends_on:
+      milvus:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 60s
 
   mcgm_property_lookup:
     build: ./services/mcgm_property_lookup
@@ -297,27 +293,27 @@ services:
       - DEV_MODE=true
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db
       - SECRET_KEY=${SECRET_KEY:-7c995f82ba3a032a562b71010459672b6ad0710d690f9f89c82150a39300ada8}
+      - SESSION_SECRET=${SESSION_SECRET:-temporary-secret-key-for-dhara-rag}
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
       - MILVUS_COLLECTION=${MILVUS_COLLECTION:-documents}
-      - MILVUS_COLLECTION_RAG=${MILVUS_COLLECTION_RAG:-dcpr_knowledge}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SERP_API_KEY=${SERP_API_KEY}
+      - CLOUD_MILVUS_URI=${CLOUD_MILVUS_URI}
+      - CLOUD_MILVUS_TOKEN=${CLOUD_MILVUS_TOKEN}
     depends_on:
       postgres:
-        condition: service_healthy
-      milvus:
         condition: service_healthy
     networks:
       - dhara_net
     volumes:
       - ./services/rag_service/data:/app/data
+    restart: on-failure:5
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
 networks:
   dhara_net:
@@ -329,4 +325,3 @@ volumes:
   upload_data:
   milvus_data:
   etcd_data:
-  minio_data:

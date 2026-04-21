@@ -249,27 +249,31 @@ class ExcelTool:
 
 
 class WebSearchTool:
-    """Real web search capability using Serper API"""
+    """Real web search capability using SerpApi"""
 
     def __init__(self):
-        self.api_key = os.environ.get("SERPER_API_KEY")
-        self.url = "https://google.serper.dev/search"
+        self.api_key = os.environ.get("SERP_API_KEY")
+        self.url = "https://serpapi.com/search"
 
     def search(self, query: str) -> str:
         if not self.api_key:
-            return f"[Web search simulation] Would search for: {query}\nNote: Set SERPER_API_KEY in .env for actual search."
+            return f"[Web search simulation] Would search for: {query}\nNote: Set SERP_API_KEY in .env for actual search."
 
-        headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
-        payload = json.dumps({"q": query})
+        params = {
+            "q": query,
+            "api_key": self.api_key,
+            "engine": "google",
+            "num": 5,
+        }
 
         try:
-            response = requests.post(self.url, headers=headers, data=payload)
+            response = requests.get(self.url, params=params)
             response.raise_for_status()
             results = response.json()
 
             snippets = []
-            if "organic" in results:
-                for result in results["organic"][:5]:
+            if "organic_results" in results: # SerpApi uses 'organic_results'
+                for result in results["organic_results"][:5]:
                     snippets.append(
                         f"Title: {result.get('title')}\nSnippet: {result.get('snippet')}\nLink: {result.get('link')}\n"
                     )

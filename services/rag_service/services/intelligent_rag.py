@@ -709,9 +709,7 @@ class SessionRAG:
 
     def _search_web(self, query: str) -> tuple:
         """Search web using SerpApi (primary text) + DuckDuckGo (extra sources, if enabled)."""
-        api_key = os.environ.get("SERP_API_KEY", "") or os.environ.get(
-            "SERPER_API_KEY", ""
-        )
+        api_key = os.environ.get("SERP_API_KEY", "")
         ddg_enabled = os.environ.get("ENABLE_DDG", "true").lower() == "true"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
@@ -1543,10 +1541,10 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         if not self._reranker or not results:
             return results
 
-        # Pre-filter: only rerank candidates above cosine threshold, cap at 15
-        candidates = [r for r in results if r.score > 0.25][:15]
+        # Pre-filter: rerank candidates above lower threshold, cap at 25 for better recall
+        candidates = [r for r in results if r.score > 0.20][:25]
         if not candidates:
-            candidates = results[:15]  # keep top-15 if all below threshold
+            candidates = results[:25]  # keep top-25 if all below threshold
 
         try:
             pairs = [(question, r.text) for r in candidates]
@@ -1567,7 +1565,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             logger.error(f"Rerank error: {e}", exc_info=True)
             return results
 
-    def query(self, question: str, k: int = 10) -> Dict:
+    def query(self, question: str, k: int = 20) -> Dict:
         """Main query method with parallel RAG + web search retrieval."""
         question = str(question)
         start_time = time.time()

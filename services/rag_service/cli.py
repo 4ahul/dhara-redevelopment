@@ -38,7 +38,7 @@ Examples:
     query_parser = subparsers.add_parser("query", help="Query DCPR regulations")
     query_parser.add_argument("question", help="Your question")
     query_parser.add_argument("--model", default="qwen2.5:7b", help="LLM model")
-    query_parser.add_argument("--k", type=int, default=5, help="Number of results")
+    query_parser.add_argument("--k", type=int, default=20, help="Number of results")
 
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Analyze property")

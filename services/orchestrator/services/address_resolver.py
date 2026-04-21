@@ -50,7 +50,6 @@ class AddressResolver:
 
     def __init__(self):
         self.serp_api_key = os.environ.get("SERP_API_KEY", "")
-        self.serper_api_key = os.environ.get("SERPER_API_KEY", "")
 
     async def resolve_address(self, address: str) -> Dict[str, Optional[str]]:
         """
@@ -71,18 +70,8 @@ class AddressResolver:
         return result
 
     async def _search_ward_village(self, address: str) -> Dict[str, Optional[str]]:
-        """Search for ward and village using SerpApi or Serper."""
+        """Search for ward and village using SerpApi."""
 
-        # Try Serper first (Google search API)
-        if self.serper_api_key:
-            try:
-                result = await self._search_serper(address)
-                if result.get("ward"):
-                    return result
-            except Exception as e:
-                logger.warning(f"Serper search failed: {e}")
-
-        # Try SerpApi
         if self.serp_api_key:
             try:
                 result = await self._search_serpapi(address)
@@ -93,20 +82,7 @@ class AddressResolver:
 
         return {"ward": None, "village": None, "district": None, "taluka": None}
 
-    async def _search_serper(self, address: str) -> Dict[str, Optional[str]]:
-        """Search using Serper API."""
-        query = f"{address} Mumbai ward village MCGM"
-        url = "https://google.serper.dev/search"
 
-        headers = {"X-API-KEY": self.serper_api_key, "Content-Type": "application/json"}
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, json={"q": query}, headers=headers)
-            if response.status_code != 200:
-                return {}
-
-            data = response.json()
-            return self._parse_search_results(data)
 
     async def _search_serpapi(self, address: str) -> Dict[str, Optional[str]]:
         """Search using SerpApi."""

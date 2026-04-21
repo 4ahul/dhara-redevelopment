@@ -12,13 +12,44 @@ RUN pip install uv
 
 WORKDIR /app
 
-# Copy dependency files first for caching
+# Copy pyproject.toml for dependency resolution
 COPY pyproject.toml .
 
-# Install dependencies
+# Install dependencies without package setup
 ENV UV_HTTP_TIMEOUT=300
-RUN uv pip install --system .
-RUN pip install pydantic-settings itsdangerous
+RUN uv pip install --system \
+    fastapi \
+    uvicorn \
+    pydantic \
+    pydantic-settings \
+    python-multipart \
+    requests \
+    bcrypt \
+    pyjwt \
+    psycopg2-binary \
+    pymilvus \
+    pypdf \
+    reportlab \
+    langchain-ollama \
+    langchain-core \
+    langgraph \
+    easyocr \
+    python-dotenv \
+    opencv-python \
+    torch \
+    torchvision \
+    torchaudio \
+    langchain-openai \
+    langchain-text-splitters \
+    sqlalchemy \
+    httpx \
+    openai \
+    google-cloud-discoveryengine \
+    starlette \
+    itsdangerous \
+    beautifulsoup4 \
+    redis \
+    serpapi
 
 # Copy the rest of the application
 COPY . .
@@ -35,4 +66,4 @@ ENV PYTHONPATH=/app
 EXPOSE 8006
 
 # Start FastAPI server
-CMD ["uvicorn", "main.py:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8006"]

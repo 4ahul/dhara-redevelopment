@@ -51,9 +51,9 @@ def _save_chat_messages(
         clean_answer = re.sub(r"^\d+\.\s+", "", clean_answer, flags=re.MULTILINE)
         clean_answer = re.sub(r"\n{3,}", "\n\n", clean_answer).strip()
 
-        user_msg = Message(session_id=session_db_id, role="user", content=user_content)
+        user_msg = Message(session_id=session_id, role="user", content=user_content)
         asst_msg = Message(
-            session_id=session_db_id,
+            session_id=session_id,
             role="assistant",
             content=clean_answer,
             sources=json.dumps(answer_sources),
@@ -66,7 +66,7 @@ def _save_chat_messages(
 
         if update_title and new_title:
             session_obj = (
-                db.query(ChatSession).filter(ChatSession.id == session_db_id).first()
+                db.query(ChatSession).filter(ChatSession.id == session_id).first()
             )
             if session_obj and session_obj.title == "New Chat":
                 session_obj.title = new_title
@@ -90,7 +90,7 @@ async def list_sessions(
     rows = (
         db.query(ChatSession, sa_func.count(Message.id).label("message_count"))
         .outerjoin(Message, Message.session_id == ChatSession.id)
-        .filter(ChatSession.user_id == user_id, ChatSession.is_deleted == False)
+        .filter(ChatSession.user_id == user_id)
         .group_by(ChatSession.id)
         .order_by(ChatSession.last_message_at.desc())
         .all()
@@ -98,11 +98,9 @@ async def list_sessions(
 
     return [
         {
-            "id": s.session_id,
-            "session_id": s.session_id,
+            "id": s.id,
+            "session_id": s.id,
             "title": s.title,
-            "is_incognito": s.is_incognito,
-            "is_starred": s.is_starred,
             "message_count": msg_count,
             "last_message_at": s.last_message_at.isoformat()
             if s.last_message_at
@@ -121,23 +119,21 @@ async def create_session(
     user_id = payload["sub"]
     session_id = str(uuid.uuid4())[:8] # Simplified generate_session_id
     title = request.title if request and request.title else "New Chat"
-    is_incognito = request.is_incognito if request else False
+    is_incognito = False if request else False
 
     session = ChatSession(
-        session_id=session_id,
+        id=session_id,
         user_id=user_id,
         title=title,
-        is_incognito=is_incognito,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
 
     return {
-        "id": session.session_id,
-        "session_id": session.session_id,
+        "id": session.id,
+        "session_id": session.id,
         "title": session.title,
-        "is_incognito": session.is_incognito,
         "created_at": session.created_at.isoformat(),
     }
 
@@ -154,7 +150,7 @@ async def get_session_history(
     session = (
         db.query(ChatSession)
         .filter(
-            ChatSession.session_id == session_id,
+            ChatSession.id == session_id,
             ChatSession.user_id == user_id,
             ChatSession.is_deleted == False,
         )
@@ -180,9 +176,9 @@ async def get_session_history(
     )
 
     return {
-        "session_id": session.session_id,
+        "session_id": session.id,
         "title": session.title,
-        "is_incognito": session.is_incognito,
+        "is_incognito": False,
         "total_messages": total,
         "messages": [
             {
@@ -241,20 +237,19 @@ async def chat_stream(
         session = (
             db.query(ChatSession)
             .filter(
-                ChatSession.session_id == request.session_id,
+                ChatSession.id == request.session_id,
                 ChatSession.user_id == user_id,
             )
             .first()
         )
 
-    if not session and not request.is_incognito:
+    if not session and not False:
         session_id = str(uuid.uuid4())[:8]
         session = ChatSession(
-            session_id=session_id,
+            id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-            is_incognito=False,
-        )
+)
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -302,11 +297,11 @@ async def chat_stream(
                 yield json.dumps({"type": "error", "content": "Stream timed out"})
                 break
             if item is None:
-                if final_session and not final_session.is_incognito:
+                if final_session:
                     background_tasks.add_task(
                         _save_chat_messages,
                         final_session.id,
-                        final_session.session_id,
+                        final_session.id,
                         request.message,
                         full_answer,
                         answer_sources,
@@ -386,20 +381,19 @@ async def chat(
         session = (
             db.query(ChatSession)
             .filter(
-                ChatSession.session_id == request.session_id,
+                ChatSession.id == request.session_id,
                 ChatSession.user_id == user_id,
             )
             .first()
         )
 
-    if not session and not request.is_incognito:
+    if not session and not False:
         session_id = str(uuid.uuid4())[:8]
         session = ChatSession(
-            session_id=session_id,
+            id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-            is_incognito=False,
-        )
+)
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -417,7 +411,7 @@ async def chat(
     )
     answer_data["thought_process"] = thought_process
 
-    if session and not session.is_incognito:
+    if session and not False:
         user_msg = Message(
             session_id=session.id,
             role="user",
@@ -449,11 +443,11 @@ async def chat(
 
         answer_data["user_message_id"] = user_msg.id
         answer_data["message_id"] = asst_msg.id
-        answer_data["session_id"] = session.session_id
+        answer_data["session_id"] = session.id
     else:
         answer_data["user_message_id"] = str(uuid.uuid4())
         answer_data["message_id"] = str(uuid.uuid4())
-        answer_data["session_id"] = session.session_id if session else None
+        answer_data["session_id"] = session.id if session else None
 
     return answer_data
 
@@ -476,7 +470,7 @@ async def add_feedback(
     feedback_log = FeedbackLog(
         user_id=user_id,
         message_id=message_id,
-        session_id=session.session_id,
+        session_id=session.id,
         feedback_type=feedback.feedback_type,
     )
     db.add(feedback_log)
