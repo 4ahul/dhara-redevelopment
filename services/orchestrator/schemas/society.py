@@ -1,178 +1,223 @@
-"""
-Dhara AI — Society Schemas
-Request/Response models for society, reports, and tenders endpoints.
-"""
-
-from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
+
 from pydantic import BaseModel, Field
 
+# --- Society -----------------------------------------------------------------
 
-# ─── Society ─────────────────────────────────────────────────────────────────
 
 class SocietyCreate(BaseModel):
-    """Create a new society record."""
     name: str = Field(min_length=2, max_length=500)
     address: str = Field(min_length=5, max_length=2000)
-    cts_no: Optional[str] = Field(default=None, max_length=100)
-    ward: Optional[str] = Field(default=None, max_length=20)
-    village: Optional[str] = Field(default=None, max_length=255)
-    taluka: Optional[str] = Field(default=None, max_length=255)
-    district: Optional[str] = Field(default=None, max_length=255)
-    plot_area_sqm: Optional[float] = Field(default=None, ge=0)
-    plot_area_with_tp: Optional[float] = Field(default=None, ge=0)
-    road_width_m: Optional[float] = Field(default=None, ge=0)
-    num_flats: Optional[int] = Field(default=None, ge=0)
-    num_commercial: Optional[int] = Field(default=None, ge=0)
-    residential_area_sqft: Optional[float] = Field(default=None, ge=0)
-    commercial_area_sqft: Optional[float] = Field(default=None, ge=0)
-    sale_rate: Optional[float] = Field(default=None, ge=0)
+    poc_name: str | None = Field(default=None, max_length=255)
+    poc_phone: str | None = Field(default=None, max_length=50)
+    poc_email: str | None = Field(default=None, max_length=255)
+    onboarded_date: datetime | None = None
+    notes: str | None = None
+    ward: str | None = Field(default=None, max_length=20, description='Auto-resolved from address')
+    village: str | None = Field(default=None, max_length=255, description='Auto-resolved from address')
+    taluka: str | None = Field(default=None, max_length=255)
+    district: str | None = Field(default=None, max_length=255)
+    plot_area_sqm: float | None = Field(default=None, ge=0)
+    plot_area_with_tp: float | None = Field(default=None, ge=0)
+    road_width_m: float | None = Field(default=None, ge=0)
+    num_flats: int | None = Field(default=None, ge=0)
+    num_commercial: int | None = Field(default=None, ge=0)
+    residential_area_sqft: float | None = Field(default=None, ge=0)
+    commercial_area_sqft: float | None = Field(default=None, ge=0)
+    sale_rate: float | None = Field(default=None, ge=0)
+    society_age: int | None = Field(default=None, ge=0, description='Year OC was issued or years since')
+    existing_bua_sqft: float | None = Field(default=None, ge=0, description='Existing Built Up Area in sq ft')
+    pfa_sqft: float | None = Field(default=None, ge=0, description='PFA from original OC in sq ft')
+    ocr_data: dict | None = Field(default=None, description='Raw OCR output from document scan')
 
 
 class SocietyUpdate(BaseModel):
-    """Partial update for society details."""
-    name: Optional[str] = Field(default=None, max_length=500)
-    address: Optional[str] = Field(default=None, max_length=2000)
-    cts_no: Optional[str] = Field(default=None, max_length=100)
-    ward: Optional[str] = Field(default=None, max_length=20)
-    village: Optional[str] = Field(default=None, max_length=255)
-    taluka: Optional[str] = Field(default=None, max_length=255)
-    district: Optional[str] = Field(default=None, max_length=255)
-    plot_area_sqm: Optional[float] = Field(default=None, ge=0)
-    plot_area_with_tp: Optional[float] = Field(default=None, ge=0)
-    road_width_m: Optional[float] = Field(default=None, ge=0)
-    num_flats: Optional[int] = Field(default=None, ge=0)
-    num_commercial: Optional[int] = Field(default=None, ge=0)
-    residential_area_sqft: Optional[float] = Field(default=None, ge=0)
-    commercial_area_sqft: Optional[float] = Field(default=None, ge=0)
-    sale_rate: Optional[float] = Field(default=None, ge=0)
-    status: Optional[str] = None
+    name: str | None = Field(default=None, max_length=500)
+    address: str | None = Field(default=None, max_length=2000)
+    poc_name: str | None = Field(default=None, max_length=255)
+    poc_phone: str | None = Field(default=None, max_length=50)
+    poc_email: str | None = Field(default=None, max_length=255)
+    onboarded_date: datetime | None = None
+    notes: str | None = None
+    cts_no: str | None = Field(default=None, max_length=100)
+    fp_no: str | None = Field(default=None, max_length=100)
+    tps_name: str | None = Field(default=None, max_length=255)
+    cts_validated: str | None = Field(default=None, max_length=20)
+    ward: str | None = Field(default=None, max_length=20)
+    village: str | None = Field(default=None, max_length=255)
+    taluka: str | None = Field(default=None, max_length=255)
+    district: str | None = Field(default=None, max_length=255)
+    plot_area_sqm: float | None = Field(default=None, ge=0)
+    plot_area_with_tp: float | None = Field(default=None, ge=0)
+    road_width_m: float | None = Field(default=None, ge=0)
+    num_flats: int | None = Field(default=None, ge=0)
+    num_commercial: int | None = Field(default=None, ge=0)
+    residential_area_sqft: float | None = Field(default=None, ge=0)
+    commercial_area_sqft: float | None = Field(default=None, ge=0)
+    sale_rate: float | None = Field(default=None, ge=0)
+    status: str | None = None
 
 
 class SocietyResponse(BaseModel):
-    """Full society detail response."""
     id: UUID
     name: str
     address: str
-    cts_no: Optional[str] = None
-    ward: Optional[str] = None
-    village: Optional[str] = None
-    taluka: Optional[str] = None
-    district: Optional[str] = None
-    plot_area_sqm: Optional[float] = None
-    plot_area_with_tp: Optional[float] = None
-    road_width_m: Optional[float] = None
-    num_flats: Optional[int] = None
-    num_commercial: Optional[int] = None
-    residential_area_sqft: Optional[float] = None
-    commercial_area_sqft: Optional[float] = None
-    sale_rate: Optional[float] = None
-    lat: Optional[float] = None
-    lng: Optional[float] = None
+    poc_name: str | None = None
+    poc_phone: str | None = None
+    poc_email: str | None = None
+    onboarded_date: datetime | None = None
+    notes: str | None = None
+    cts_no: str | None = None
+    fp_no: str | None = None
+    tps_name: str | None = None
+    cts_validated: str | None = None
+    ward: str | None = None
+    village: str | None = None
+    taluka: str | None = None
+    district: str | None = None
+    plot_area_sqm: float | None = None
+    plot_area_with_tp: float | None = None
+    road_width_m: float | None = None
+    num_flats: int | None = None
+    num_commercial: int | None = None
+    residential_area_sqft: float | None = None
+    commercial_area_sqft: float | None = None
+    sale_rate: float | None = None
+    society_age: int | None = None
+    existing_bua_sqft: float | None = None
+    pfa_sqft: float | None = None
+    ocr_data: dict | None = None
+    lat: float | None = None
+    lng: float | None = None
     status: str
     created_by: UUID
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {'from_attributes': True}
 
 
 class SocietyListItem(BaseModel):
-    """Abbreviated society item for list views."""
     id: UUID
     name: str
     address: str
-    ward: Optional[str] = None
+    poc_name: str | None = None
+    cts_no: str | None = None
+    fp_no: str | None = None
+    cts_validated: str | None = None
+    ward: str | None = None
+    village: str | None = None
     status: str
-    num_flats: Optional[int] = None
-    plot_area_sqm: Optional[float] = None
+    num_flats: int | None = None
+    plot_area_sqm: float | None = None
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {'from_attributes': True}
 
 
-# ─── Society Reports ────────────────────────────────────────────────────────
+# --- Society Reports --------------------------------------------------------
+
 
 class ReportCreate(BaseModel):
-    """Create a society report."""
     title: str = Field(min_length=2, max_length=500)
-    report_type: str = Field(default="feasibility", max_length=100)
+    report_type: str = Field(default='feasibility', max_length=100)
 
 
 class ReportResponse(BaseModel):
-    """Society report response."""
     id: UUID
     society_id: UUID
     title: str
     report_type: str
-    file_url: Optional[str] = None
+    file_url: str | None = None
     status: str
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {'from_attributes': True}
 
 
-# ─── Society Tenders ─────────────────────────────────────────────────────────
+# --- Society Tenders ---------------------------------------------------------
+
 
 class TenderCreate(BaseModel):
-    """Create a tender for a society."""
     title: str = Field(min_length=2, max_length=500)
-    description: Optional[str] = Field(default=None, max_length=5000)
-    requirements: Optional[str] = Field(default=None, max_length=5000)
-    budget_min: Optional[float] = Field(default=None, ge=0)
-    budget_max: Optional[float] = Field(default=None, ge=0)
-    deadline: Optional[datetime] = None
+    description: str | None = Field(default=None, max_length=5000)
+    requirements: str | None = Field(default=None, max_length=5000)
+    budget_min: float | None = Field(default=None, ge=0)
+    budget_max: float | None = Field(default=None, ge=0)
+    deadline: datetime | None = None
 
 
 class TenderResponse(BaseModel):
-    """Tender response."""
     id: UUID
     society_id: UUID
     title: str
-    description: Optional[str] = None
-    requirements: Optional[str] = None
-    budget_min: Optional[float] = None
-    budget_max: Optional[float] = None
-    deadline: Optional[datetime] = None
+    description: str | None = None
+    requirements: str | None = None
+    budget_min: float | None = None
+    budget_max: float | None = None
+    deadline: datetime | None = None
     status: str
-    awarded_to: Optional[UUID] = None
+    awarded_to: UUID | None = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {'from_attributes': True}
 
 
-# ─── Feasibility Reports ────────────────────────────────────────────────────
+# --- Feasibility Reports ----------------------------------------------------
+
 
 class FeasibilityReportCreate(BaseModel):
-    """Trigger a feasibility report generation."""
     society_id: UUID
-    title: Optional[str] = Field(default="Feasibility Report", max_length=500)
+    title: str | None = Field(default='Feasibility Report', max_length=500)
+    cts_no: str | None = Field(default=None, max_length=100, description='CTS/CS number (1991 scheme)')
+    fp_no: str | None = Field(default=None, max_length=100, description='Final Plot number (2034 scheme)')
+    num_flats: int | None = Field(default=None, ge=0)
+    num_commercial: int | None = Field(default=None, ge=0)
+    basement_required: bool | None = None
+    corpus_commercial: float | None = Field(default=None, ge=0)
+    corpus_residential: float | None = Field(default=None, ge=0)
+    sale_commercial_bua_sqft: float | None = Field(default=None, ge=0)
+    const_rate_commercial: float | None = Field(default=None, ge=0)
+    const_rate_residential: float | None = Field(default=None, ge=0)
+    const_rate_podium: float | None = Field(default=None, ge=0)
+    const_rate_basement: float | None = Field(default=None, ge=0)
+    cost_79a_acquisition: float | None = Field(default=None, ge=0)
+    commercial_gf_area: float | None = Field(default=None, ge=0)
+    sale_rate_commercial_gf: float | None = Field(default=None, ge=0)
+    commercial_1f_area: float | None = Field(default=None, ge=0)
+    sale_rate_commercial_1f: float | None = Field(default=None, ge=0)
+    commercial_2f_area: float | None = Field(default=None, ge=0)
+    sale_rate_commercial_2f: float | None = Field(default=None, ge=0)
+    commercial_other_area: float | None = Field(default=None, ge=0)
+    sale_rate_commercial_other: float | None = Field(default=None, ge=0)
+    sale_rate_residential: float | None = Field(default=None, ge=0)
+    parking_price_per_unit: float | None = Field(default=None, ge=0)
 
 
 class FeasibilityReportUpdate(BaseModel):
-    """Partial update on a feasibility report."""
-    title: Optional[str] = Field(default=None, max_length=500)
-    status: Optional[str] = None
-    llm_analysis: Optional[str] = None
+    title: str | None = Field(default=None, max_length=500)
+    status: str | None = None
+    llm_analysis: str | None = None
 
 
 class FeasibilityReportResponse(BaseModel):
-    """Feasibility report response."""
     id: UUID
     society_id: UUID
     user_id: UUID
     title: str
-    report_path: Optional[str] = None
-    file_url: Optional[str] = None
+    report_path: str | None = None
+    file_url: str | None = None
     status: str
-    input_data: Optional[dict] = None
-    output_data: Optional[dict] = None
-    llm_analysis: Optional[str] = None
-    error_message: Optional[str] = None
+    input_data: dict | None = None
+    output_data: dict | None = None
+    llm_analysis: str | None = None
+    error_message: str | None = None
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {'from_attributes': True}
+
+

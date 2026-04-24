@@ -2,11 +2,13 @@
 
 import logging
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, BackgroundTasks
+
 from core.dependencies import get_current_user, get_team_service
-from services.team_service import TeamService
-from schemas.team import TeamMemberResponse, TeamMemberUpdate, InviteRequest, InviteResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from schemas.common import PaginatedResponse
+from schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
+
+from services.team_service import TeamService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/team", tags=["Team Management"])
@@ -14,10 +16,10 @@ router = APIRouter(prefix="/team", tags=["Team Management"])
 
 @router.get("", response_model=PaginatedResponse)
 async def list_team(
-    page: int = Query(1, ge=1), 
-    page_size: int = Query(20, ge=1, le=100), 
-    status: str = Query(None), 
-    user=Depends(get_current_user), 
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    user=Depends(get_current_user),
     service: TeamService = Depends(get_team_service)
 ):
     return await service.list_members(user.organization, page, page_size, status)
@@ -25,9 +27,9 @@ async def list_team(
 
 @router.post("/invite", response_model=InviteResponse, status_code=201)
 async def invite_member(
-    req: InviteRequest, 
-    bg: BackgroundTasks, 
-    user=Depends(get_current_user), 
+    req: InviteRequest,
+    bg: BackgroundTasks,
+    user=Depends(get_current_user),
     service: TeamService = Depends(get_team_service)
 ):
     return await service.invite_member(req, user.name, user.email, user.organization, user.id, bg)
@@ -35,9 +37,9 @@ async def invite_member(
 
 @router.patch("/{member_id}", response_model=TeamMemberResponse)
 async def patch_member(
-    member_id: UUID, 
-    req: TeamMemberUpdate, 
-    user=Depends(get_current_user), 
+    member_id: UUID,
+    req: TeamMemberUpdate,
+    user=Depends(get_current_user),
     service: TeamService = Depends(get_team_service)
 ):
     return await service.update_member(member_id, user.organization, req)
@@ -45,9 +47,11 @@ async def patch_member(
 
 @router.delete("/{member_id}")
 async def remove_member(
-    member_id: UUID, 
-    user=Depends(get_current_user), 
+    member_id: UUID,
+    user=Depends(get_current_user),
     service: TeamService = Depends(get_team_service)
 ):
     return await service.remove_member(member_id, user.organization)
+
+
 

@@ -28,7 +28,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL 
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+  : "http://localhost:8000/api";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUser = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       if (response.ok) {
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
+    const response = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -85,11 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(data.access_token);
     setUser(data.user);
     localStorage.setItem("auth_token", data.access_token);
-    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("access_token", data.access_token); // For chat page compatibility
   }, []);
 
   const register = useCallback(async (email: string, password: string, full_name: string) => {
-    const response = await fetch(`${API_URL}/api/auth/register`, {
+    const response = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, full_name }),
@@ -108,21 +110,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const googleLogin = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/auth/google`);
+    const response = await fetch(`${API_URL}/auth/google`);
     if (!response.ok) throw new Error("Google login not available");
     const data = await response.json();
     window.location.href = data.url;
   }, []);
 
   const githubLogin = useCallback(async () => {
-    const response = await fetch(`${API_URL}/api/auth/github`);
+    const response = await fetch(`${API_URL}/auth/github`);
     if (!response.ok) throw new Error("GitHub login not available");
     const data = await response.json();
     window.location.href = data.url;
   }, []);
 
   const handleOAuthCallback = useCallback(async (provider: string, code: string, state: string) => {
-    const endpoint = provider === "google" ? "/api/auth/google/callback" : "/api/auth/github/callback";
+    const endpoint = provider === "google" ? "/auth/google/callback" : "/auth/github/callback";
     const response = await fetch(`${API_URL}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -140,7 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const verifyEmail = useCallback(async (token: string) => {
-    const response = await fetch(`${API_URL}/api/auth/verify?token=${token}`);
+    const response = await fetch(`${API_URL}/auth/verify?token=${token}`);
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || "Verification failed");
@@ -150,8 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const forgotPassword = useCallback(async (email: string) => {
     const formData = new URLSearchParams();
     formData.append("email", email);
-
-    const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    
+    const response = await fetch(`${API_URL}/auth/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData,
@@ -167,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     formData.append("token", token);
     formData.append("new_password", newPassword);
 
-    const response = await fetch(`${API_URL}/api/auth/reset-password`, {
+    const response = await fetch(`${API_URL}/auth/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData,

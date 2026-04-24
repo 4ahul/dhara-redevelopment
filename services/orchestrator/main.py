@@ -5,39 +5,41 @@ All business logic lives in dedicated packages (agent/, routers/, services/).
 """
 
 import logging
-import uuid
-import time
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
-# Add the service directory to sys.path to resolve internal imports
 service_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(service_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 if service_dir not in sys.path:
-    sys.path.append(service_dir)
+    sys.path.insert(0, service_dir)
 
+from core.banner import print_banner as _print_banner
 from core.config import settings
-from core.logging_config import setup_logging
-from core.exceptions import setup_exception_handlers
 from core.middleware import (
-    request_id_middleware,
     logging_middleware,
     rate_limit_middleware,
+    request_id_middleware,
     response_cache_middleware,
 )
 
-# ─── Setup ───────────────────────────────────────────────────────────────────
+from shared.dhara_common.exceptions import setup_exception_handlers
+from shared.dhara_common.logging import setup_logging
 
-setup_logging()
+_print_banner()
+
+setup_logging(loggers=["gateway", "agent", "services"])
 logger = logging.getLogger("gateway")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting %s v%s ...", settings.APP_NAME, settings.APP_VERSION)
-    logger.info("DB URL: %s", settings.DATABASE_URL)
+    logger.info("Initializing Orchestrator | DB: %s", settings.DATABASE_URL)
 
     # 1. PostgreSQL
     from db import init_db
@@ -75,7 +77,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# --- Global Exception Handling ---
+# --- Global Exception Handling (using shared lib) ---
 setup_exception_handlers(app)
 
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
@@ -106,28 +108,31 @@ app.include_router(ws_router)
 
 @app.get("/health")
 async def health():
-    """Deep Health Check verifying connectivity to critical dependencies."""
+    """Deep Health Check verifying connectivity to critical dependencies and microservices."""
+    import httpx
+
     from services.redis import get_redis
-    
+
     health_status = {
         "status": "healthy",
         "service": "orchestrator",
         "version": settings.APP_VERSION,
         "timestamp": time.time(),
-        "checks": {}
+        "checks": {},
+        "microservices": {}
     }
-    
+
     # 1. Check PostgreSQL
     try:
-        from sqlalchemy import text
         from db import engine
+        from sqlalchemy import text
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         health_status["checks"]["postgres"] = "UP"
     except Exception as e:
         health_status["status"] = "degraded"
         health_status["checks"]["postgres"] = f"DOWN: {str(e)}"
-        
+
     # 2. Check Redis
     try:
         redis = get_redis()
@@ -139,7 +144,29 @@ async def health():
     except Exception as e:
         health_status["status"] = "degraded"
         health_status["checks"]["redis"] = f"DOWN: {str(e)}"
-        
+
+    # 3. Check Downstream Microservices
+    services = {
+        "site_analysis": settings.SITE_ANALYSIS_URL,
+        "aviation_height": settings.HEIGHT_URL,
+        "ready_reckoner": settings.READY_RECKONER_URL,
+        "report_generator": settings.REPORT_URL,
+        "rag_service": settings.RAG_URL,
+    }
+
+    async with httpx.AsyncClient(timeout=2.0) as client:
+        for name, url in services.items():
+            try:
+                # Most services have a /health or /api/health
+                check_url = f"{url}/health" if "rag" not in name else f"{url}/api/health"
+                resp = await client.get(check_url)
+                health_status["microservices"][name] = "UP" if resp.status_code == 200 else f"DOWN ({resp.status_code})"
+                if resp.status_code != 200:
+                    health_status["status"] = "degraded"
+            except Exception:
+                health_status["microservices"][name] = "UNREACHABLE"
+                health_status["status"] = "degraded"
+
     return health_status
 
 
@@ -148,4 +175,6 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8006)
+
+

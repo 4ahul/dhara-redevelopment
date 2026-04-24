@@ -1,7 +1,7 @@
-import logging
 import json
-import time
+import logging
 from datetime import datetime
+
 
 class JsonFormatter(logging.Formatter):
     """
@@ -23,15 +23,17 @@ def setup_logging():
     """Sets up root logging with JSON formatter."""
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
-    
+
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     # Remove existing handlers to avoid double logging
     for h in root.handlers[:]:
         root.removeHandler(h)
     root.addHandler(handler)
-    
+
     # Standardize libraries
     logging.getLogger("uvicorn.access").handlers = [handler]
     logging.getLogger("uvicorn.error").handlers = [handler]
     logging.getLogger("gateway").handlers = [handler]
+
+

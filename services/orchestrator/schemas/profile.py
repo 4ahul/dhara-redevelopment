@@ -3,10 +3,10 @@ Dhara AI — Profile Schemas
 Request/Response models for user profile and portfolio endpoints.
 """
 
-from typing import Optional
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, Field
+
+from pydantic import BaseModel, Field
 
 
 class ProfileResponse(BaseModel):
@@ -14,13 +14,13 @@ class ProfileResponse(BaseModel):
     id: UUID
     email: str
     name: str
-    phone: Optional[str] = None
-    organization: Optional[str] = None
+    phone: str | None = None
+    organization: str | None = None
     role: str
-    portfolio_url: Optional[str] = None
-    avatar_url: Optional[str] = None
+    portfolio_url: str | None = None
+    avatar_url: str | None = None
     is_active: bool
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -29,10 +29,10 @@ class ProfileResponse(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """Partial update for user profile."""
-    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
-    phone: Optional[str] = Field(default=None, max_length=20, pattern=r"^\+?[\d\s\-]{7,20}$")
-    organization: Optional[str] = Field(default=None, max_length=255)
-    avatar_url: Optional[str] = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, min_length=2, max_length=255)
+    phone: str | None = Field(default=None, max_length=20, pattern=r"^\+?[\d\s\-]{7,20}$")
+    organization: str | None = Field(default=None, max_length=255)
+    avatar_url: str | None = Field(default=None, max_length=500)
 
 
 class PortfolioUploadResponse(BaseModel):
@@ -42,3 +42,5 @@ class PortfolioUploadResponse(BaseModel):
     public_id: str
     format: str
     size_bytes: int
+
+

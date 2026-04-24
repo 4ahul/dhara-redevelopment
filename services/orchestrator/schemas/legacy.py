@@ -1,13 +1,15 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from uuid import UUID
 from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
 
 class SessionCreate(BaseModel):
     """Legacy session creation request."""
-    society_id: Optional[UUID] = None
+    society_id: UUID | None = None
     society_name: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 class SessionResponse(BaseModel):
     """Legacy session response."""
@@ -21,7 +23,7 @@ class ChatMessage(BaseModel):
     """Legacy chat message."""
     role: str
     content: str
-    timestamp: Optional[datetime] = None
+    timestamp: datetime | None = None
 
 class UserProfileResponse(BaseModel):
     """Legacy user profile response."""
@@ -29,10 +31,12 @@ class UserProfileResponse(BaseModel):
     email: str
     name: str
     role: str
-    organization: Optional[str] = None
+    organization: str | None = None
 
 class UserProfileUpdate(BaseModel):
     """Legacy user profile update request."""
-    name: Optional[str] = None
-    organization: Optional[str] = None
-    phone: Optional[str] = None
+    name: str | None = None
+    organization: str | None = None
+    phone: str | None = None
+
+

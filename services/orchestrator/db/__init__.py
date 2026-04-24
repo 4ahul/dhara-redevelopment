@@ -4,13 +4,14 @@ Async SQLAlchemy engine, session factory, and lifecycle hooks.
 """
 
 import logging
+
+from core.config import settings
+from db.base import Base
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from core.config import settings
-from db.base import Base
 
 logger = logging.getLogger(__name__)
 
@@ -42,3 +43,5 @@ async def close_db():
     """Dispose engine pool on shutdown."""
     await engine.dispose()
     logger.info("Database pool closed")
+
+

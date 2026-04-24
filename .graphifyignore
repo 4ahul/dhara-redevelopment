@@ -1,0 +1,55 @@
+# Match .gitignore - keep graph focused on source code + markdown docs
+.venv/
+venv/
+env/
+node_modules/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.claude/
+.code-review-graph/
+code-review-graph/
+graphify-out/
+dist/
+build/
+*.egg-info/
+
+# Outputs and artifacts
+report_outputs/
+outputs/
+uploads/
+artifacts/
+logs/
+*.log
+
+# Data dirs
+**/data/docs/
+**/data/vectors/
+**/data/uploads/
+**/data/workflows/
+**/data/projects/
+**/data/templates/
+
+# Binary formats too expensive to extract word counts from
+*.pdf
+*.xlsx
+*.docx
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Lockfiles and generated data
+*.lock
+uv.lock
+poetry.lock
+package-lock.json
+yarn.lock
+*.postman_collection.json
+Dhara_AI_Official_API_Collection.json
+test_login.json
+
+# Test-docs (too noisy)
+test_docs/

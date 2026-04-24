@@ -2,13 +2,23 @@
 
 import logging
 from uuid import UUID
+
+from core.dependencies import get_current_user, get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
+from schemas.common import PaginatedResponse
+from schemas.society import (
+    ReportCreate,
+    ReportResponse,
+    SocietyCreate,
+    SocietyListItem,
+    SocietyResponse,
+    SocietyUpdate,
+    TenderCreate,
+    TenderResponse,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_db, get_current_user
 from services.society_service import SocietyService
-from schemas.society import SocietyCreate, SocietyUpdate, SocietyResponse, SocietyListItem, ReportCreate, ReportResponse, TenderCreate, TenderResponse
-from schemas.common import PaginatedResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/societies", tags=["Societies"])
@@ -40,8 +50,8 @@ async def list_societies(
 
 @router.post("", response_model=SocietyResponse, status_code=201)
 async def create_society(
-    req: SocietyCreate, 
-    user=Depends(get_current_user), 
+    req: SocietyCreate,
+    user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     soc = await service.create_society(user.id, req)
@@ -50,8 +60,8 @@ async def create_society(
 
 @router.get("/{society_id}", response_model=SocietyResponse)
 async def get_society(
-    society_id: UUID, 
-    user=Depends(get_current_user), 
+    society_id: UUID,
+    user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     soc = await service.get_society(user.id, society_id)
@@ -62,9 +72,9 @@ async def get_society(
 
 @router.patch("/{society_id}", response_model=SocietyResponse)
 async def patch_society(
-    society_id: UUID, 
-    req: SocietyUpdate, 
-    user=Depends(get_current_user), 
+    society_id: UUID,
+    req: SocietyUpdate,
+    user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     soc = await service.update_society(user.id, society_id, req)
@@ -95,9 +105,9 @@ async def list_reports(
 
 @router.post("/{society_id}/reports", response_model=ReportResponse, status_code=201)
 async def create_report(
-    society_id: UUID, 
-    req: ReportCreate, 
-    user=Depends(get_current_user), 
+    society_id: UUID,
+    req: ReportCreate,
+    user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     rpt = await service.create_report(user.id, society_id, req)
@@ -128,12 +138,14 @@ async def list_tenders(
 
 @router.post("/{society_id}/tenders", response_model=TenderResponse, status_code=201)
 async def create_tender(
-    society_id: UUID, 
-    req: TenderCreate, 
-    user=Depends(get_current_user), 
+    society_id: UUID,
+    req: TenderCreate,
+    user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     t = await service.create_tender(user.id, society_id, req)
     if not t:
         raise HTTPException(404, "Society not found")
     return TenderResponse.model_validate(t)
+
+

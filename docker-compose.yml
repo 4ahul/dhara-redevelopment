@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   traefik:
@@ -22,7 +20,7 @@ services:
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -41,7 +39,7 @@ services:
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "redevelopment"]
+      test: [ "CMD", "pg_isready", "-U", "redevelopment" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -49,73 +47,20 @@ services:
 
   orchestrator:
     build: ./services/orchestrator
+    image: redevelopment-ai/orchestrator:v1
     volumes:
       - ./services/orchestrator:/app
-      - report_output:/tmp/reports
+      - ./report_outputs:/tmp/reports
       - upload_data:/tmp/uploads
     ports:
       - "8000:8000"
-    environment:
-      # LLM
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL}
-
-      # Auth
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
-      - CLERK_JWT_KEY=${CLERK_JWT_KEY}
-      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
-      - CLERK_JWT_ISSUER=${CLERK_JWT_ISSUER:-clerk.accounts.dev}
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      # Database
-      - DATABASE_URL=postgresql+asyncpg://redevelopment:redevelopment@postgres:5432/redevelopment
-      - REDIS_URL=redis://redis:6379
-      # Microservices
-      - SITE_ANALYSIS_URL=http://site_analysis:8001
-      - HEIGHT_URL=http://height_service:8002
-      - PREMIUM_URL=http://premium_checker:8004
-      - REPORT_URL=http://report_generator:8005
-      - PR_CARD_URL=http://pr_card_scraper:8006
-      - RAG_URL=http://rag_service:8007
-      - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8008
-      - DP_REPORT_URL=http://dp_report_service:8009
-      # Cloudinary
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-      # SMTP
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@dharaai.com}
-      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Dhara AI}
-      # CORS
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
-      - PYTHONPATH=.
+    env_file:
+      - .env # For global defaults if needed
+      - ./services/orchestrator/.env
     depends_on:
-
-
       redis:
         condition: service_healthy
       postgres:
-        condition: service_healthy
-      site_analysis:
-        condition: service_healthy
-      height_service:
-        condition: service_healthy
-      premium_checker:
-        condition: service_healthy
-      report_generator:
-        condition: service_healthy
-      pr_card_scraper:
-        condition: service_healthy
-      mcgm_property_lookup:
-        condition: service_healthy
-      dp_report_service:
         condition: service_healthy
     networks:
       - dhara_net
@@ -124,106 +69,109 @@ services:
   site_analysis:
     build: ./services/site_analysis
     ports:
-      - "8011:8001"
-    environment:
-      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      - SERP_API_KEY=${SERP_API_KEY}
+      - "8001:8001"
+    env_file:
+      - ./services/site_analysis/.env
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
 
-  height_service:
-    build: ./services/height_service
+  aviation_height:
+    build: ./services/aviation_height
     ports:
       - "8002:8002"
-    environment:
-      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      - SERP_API_KEY=${SERP_API_KEY}
+    env_file:
+      - ./services/aviation_height/.env
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8002/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
 
-  premium_checker:
-
-    build: ./services/premium_checker
+  ready_reckoner:
+    build: ./services/ready_reckoner
     ports:
-      - "8004:8004"
+      - "8003:8003"
+    env_file:
+      - ./services/ready_reckoner/.env
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8003/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
 
   report_generator:
     build: ./services/report_generator
     ports:
-      - "8005:8005"
+      - "8004:8004"
     volumes:
-      - report_output:/tmp/reports
+      - ./report_outputs:/tmp/reports
+    env_file:
+      - ./services/report_generator/.env
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
 
   pr_card_scraper:
     build: ./services/pr_card_scraper
     ports:
-      - "8006:8006"
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - "8005:8005"
+    env_file:
+      - ./services/pr_card_scraper/.env
     depends_on:
       - postgres
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8005/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
- 
+      start_period: 10s
+
   milvus:
-    image: milvusdb/milvus:v2.4.5
-    command: ["milvus", "run", "standalone"]
+    image: milvusdb/milvus:v2.4.0
+    command: [ "milvus", "run", "standalone" ]
+    ports:
+      - "19530:19530"
+      - "9091:9091"
     security_opt:
       - seccomp:unconfined
     environment:
       - ETCD_ENDPOINTS=milvus_etcd:2379
-      - MINIO_ADDRESS=milvus_minio:9000
+      - KNOWHERE_SIMD_TYPE=auto
+      - COMMON_STORAGETYPE=local
+      - COMMON_LOG_LEVEL=warning
     volumes:
       - milvus_data:/var/lib/milvus
     networks:
       - dhara_net
     depends_on:
-      - milvus_etcd
-      - milvus_minio
+      milvus_etcd:
+        condition: service_healthy
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      test: [ "CMD", "curl", "-f", "http://localhost:9091/healthz" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 150s
 
   milvus_etcd:
     image: quay.io/coreos/etcd:v3.5.5
@@ -234,91 +182,91 @@ services:
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
       - etcd_data:/etcd
-    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
+    command: etcd -advertise-client-urls=http://milvus_etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
 
-  milvus_minio:
-    image: minio/minio:latest
+  milvus_attu:
+    image: zilliz/attu:latest
+    ports:
+      - "8081:3000" # Expose Attu on port 8081 on the host
     environment:
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
+      - MILVUS_URL=milvus:19530 # Point to the Milvus service within the Docker network
     networks:
       - dhara_net
+    depends_on:
+      milvus:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   mcgm_property_lookup:
     build: ./services/mcgm_property_lookup
     ports:
-      - "8008:8008"
+      - "8007:8007"
+    env_file:
+      - ./services/mcgm_property_lookup/.env
     depends_on:
       - postgres
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8007/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 10s
     dns:
       - 8.8.8.8
       - 8.8.4.4
 
-  dp_report_service:
-    build: ./services/dp_report_service
+  dp_remarks_report:
+    build: ./services/dp_remarks_report
     ports:
-      - "8009:8009"
+      - "8008:8008"
+    env_file:
+      - ./services/dp_remarks_report/.env
     depends_on:
       - postgres
     networks:
       - dhara_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8009/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8008/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 10s
     dns:
       - 8.8.8.8
       - 8.8.4.4
 
   rag_service:
     build: ./services/rag_service
+    image: redevelopment-ai/rag-service:v2
     ports:
-      - "8007:8007"
-    environment:
-      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/redevelopment
-      - SECRET_KEY=${SECRET_KEY:-7c995f82ba3a032a562b71010459672b6ad0710d690f9f89c82150a39300ada8}
-      - MILVUS_URI=${MILVUS_URI:-}
-      - MILVUS_TOKEN=${MILVUS_TOKEN:-}
-      - MILVUS_HOST=${MILVUS_HOST:-milvus}
-      - MILVUS_PORT=${MILVUS_PORT:-19530}
-      - MILVUS_COLLECTION=${MILVUS_COLLECTION:-documents}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL}
-      - HF_TOKEN=${HF_TOKEN:-}
+      - "8006:8006"
+    env_file:
+      - ./services/rag_service/.env
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - dhara_net
+    volumes:
+      - ./services/rag_service/data:/app/data
+    restart: on-failure:5
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8006/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -329,10 +277,8 @@ networks:
     driver: bridge
 
 volumes:
-  report_output:
   redis_data:
   postgres_data:
   upload_data:
   milvus_data:
   etcd_data:
-  minio_data:

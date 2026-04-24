@@ -8,14 +8,17 @@ Two-phase architecture:
 import asyncio
 import json
 import logging
+import os
 import uuid
-import httpx
-from agent.tools import TOOLS
+
+from agent.llm_client import get_llm_client as get_factory_llm_client
 from agent.prompts import SYSTEM_PROMPT
 from agent.tool_executor import tool_executor
-from agent.llm_client import get_llm_client as get_factory_llm_client
+from agent.tools import TOOLS
 from db import async_session_factory
 from models import AuditLog
+
+from shared.dhara_common.http import AsyncHTTPClient
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +84,7 @@ _DROP_KEYS = {
 async def _call_tool(
     tool_name: str,
     tool_args: dict,
-    http: httpx.AsyncClient,
+    http: AsyncHTTPClient,
     request_id: str,
     progress_callback=None,
 ) -> dict:
@@ -96,7 +99,7 @@ async def _call_tool(
             tool_executor.execute_tool(tool_name, tool_args, http),
             timeout=timeout,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("[%s] Tool %s timed out after %ds", request_id, tool_name, timeout)
         result = {"error": f"{tool_name} timed out after {timeout}s"}
 
@@ -127,7 +130,7 @@ async def _call_tool(
 
 async def _call_tools_parallel(
     calls: list[tuple[str, dict]],
-    http: httpx.AsyncClient,
+    http: AsyncHTTPClient,
     request_id: str,
     progress_callback=None,
 ) -> dict[str, dict]:
@@ -142,7 +145,7 @@ async def _call_tools_parallel(
 
     completed = await asyncio.gather(*[_one(n, a) for n, a in calls])
     results = {}
-    for name, args, res in completed:
+    for name, _args, res in completed:
         results[name] = res
     return results
 
@@ -231,7 +234,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
     collected = {}         # {tool_name: result_dict}
     report_paths = []
 
-    async with httpx.AsyncClient() as http:
+    async with AsyncHTTPClient() as http:
         http.headers["X-Request-ID"] = request_id
 
         # ══════════════════════════════════════════════════════════════
@@ -271,7 +274,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             # Ensure ward is mapped correctly (e.g. K/East -> K/E)
 
             mapped_ward = _map_mcgm_ward(society_data["ward"])
-            
+
             # Scraper works best with a single CTS at a time
             cts_no = society_data["cts_no"]
             if "," in cts_no:
@@ -308,18 +311,30 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         # ── GROUP 2 (parallel): DP Remarks + Max Height ──
         group2_calls = []
 
-        # DP Remarks — needs ward, village, cts_no
-        if society_data.get("ward") and society_data.get("village") and society_data.get("cts_no") and "get_dp_remarks" not in collected:
-            mapped_ward = _map_mcgm_ward(society_data["ward"])
-            dp_args = {
-                "ward": mapped_ward,
-                "village": society_data["village"],
-                "cts_no": society_data["cts_no"],
-            }
-            if lat and lng:
-                dp_args["lat"] = lat
-                dp_args["lng"] = lng
-            group2_calls.append(("get_dp_remarks", dp_args))
+        # DP Remarks — needs ward, village, and CTS or FP number
+        # Use FP if cts_validated indicates DP 2034 scheme, otherwise use CTS
+        if society_data.get("ward") and society_data.get("village") and "get_dp_remarks" not in collected:
+            cts_no = society_data.get("cts_no") or society_data.get("fp_no")
+            fp_no = society_data.get("fp_no")
+
+            # Determine which number to use based on validation status
+            cts_validated = society_data.get("cts_validated", "")
+            use_fp = cts_validated in ("true", "false", "dp2034", "dp1991") and fp_no
+
+            search_number = fp_no if use_fp else cts_no
+
+            if search_number:
+                mapped_ward = _map_mcgm_ward(society_data["ward"])
+                dp_args = {
+                    "ward": mapped_ward,
+                    "village": society_data["village"],
+                    "cts_no": search_number,  # Can be CTS or FP depending on scheme
+                    "use_fp_scheme": use_fp,  # Tell DP service to search as FP
+                }
+                if lat and lng:
+                    dp_args["lat"] = lat
+                    dp_args["lng"] = lng
+                group2_calls.append(("get_dp_remarks", dp_args))
 
         # Max Height — needs lat/lng
         if lat and lng:
@@ -337,12 +352,12 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         # ── GROUP 3 (parallel): Regulations + Premiums ──
         dp_report = collected.get("get_dp_remarks", {})
         plot_sqm = mcgm.get("area_sqm") or society_data.get("plot_area_sqm") or 0
-        
+
         # ── Fallback: Estimate plot area from carpet area if missing ──────────
         if not plot_sqm and society_data.get("residential_area_sqft"):
             # Existing Carpet / 0.8 (efficiency) / 1.33 (avg base FSI in Mumbai)
             carpet_sqft = float(society_data["residential_area_sqft"])
-            est_plot_sqft = (carpet_sqft / 0.75) / 1.33 
+            est_plot_sqft = (carpet_sqft / 0.75) / 1.33
             plot_sqm = round(est_plot_sqft / 10.764, 2)
             logger.info("[%s] Estimated plot area from carpet: %.2f sqm", request_id, plot_sqm)
 
@@ -358,7 +373,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         # Query Regulations — adapt query based on collected data
         ward = society_data.get("ward", "")
         zone_code = dp_report.get("zone_code") or "residential"
-        
+
         # ── Intelligence: Estimate missing society metrics ──────────────────
         num_flats = society_data.get("num_flats") or 0
         if not num_flats and society_data.get("residential_area_sqft"):
@@ -366,8 +381,6 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             num_flats = max(1, int(float(society_data["residential_area_sqft"]) / 750))
             logger.info("[%s] Estimated %d flats from carpet area", request_id, num_flats)
 
-        sale_rate = society_data.get("sale_rate") or 60000 # default for Mumbai if missing
-        
         num_commercial = society_data.get("num_commercial", 0)
         property_type = "mixed-use" if num_commercial else "residential"
         plot_size_desc = "large cluster" if float(plot_sqm) >= 4000 else "society"
@@ -386,13 +399,12 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
         # Calculate Premiums
         # Extract locality from address
-        address = society_data.get("address", "")
         locality = society_data.get("village", "").lower()
         if not locality or "vile parle" in locality.lower():
             locality = "vile parle west" # Gold Standard locality
 
         rr_dist, rr_tal = _map_rr_location(society_data.get("ward", ""))
-        
+
         # Gold Standard RR Zone for Dhiraj Kunj
         rr_zone = society_data.get("rr_zone") or "37/187"
 
@@ -437,7 +449,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
                 try:
                     pr_result = await asyncio.wait_for(pr_card_task, timeout=30)
                     logger.info("[%s] PR card completed after extra wait", request_id)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("[%s] PR card still not done — continuing without it", request_id)
                     pr_result = {"error": "PR card still processing — will be available later"}
                     # Don't cancel — let it finish in background for audit logging
@@ -626,11 +638,11 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
 def _build_data_summary(society_data: dict, collected: dict) -> dict:
     """Build a concise summary of all collected data for the LLM."""
-    
+
     # ── Intelligence: Extract and Estimate scalar metrics ────────────────
     plot_sqm = society_data.get("plot_area_sqm") or collected.get("get_mcgm_property", {}).get("area_sqm") or 0
     carpet_sqft = float(society_data.get("residential_area_sqft") or 0)
-    
+
     if not plot_sqm and carpet_sqft:
         # Estimate plot area from carpet (assuming ZONAL_FSI and 0.75 efficiency)
         zonal_fsi = float(os.getenv("ZONAL_FSI", 1.33))
@@ -774,7 +786,7 @@ def _enrich_report_args(
 
     # Society scalars
     enriched.setdefault("society_name", society_data.get("society_name", "Society"))
-    
+
     # Estimate plot area if missing
     p_sqm = society_data.get("plot_area_sqm") or collected.get("get_mcgm_property", {}).get("area_sqm") or 0
     if not p_sqm and society_data.get("residential_area_sqft"):
@@ -782,7 +794,7 @@ def _enrich_report_args(
     enriched.setdefault("plot_area_sqm", p_sqm)
 
     enriched.setdefault("road_width_m", society_data.get("road_width_m") or collected.get("get_dp_remarks", {}).get("road_width_m") or 9)
-    
+
     # Estimate flats if missing
     n_flats = society_data.get("num_flats") or 0
     if not n_flats and society_data.get("residential_area_sqft"):
@@ -796,6 +808,10 @@ def _enrich_report_args(
     enriched.setdefault("ward", society_data.get("ward", ""))
     enriched.setdefault("redevelopment_type", "CLUBBING")
     enriched.setdefault("regulatory_sources", legal_citations)
+
+    # Pass through UI overrides
+    enriched.setdefault("manual_inputs", society_data.get("manual_inputs", {}))
+    enriched.setdefault("financial", society_data.get("financial", {}))
 
     # Inject full microservice responses (sanitized to be JSON-safe)
     _tool_to_key = {
@@ -844,3 +860,5 @@ def _enrich_report_args(
 
     # Final sanitization — ensure no protobuf/PostGIS objects leak to report generator
     return json.loads(json.dumps(enriched, default=str))
+
+

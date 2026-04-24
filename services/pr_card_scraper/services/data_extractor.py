@@ -15,6 +15,8 @@ from typing import Optional
 import httpx
 from PIL import Image, ImageEnhance
 
+from core import settings
+
 logger = logging.getLogger(__name__)
 
 _PROMPT = """You are a document data extractor for Indian government Property Cards (PR Cards) from the Maharashtra Mahabhumi portal.
@@ -114,6 +116,7 @@ class LLMDataExtractor:
         openai_base_url: Optional[str] = None,
     ):
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY", "")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = (
             openai_base_url
@@ -138,7 +141,7 @@ class LLMDataExtractor:
             if result:
                 result = _validate_area(result)
                 result["extraction_confidence"] = _compute_confidence(result)
-                result["extraction_source"] = "gemini-2.5-flash"
+                result["extraction_source"] = self.gemini_model
                 return result
 
         # Fallback to GPT-4o
@@ -156,7 +159,7 @@ class LLMDataExtractor:
     async def _gemini_extract(self, b64_image: str) -> Optional[dict]:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/gemini-2.5-flash:generateContent?key={self.gemini_api_key}"
+            f"models/{self.gemini_model}:generateContent?key={self.gemini_api_key}"
         )
         payload = {
             "contents": [
@@ -177,6 +180,12 @@ class LLMDataExtractor:
                 "temperature": 0,
                 "thinkingConfig": {"thinkingBudget": 0},
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
         try:
             async with httpx.AsyncClient() as client:

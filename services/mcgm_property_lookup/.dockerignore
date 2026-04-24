@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+reports/
+output/
+logs/
+.git/
+.github/
+.vscode/
+.claude/
+.code-review-graph/
+*.log
+*.egg-info/
+uv.lock

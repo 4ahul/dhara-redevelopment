@@ -4,13 +4,13 @@ Production-ready file upload, download, and deletion via Cloudinary SDK.
 """
 
 import logging
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 from io import BytesIO
-from typing import Optional
-from fastapi import UploadFile, HTTPException
+
+import cloudinary
+import cloudinary.api
+import cloudinary.uploader
 from core.config import settings
+from fastapi import HTTPException, UploadFile
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ async def upload_file(
     file: UploadFile,
     folder: str = "dhara",
     resource_type: str = "auto",
-    allowed_types: Optional[set] = None,
-    public_id: Optional[str] = None,
+    allowed_types: set | None = None,
+    public_id: str | None = None,
 ) -> dict:
     _ensure_init()
     if allowed_types is None:

@@ -4,36 +4,66 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Install uv for fast dependency management
+RUN pip install uv
+
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml for dependency resolution
+COPY pyproject.toml .
 
-# Copy core application files
-COPY *.py ./
-COPY scripts/ scripts/
-COPY data/ data/
-COPY core/ core/
-COPY db/ db/
-COPY routers/ routers/
-COPY schemas/ schemas/
-COPY services/ services/
+# Install dependencies without package setup
+ENV UV_HTTP_TIMEOUT=300
+RUN uv pip install --system \
+    fastapi \
+    uvicorn \
+    pydantic \
+    pydantic-settings \
+    python-multipart \
+    requests \
+    bcrypt \
+    pyjwt \
+    psycopg2-binary \
+    pymilvus \
+    pypdf \
+    reportlab \
+    langchain-ollama \
+    langchain-core \
+    langgraph \
+    easyocr \
+    python-dotenv \
+    opencv-python \
+    torch \
+    torchvision \
+    torchaudio \
+    langchain-openai \
+    langchain-text-splitters \
+    sqlalchemy \
+    httpx \
+    openai \
+    google-cloud-discoveryengine \
+    starlette \
+    itsdangerous \
+    beautifulsoup4 \
+    redis \
+    serpapi
+
+# Copy the rest of the application
+COPY . .
 
 # Create necessary directories
-RUN mkdir -p logs data/docs data/vectors reports
+RUN mkdir -p logs data/docs data/vectors reports data/uploads data/workflows data/projects data/templates
 
 # Environment Variables (Defaults)
-ENV PORT=8007
+ENV PORT=8006
 ENV HOST=0.0.0.0
-ENV MILVUS_HOST=milvus
-ENV MILVUS_PORT=19530
+ENV PYTHONPATH=/app
 
 # Expose backend port
-EXPOSE 8007
+EXPOSE 8006
 
 # Start FastAPI server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8007"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8006"]

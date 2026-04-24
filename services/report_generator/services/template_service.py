@@ -9,9 +9,24 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
+import os
+import sys
+
+service_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(service_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+if service_dir not in sys.path:
+    sys.path.insert(0, service_dir)
 
 from core.config import settings, resolve_scheme_key
 from services.cell_mapper import cell_mapper
+
+# Testing override: all report generation must use this single template file.
+# Remove to restore per-scheme template selection from SCHEME_TEMPLATE_MAP.
+_FORCED_TEMPLATE_NAME: Optional[str] = (
+    "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
+)
 
 
 @dataclass
@@ -30,6 +45,8 @@ class TemplateService:
     def __init__(self):
         self._cache: Dict[str, openpyxl.Workbook] = {}
         self._field_cache: Dict[str, List[TemplateField]] = {}
+        # Cache of label indexes per (scheme_key)
+        self._label_index_cache: Dict[str, Dict[str, any]] = {}
 
     def get_template_for_scheme(
         self, scheme: str, redevelopment_type: str = "CLUBBING"
@@ -40,6 +57,12 @@ class TemplateService:
             scheme: DCPR regulation key (e.g. "30(A)", "33(20)(B)")
             redevelopment_type: "CLUBBING" (default) or "INSITU"
         """
+        if _FORCED_TEMPLATE_NAME is not None:
+            forced_path = settings.TEMPLATES_DIR / _FORCED_TEMPLATE_NAME
+            if not forced_path.exists():
+                raise FileNotFoundError(f"Forced template not found: {forced_path}")
+            return forced_path
+
         key = resolve_scheme_key(scheme, redevelopment_type)
         template_name = settings.SCHEME_TEMPLATE_MAP[key]
 
@@ -156,6 +179,41 @@ class TemplateService:
         self._field_cache[key] = fields
         return fields
 
+    @staticmethod
+    def _normalize_label(text: str) -> str:
+        s = (text or "").strip().lower()
+        # collapse spaces and remove trivial punctuation
+        for ch in ["\n", "\t", ":", ";", ",", "|", "(", ")"]:
+            s = s.replace(ch, " ")
+        s = " ".join(s.split())
+        return s
+
+    def _build_label_index(
+        self, scheme: str, redevelopment_type: str = "CLUBBING"
+    ):
+        """Build an index to resolve manual label-based inputs to cells.
+
+        Returns a dict with:
+          - by_sheet_label: {"<Sheet>|<norm_label>": "<Cell>"}
+          - by_label: {"<norm_label>": [(sheet, cell), ...]}
+        """
+        key = resolve_scheme_key(scheme, redevelopment_type)
+        if key in self._label_index_cache:
+            return self._label_index_cache[key]
+
+        fields = self.get_yellow_fields(scheme, redevelopment_type)
+        by_sheet_label: Dict[str, str] = {}
+        by_label: Dict[str, List[Tuple[str, str]]] = {}
+        for f in fields:
+            norm = self._normalize_label(f.label or f.cell)
+            k = f"{f.sheet}|{norm}"
+            by_sheet_label[k] = f.cell
+            by_label.setdefault(norm, []).append((f.sheet, f.cell))
+
+        out = {"by_sheet_label": by_sheet_label, "by_label": by_label}
+        self._label_index_cache[key] = out
+        return out
+
     def get_template_sheets(
         self, scheme: str, redevelopment_type: str = "CLUBBING"
     ) -> List[str]:
@@ -193,6 +251,40 @@ class TemplateService:
         output.seek(0)
         return output.getvalue()
 
+    def zero_yellow_fields_in_place(
+        self, scheme: str, redevelopment_type: str = "CLUBBING"
+    ) -> int:
+        """Set all yellow input cells in the template to 0 and save in place.
+
+        Returns:
+            int: Count of cells updated to 0.
+        """
+        template_path = self.get_template_for_scheme(scheme, redevelopment_type)
+        # Load a fresh workbook instance for writing (avoid cached object side effects)
+        wb = openpyxl.load_workbook(template_path, data_only=False)
+
+        updated = 0
+        fields = self.get_yellow_fields(scheme, redevelopment_type)
+        for f in fields:
+            ws = wb[f.sheet]
+            cell = ws[f.cell]
+            val = cell.value
+            # Skip formulas to preserve spreadsheet logic
+            if isinstance(val, str) and val.startswith("="):
+                continue
+            # Write 0 as requested
+            cell.value = 0
+            updated += 1
+            # Keep field cache roughly in sync for current_value if present
+            f.current_value = 0
+
+        wb.save(template_path)
+
+        # Refresh the workbook cache for subsequent reads
+        self._cache[str(template_path)] = wb
+
+        return updated
+
     def generate_full_report(
         self,
         scheme: str,
@@ -220,11 +312,41 @@ class TemplateService:
         # Step 2: Merge with manual cell overrides (if any use "Sheet!Cell" or bare "Cell" keys)
         manual_inputs = all_data.get("manual_inputs", {})
         if manual_inputs:
+            # Build label index once for this scheme+type
+            li = self._build_label_index(scheme, redevelopment_type)
+            by_sheet_label = li["by_sheet_label"]
+            by_label = li["by_label"]
+
             for mk, mv in manual_inputs.items():
-                if "!" in mk:
-                    # Already has sheet prefix — use as-is
-                    cell_values[mk] = mv
-                # else: skip bare cell coords — they're field names not cell overrides
+                if not isinstance(mk, str):
+                    continue
+                key_str = mk.strip()
+
+                # 1) Direct cell override: "Sheet!Cell"
+                if "!" in key_str:
+                    cell_values[key_str] = mv
+                    continue
+
+                # 2) Sheet + label: "Sheet: Label" or "Sheet|Label"
+                if ":" in key_str or "|" in key_str:
+                    sep = ":" if ":" in key_str else "|"
+                    sheet_hint, label_hint = [p.strip() for p in key_str.split(sep, 1)]
+                    norm_label = self._normalize_label(label_hint)
+                    sheet_key = f"{sheet_hint}|{norm_label}"
+                    if sheet_key in by_sheet_label:
+                        cell = by_sheet_label[sheet_key]
+                        cell_values[f"{sheet_hint}!{cell}"] = mv
+                        continue
+
+                # 3) Label only (unique across processed sheets)
+                norm_label = self._normalize_label(key_str)
+                matches = by_label.get(norm_label, [])
+                if len(matches) == 1:
+                    s, c = matches[0]
+                    cell_values[f"{s}!{c}"] = mv
+                    continue
+
+                # Else: ambiguous or no match — ignore silently
 
         # Step 3: Apply values to template
         excel_bytes = self.apply_values(scheme, cell_values, redevelopment_type)

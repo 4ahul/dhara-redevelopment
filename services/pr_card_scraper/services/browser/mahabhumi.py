@@ -62,6 +62,17 @@ ENGLISH_TO_MARATHI = {
     "katraj": "कात्रज",
     "ambegaon pathar": "आंबेगाव पठार",
     "theur": "थेऊर",
+    # Mumbai Suburban talukas/villages
+    "andheri": "अंधेरी",
+    "borivali": "बोरीवली",
+    "kurla": "कुर्ला",
+    "vile parle": "विलेपार्ले",
+    "vile parle west": "विलेपार्ले",
+    "vile parle east": "विलेपार्ले",
+    "bandra": "वांद्रे",
+    "santacruz": "सांताक्रुझ",
+    "juhu": "जुहू",
+    "versova": "वेसावे",
 }
 
 DISTRICT_VALUE_MAP = {
@@ -232,213 +243,78 @@ class MahabhumiFormHandler:
         record_of_right: str = "Property Card",
         language: str = "EN",
         property_uid_known: bool = False,
-        # Alias accepted so callers using the old name don't break
-        know_property_uid: bool = False,
+        **kwargs
     ):
-        """Fill the main form steps following user's exact flow:
-        UID radio → Record type → District → Taluka → Village →
-        Search type → Survey No (Part-1) → Search → Select result →
-        Mobile → Language → (captcha + submit handled by caller)
-        """
+        """Fill form sequentially as per user's strict workflow requirements."""
 
-        # Step 1: Property UID Knowledge (default: No)
-        logger.info("Do you know Property UID? No")
-        uid_radio_id = "ContentPlaceHolder1_rbtnULPIN_1"
-        await self.page.click(f"#{uid_radio_id}")
-        await self._wait_for_loading()
-        await asyncio.sleep(1)
-
-        # Step 2: Select Record Type
-        logger.info(f"Selecting record type: {record_of_right}")
+        # 1. Click Property Card
+        logger.info(f"Step 1: Selecting record type: {record_of_right}")
         radio_id = self.RECORD_RADIO_IDS.get(record_of_right, self.RECORD_RADIO_IDS["Property Card"])
         await self._dismiss_overlays()
         await self.page.click(f"#{radio_id}", force=True)
         await self._wait_for_loading()
-        await asyncio.sleep(1.5)
 
-        # Step 3: District
-        logger.info(f"Selecting district: {district}")
+        # 2. District
+        logger.info(f"Step 2: Selecting district: {district}")
         dist_val = DISTRICT_VALUE_MAP.get(district.lower())
         if dist_val:
             await self._select_with_retry("#ContentPlaceHolder1_ddlMainDist", dist_val)
         else:
             await self._select_fuzzy("#ContentPlaceHolder1_ddlMainDist", district)
+        await self._wait_for_loading()
 
-        # Step 4: Taluka — translate English→Marathi if a known mapping exists
+        # 3. Office (Taluka)
         taluka_marathi = ENGLISH_TO_MARATHI.get(taluka.lower(), taluka)
-        logger.info(f"Selecting taluka: {taluka} (lookup: '{taluka_marathi}')")
+        logger.info(f"Step 3: Selecting office: {taluka} ('{taluka_marathi}')")
         await self._select_fuzzy("#ContentPlaceHolder1_ddlTalForAll", taluka_marathi)
+        await self._wait_for_loading()
 
-        # Re-verify Taluka
-        tal_val = await self.page.eval_on_selector("#ContentPlaceHolder1_ddlTalForAll", "el => el.value")
-        if not tal_val or tal_val == "0":
-            logger.warning("Taluka selection lost! Retrying with original name...")
-            await self._select_fuzzy("#ContentPlaceHolder1_ddlTalForAll", taluka)
-
-        # Step 5: Village — translate English→Marathi if a known mapping exists
+        # 4. Village
         village_marathi = ENGLISH_TO_MARATHI.get(village.lower(), village)
-        logger.info(f"Selecting village: {village} (lookup: '{village_marathi}')")
+        logger.info(f"Step 4: Selecting village: {village} ('{village_marathi}')")
         await self._select_fuzzy("#ContentPlaceHolder1_ddlVillForAll", village_marathi)
+        await self._wait_for_loading()
 
-        # Re-verify Village — retry with Marathi name first, then English as last resort
-        vill_val = await self.page.eval_on_selector("#ContentPlaceHolder1_ddlVillForAll", "el => el.value")
-        if not vill_val or vill_val == "0":
-            logger.warning("Village selection failed! Retrying with Marathi name...")
-            await self._select_fuzzy("#ContentPlaceHolder1_ddlVillForAll", village_marathi)
-
-        # Step 6: Select Search Type → Survey/Gat Number (value "1")
-        logger.info("Setting search type to Survey/Gat Number")
+        # 5. Search Type -> Survey/Gat Number
+        logger.info("Step 5: Setting search type to Survey/Gat Number")
         await self._select_with_retry("#ContentPlaceHolder1_ddlSelectSearchType", "1")
+        await self._wait_for_loading()
 
-        # Step 7: Fill Survey Number / CTS Number (Part-1) field and click Search
-        # survey_no_part1 overrides survey_no when provided; otherwise survey_no is used as Part-1
+        # 6. Enter CTS Number and hit Search
         search_value = survey_no_part1 if survey_no_part1 else survey_no
-        logger.info(f"Entering survey/CTS number (Part-1): {search_value}")
-        filled_manually = False
-        await asyncio.sleep(1)  # let form react to search-type change
+        logger.info(f"Step 6: Entering CTS number: {search_value}")
+        
+        # Try finding the text box
+        box_sel = "#ContentPlaceHolder1_txtcsno"
+        if not await self.page.is_visible(box_sel):
+             box_sel = "#ContentPlaceHolder1_txtSurveyNoNew"
+             
+        await self.page.fill(box_sel, search_value)
+        await asyncio.sleep(0.5)
+        
+        btn_sel = "#ContentPlaceHolder1_btnsearchfind"
+        if not await self.page.is_visible(btn_sel):
+            btn_sel = "#ContentPlaceHolder1_btnSearch"
+            
+        await self.page.click(btn_sel)
+        logger.info("Clicked Search button")
+        await self._wait_for_loading()
+        await asyncio.sleep(2)
 
-        # --- Debug: log all visible input IDs on the page ---
-        try:
-            visible_inputs = await self.page.evaluate("""
-                () => Array.from(document.querySelectorAll('input[type="text"], select'))
-                    .filter(el => el.offsetParent !== null)
-                    .map(el => el.id || el.name || '(no-id)')
-            """)
-            logger.info(f"Visible inputs after search-type selection: {visible_inputs}")
-        except Exception:
-            pass
+        # 7. Fill second field with same name (result dropdown)
+        logger.info(f"Step 7: Selecting CTS {search_value} from result dropdown")
+        await self._select_fuzzy("#ContentPlaceHolder1_ddlsurveyno", search_value)
+        await self._wait_for_loading()
 
-        try:
-            # Only use the dropdown if it has actual options loaded (>1 means real data beyond placeholder)
-            ddl_option_count = await self.page.evaluate("""
-                () => {
-                    const el = document.querySelector('#ContentPlaceHolder1_ddlsurveyno');
-                    return el ? el.options.length : 0;
-                }
-            """)
-            if ddl_option_count > 1:
-                logger.info(f"Survey dropdown has {ddl_option_count} options — selecting via dropdown")
-                await self._select_fuzzy("#ContentPlaceHolder1_ddlsurveyno", search_value)
-                filled_manually = False  # dropdown path: no Search button click needed
-            else:
-                # Text-input path: type into CTS/survey text box and click Search
-                # IDs ordered from most-common to least-common on Bhulekh Property Card form
-                cts_selectors = [
-                    "#ContentPlaceHolder1_txtSurveyNoNew",
-                    "#ContentPlaceHolder1_txtcsno",
-                    "#ContentPlaceHolder1_txtCTSNo",
-                    "#ContentPlaceHolder1_txtCTSNO",
-                    "#ContentPlaceHolder1_txtSurveyNo",
-                    "#ContentPlaceHolder1_txtGatNo",
-                    "#ContentPlaceHolder1_txtPCNumber",
-                    "#ContentPlaceHolder1_txtSatNo",
-                ]
-                for sel in cts_selectors:
-                    try:
-                        if await self.page.is_visible(sel, timeout=2000):
-                            await self.page.click(sel)
-                            await self.page.keyboard.press("Control+A")
-                            await self.page.keyboard.press("Backspace")
-                            await self.page.keyboard.type(search_value, delay=100)
-                            logger.info(f"Entered survey/CTS number '{search_value}' in {sel}")
-                            filled_manually = True
-                            break
-                    except Exception:
-                        continue
+        # 8. Mobile
+        logger.info(f"Step 8: Entering mobile: {mobile}")
+        await self.page.fill("#ContentPlaceHolder1_txtmobile1", mobile)
+        await asyncio.sleep(0.5)
 
-                if not filled_manually:
-                    # Last resort: JS injection into first visible text input that isn't mobile/captcha
-                    filled_manually = await self.page.evaluate("""
-                        (val) => {
-                            const exclude = ['mobile', 'Mobile', 'captcha', 'Captcha', 'lang', 'Lang'];
-                            const inputs = Array.from(document.querySelectorAll('input[type="text"]'))
-                                .filter(el => {
-                                    if (el.offsetParent === null) return false;
-                                    const id = el.id || '';
-                                    return !exclude.some(kw => id.includes(kw));
-                                });
-                            if (inputs.length > 0) {
-                                inputs[0].focus();
-                                inputs[0].value = val;
-                                inputs[0].dispatchEvent(new Event('input', {bubbles:true}));
-                                inputs[0].dispatchEvent(new Event('change', {bubbles:true}));
-                                return inputs[0].id || '(first-visible-input)';
-                            }
-                            return null;
-                        }
-                    """, search_value)
-                    if filled_manually:
-                        logger.info(f"Entered survey/CTS number via JS fallback into: {filled_manually}")
-                        filled_manually = True  # convert the returned id string to truthy bool
-
-        except Exception as e:
-            logger.warning(f"Error entering survey/CTS number: {e}")
-
-        # Step 7b: Click Search button (text-input path only)
-        if filled_manually:
-            search_btns = [
-                "#ContentPlaceHolder1_btnSearch",
-                "#ContentPlaceHolder1_btnsearchfind",
-                "#ContentPlaceHolder1_btnSearchPR",
-                "input[value='Search']",
-                "input[id*='Search'][type='submit']",
-                "input[id*='Search'][type='button']",
-            ]
-            clicked_search = False
-            for btn in search_btns:
-                try:
-                    if await self.page.is_visible(btn, timeout=2000):
-                        await self.page.click(btn)
-                        await self._wait_for_loading()
-                        await asyncio.sleep(1.5)
-                        clicked_search = True
-                        logger.info(f"Clicked search button: {btn}")
-                        break
-                except Exception:
-                    continue
-
-            if clicked_search:
-                # Step 7c: Select the survey number from the result dropdown/grid.
-                # After Search, the site populates either a dropdown with matching records
-                # or a grid. We must pick the right row before proceeding.
-                await self._select_survey_from_results(survey_no)
-
-        # Step 8: Mobile
-        logger.info(f"Entering mobile: {mobile}")
-        mobile_selectors = ["#ContentPlaceHolder1_txtmobile1", "#ContentPlaceHolder1_txtMobile"]
-        for selector in mobile_selectors:
-            try:
-                if await self.page.is_visible(selector, timeout=3000):
-                    await self.page.click(selector)
-                    await self.page.keyboard.press("Control+A")
-                    await self.page.keyboard.press("Backspace")
-                    await self.page.keyboard.type(mobile, delay=50)
-                    await self.page.keyboard.press("Tab")
-                    # Solidify via JS so ASP.NET validators pick it up
-                    await self.page.evaluate(
-                        """(sel, val) => {
-                            const el = document.querySelector(sel);
-                            if (el) {
-                                el.value = val;
-                                el.dispatchEvent(new Event('input', {bubbles:true}));
-                                el.dispatchEvent(new Event('change', {bubbles:true}));
-                                el.dispatchEvent(new Event('blur', {bubbles:true}));
-                            }
-                        }""",
-                        selector, mobile,
-                    )
-                    await asyncio.sleep(1)
-                    break
-            except Exception:
-                continue
-
-        # Step 9: Language (must come AFTER mobile — per site flow)
-        logger.info(f"Setting language to: {language}")
-        lang_val = "en_in" if language.upper() == "EN" else "mr_in"
-        try:
-            await self._select_with_retry("#ContentPlaceHolder1_ddllangforAll", lang_val)
-        except Exception as e:
-            logger.warning(f"Language selection failed (non-fatal): {e}")
+        # 9. Language (default English)
+        logger.info(f"Step 9: Setting language to English")
+        await self._select_with_retry("#ContentPlaceHolder1_ddllangforAll", "en_in")
+        await self._wait_for_loading()
 
     async def _select_survey_from_results(self, survey_no: str):
         """After clicking Search, select the matching survey number from results.

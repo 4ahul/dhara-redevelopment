@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     SCHEME_TEMPLATE_MAP: Dict[str, str] = {
         # ── CLUBBING variants ─────────────────────────────────────────
         "30(A)":          "New base Feasibility as per Reg. 30(A), 33(7)(B) and 33 (20)(B)  - CLUBBING.xlsx",
-        "33(7)(B)":       "New base Feasibility as per Reg. 30(A), 33(7)(B) and 33 (20)(B)  - CLUBBING.xlsx",
+        "33(7)(B)":       "FINAL TEMPLATE _ 33 (7)(B).xlsx",
         "33(20)(B)":      "New Base Feasiblity as per Reg. 33(20)(B) - CLUBBING.xlsx",
         "33(7)(A)":       "New Base Feasiblity as per Reg. 30(A), 33(7)(A), 33(12)B and 33 (20)(B) - CLUBBING.xlsx",
         "33(12)(B)":      "New Base Feasibility as per Reg. 30(A), 33(7)(B), 33(12)B and 33 (20)(B) - CLUBBING.xlsx",
@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     }
 
     class Config:
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         case_sensitive = True
+        extra = "ignore"
 
 
 def resolve_scheme_key(scheme: str, redevelopment_type: str = "CLUBBING") -> str:

@@ -4,9 +4,10 @@ Uses OpenAI embeddings, processes all PDFs in data/docs
 """
 
 import os
+import json
 import hashlib
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 
 # Load .env
 env_file = Path(__file__).parent / ".env"
@@ -16,7 +17,7 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ[key.strip()] = val.strip()
 
-from pymilvus import connections, Collection
+from pymilvus import connections, Collection, DataType
 
 # Config
 COLLECTION_NAME = "documents"
@@ -95,14 +96,14 @@ def main():
     print("=" * 60)
 
     # Connect to Milvus
-    print("\n[1] Connecting to Milvus...")
+    print(f"\n[1] Connecting to Milvus...")
     connections.connect(host=MILVUS_HOST, port=MILVUS_PORT)
     collection = Collection(COLLECTION_NAME)
     collection.load()
     print(f"    Collection: {COLLECTION_NAME}")
 
     # Find all PDFs
-    print("\n[2] Finding PDFs...")
+    print(f"\n[2] Finding PDFs...")
     docs_dir = Path("data/docs")
     pdf_files = list(docs_dir.rglob("*.pdf"))
     print(f"    Found {len(pdf_files)} PDFs")
@@ -112,7 +113,7 @@ def main():
         return
 
     # Get embeddings client
-    print("\n[3] Setting up embeddings...")
+    print(f"\n[3] Setting up embeddings...")
     from langchain_openai import OpenAIEmbeddings
 
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -120,7 +121,7 @@ def main():
     print(f"    Embedding dim: {len(test_vec)}")
 
     # Process each PDF
-    print("\n[4] Indexing documents...")
+    print(f"\n[4] Indexing documents...")
     total_chunks = 0
 
     for pdf_file in pdf_files:
@@ -184,12 +185,12 @@ def main():
     # Flush
     collection.flush()
 
-    print("\n[5] Indexing complete!")
+    print(f"\n[5] Indexing complete!")
     print(f"    Total chunks: {total_chunks}")
     print(f"    Collection entities: {collection.num_entities}")
 
     # Verify schema
-    print("\n[6] Schema verification:")
+    print(f"\n[6] Schema verification:")
     for f in collection.schema.fields:
         print(f"    - {f.name}: {f.dtype}")
 

@@ -1,0 +1,43 @@
+{
+  "scheme": "33(7)(B)",
+  "society_name": "Maheshwar Mansion CHS",
+  "ref_no": "TEST/RD/2026/001",
+  "ward": "K/W",
+  "plot_area_sqm": 1487.5,
+  "road_width_m": 18.3,
+  "num_flats": 138,
+  "num_commercial": 12,
+  "existing_residential_carpet_sqft": 22305,
+  "existing_commercial_carpet_sqft": 0,
+  "dp_report": {
+    "road_width_m": 18.3,
+    "setback_area_sqm": 0,
+    "amenity_area_sqm": 0,
+    "reservation_area_sqm": 0,
+    "required_nocs": ["Highway"]
+  },
+  "mcgm_property": {
+    "area_sqm": 1487.5,
+    "existing_residential_carpet_sqft": 22305
+  },
+  "height": {
+    "max_height_m": 56.4
+  },
+  "ready_reckoner": {
+    "rr_open_land_sqm": 128870
+  },
+  "premium": {
+    "rr_open_land_sqm": 128870
+  },
+  "manual_inputs": {
+    "corpus_commercial": 1500,
+    "corpus_residential": 1500,
+    "rent_commercial": 150,
+    "rent_residential": 125,
+    "brokerage_commercial": 125,
+    "brokerage_residential": 125,
+    "shifting_commercial": 30000,
+    "shifting_residential": 30000,
+    "completion_months_residential": 36
+  }
+}

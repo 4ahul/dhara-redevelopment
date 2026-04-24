@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Float, Text, DateTime, ForeignKey, Enum as SAEnum, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+
 from db.base import Base
 from models.enums import InviteStatus, TenderStatus
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 def _uuid():
@@ -60,3 +62,5 @@ class SocietyTender(Base):
 
     society = relationship("Society", back_populates="tenders")
     awarded_user = relationship("User", foreign_keys=[awarded_to], lazy="selectin")
+
+

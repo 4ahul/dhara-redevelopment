@@ -8,8 +8,11 @@ import os
 import sys
 import time
 import json
+import hashlib
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
+from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -40,10 +43,7 @@ from scripts.semantic_chunker import HybridChunker
 # Constants
 # ---------------------------------------------------------------------------
 
-COLLECTION_NAME = os.environ.get(
-    "MILVUS_COLLECTION_RAG",
-    os.environ.get("MILVUS_COLLECTION", "documents"),
-)
+COLLECTION_NAME = os.environ.get("MILVUS_COLLECTION", "dcpr_knowledge")
 EMBEDDING_DIM = 1536  # OpenAI text-embedding-3-small
 BATCH_SIZE = 50  # Embedding batch size
 EMBEDDING_BATCH_SIZE = 100  # OpenAI API batch limit
@@ -305,9 +305,9 @@ def run_pipeline(
     print(f"  Documents: {docs_dir}")
     print(f"  Embedding: OpenAI text-embedding-3-small ({EMBEDDING_DIM} dim)")
     print(f"  Milvus:    {MILVUS_HOST}:{MILVUS_PORT}")
-    print("  Index:     HNSW (M=16, efConstruction=256)")
+    print(f"  Index:     HNSW (M=16, efConstruction=256)")
     print(
-        "  Schema:    text, source, page, language, doc_type, chunk_type, chunk_index, file_hash"
+        f"  Schema:    text, source, page, language, doc_type, chunk_type, chunk_index, file_hash"
     )
     print("=" * 70)
 
@@ -400,7 +400,7 @@ def run_pipeline(
     print(f"  Extraction time:     {chunk_elapsed:.1f}s")
     print(f"  Indexing time:       {index_elapsed:.1f}s")
     print(f"  Total time:          {total_elapsed:.1f}s")
-    print("  Index type:          HNSW (M=16, efConstruction=256)")
+    print(f"  Index type:          HNSW (M=16, efConstruction=256)")
     print(f"  Embedding model:     OpenAI text-embedding-3-small ({EMBEDDING_DIM}d)")
     print("=" * 70)
 

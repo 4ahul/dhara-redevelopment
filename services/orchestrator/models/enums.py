@@ -3,7 +3,7 @@
 import enum
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     ADMIN = "admin"
     PMC = "pmc"
     SOCIETY = "society"
@@ -12,29 +12,31 @@ class UserRole(str, enum.Enum):
     VIEWER = "viewer"
 
 
-class EnquiryStatus(str, enum.Enum):
+class EnquiryStatus(enum.StrEnum):
     NEW = "new"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
     CLOSED = "closed"
 
 
-class InviteStatus(str, enum.Enum):
+class InviteStatus(enum.StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"
     EXPIRED = "expired"
 
 
-class ReportStatus(str, enum.Enum):
+class ReportStatus(enum.StrEnum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class TenderStatus(str, enum.Enum):
+class TenderStatus(enum.StrEnum):
     DRAFT = "draft"
     OPEN = "open"
     CLOSED = "closed"
     AWARDED = "awarded"
+
+

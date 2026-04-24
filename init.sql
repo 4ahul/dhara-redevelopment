@@ -1,0 +1,10 @@
+CREATE DATABASE orchestrator_db;
+CREATE DATABASE rag_service_db;
+CREATE DATABASE pr_card_scraper_db;
+CREATE DATABASE mcgm_property_lookup_db;
+CREATE DATABASE dp_remarks_report_db;
+GRANT ALL PRIVILEGES ON DATABASE orchestrator_db TO redevelopment;
+GRANT ALL PRIVILEGES ON DATABASE rag_service_db TO redevelopment;
+GRANT ALL PRIVILEGES ON DATABASE pr_card_scraper_db TO redevelopment;
+GRANT ALL PRIVILEGES ON DATABASE mcgm_property_lookup_db TO redevelopment;
+GRANT ALL PRIVILEGES ON DATABASE dp_remarks_report_db TO redevelopment;

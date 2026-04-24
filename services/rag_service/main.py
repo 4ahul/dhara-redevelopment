@@ -1,80 +1,94 @@
-"""
-Dhara RAG Service
-Main entry point for PMC, Builder, Society, DDR operations.
-"""
-
-import sys
 import os
-import secrets
+import sys
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+
+# Load local .env before anything else to override global environment variables
+from dotenv import load_dotenv
+load_dotenv(override=True)
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-# Add the service directory to sys.path to resolve internal imports
-service_dir = os.path.dirname(os.path.abspath(__file__))
-if service_dir not in sys.path:
-    sys.path.append(service_dir)
-
-from core.middleware import rate_limit_middleware, security_headers_middleware
+from core.config import settings
 from db.session import init_db, engine
-from routers import auth_router, chat_router, utility_router
+from core.middleware import rate_limit_middleware, security_headers_middleware
+from routers import chat_router, doc_router, query_router, auth_router
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    logger.info("Initializing RAG Service...")
-    try:
-        init_db()
-    except Exception as e:
-        logger.error(f"Database init failed: {e}")
-    
+    logger.info("[STARTUP] Initializing RAG Service...")
+    init_db()
     yield
-    # Shutdown
-    logger.info("Disposing database connection pool...")
+    logger.info("[SHUTDOWN] Disposing database connection pool...")
     engine.dispose()
-    logger.info("Shutdown complete.")
 
 app = FastAPI(
-    title="Dhara AI RAG API",
-    description="Dhara AI — Backend API for Redevelopment Management System",
-    version="2.0.0",
+    title=settings.APP_NAME,
+    description="Backend API for Redevelopment Management System",
+    version=settings.APP_VERSION,
     lifespan=lifespan
 )
 
-# Authentication & Sessions
-session_secret = os.environ.get("SESSION_SECRET", secrets.token_hex(32))
-app.add_middleware(SessionMiddleware, secret_key=session_secret)
+# --- Middleware ---
 
-# CORS
+# 1. Standard Middlewares
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Expand as needed for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    SessionMiddleware,
+    secret_key=settings.SESSION_SECRET,
 )
 
-# Custom Middlewares
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Client-Source"],
+)
+
+# 2. Functional Middlewares
 app.middleware("http")(rate_limit_middleware)
 app.middleware("http")(security_headers_middleware)
 
-# Health check
-@app.get("/health")
-async def health():
-    return {"status": "ok", "service": "rag_service"}
+@app.middleware("http")
+async def client_source_middleware(request: Request, call_next):
+    """Identifies if the request came from 'rag-ui' or 'orchestrator'."""
+    source = request.headers.get("X-Client-Source", "unknown")
+    if source != "unknown":
+        logger.info(f"Source: {source} | Request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    return response
 
-# Routers
+# --- API Endpoints ---
+
+@app.get("/api/health")
+async def health_check():
+    from datetime import datetime, timezone
+    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# --- Include Routers ---
 app.include_router(auth_router.router)
 app.include_router(chat_router.router)
-app.include_router(utility_router.router)
+app.include_router(doc_router.router)
+app.include_router(query_router.router)
 
 if __name__ == "__main__":
+    # Move heavy banner import here to keep main logic fast-starting
+    try:
+        from core.banner import print_banner as _print_banner
+        _print_banner()
+    except ImportError:
+        print(f"\n--- Starting {settings.APP_NAME} ---")
+
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8006))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -6,8 +6,16 @@ Uses LangGraph for agent orchestration and LangSmith for tracing
 
 import os
 import json
+import re
+import uuid
+import logging
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Any, Optional, TypedDict, Annotated
+from dataclasses import dataclass, field
+from datetime import datetime
+from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 # Load environment
 env_file = Path(__file__).parent / ".env"
@@ -19,7 +27,8 @@ if env_file.exists():
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_core.runnables import RunnableConfig
 
 # LangSmith imports
 from langsmith import traceable, Client as LangSmithClient
@@ -37,7 +46,7 @@ def setup_langsmith():
     project_name = os.environ.get("LANGSMITH_PROJECT", "dhara-rag")
 
     if not langsmith_api_key:
-        print("⚠️  LangSmith API key not found - observability disabled")
+        logger.warning("LangSmith API key not found - observability disabled")
         return None
 
     # Set environment variables
@@ -46,7 +55,7 @@ def setup_langsmith():
     os.environ["LANGSMITH_TRACING"] = "true"
 
     client = LangSmithClient()
-    print(f"✅ LangSmith enabled - project: {project_name}")
+    logger.info(f"LangSmith enabled - project: {project_name}")
     return client
 
 
@@ -86,34 +95,11 @@ class RAGTools:
         try:
             from pymilvus import connections, Collection
 
-            milvus_host = os.environ.get("MILVUS_HOST", "localhost")
-            milvus_port = os.environ.get("MILVUS_PORT", "19530")
-            milvus_token = os.environ.get("MILVUS_TOKEN", "")
-            milvus_uri = os.environ.get("MILVUS_URI", "")
-            collection_name = os.environ.get(
-                "MILVUS_COLLECTION_RAG",
-                os.environ.get("MILVUS_COLLECTION", "dcpr_knowledge"),
-            )
-
-            if milvus_uri and milvus_token:
-                uri = milvus_uri if milvus_uri.startswith("https://") else f"https://{milvus_uri}"
-                connections.connect(alias="default", uri=uri, token=milvus_token, timeout=15)
-            elif milvus_token:
-                connections.connect(
-                    alias="default",
-                    host=milvus_host,
-                    port=milvus_port,
-                    token=milvus_token,
-                    secure=True,
-                    timeout=15,
-                )
-            else:
-                connections.connect(alias="default", host=milvus_host, port=milvus_port, timeout=15)
-
-            self.milvus_client = Collection(collection_name)
-            print("✅ Milvus connected")
+            connections.connect(host="localhost", port="19530")
+            self.milvus_client = Collection("dcpr_knowledge")
+            logger.info("Milvus connected")
         except Exception as e:
-            print(f"⚠️  Milvus not available: {e}")
+            logger.warning(f"Milvus not available: {e}")
 
     @traceable(name="classify_intent", run_type="chain")
     def classify_intent(self, question: str) -> Dict:
@@ -128,7 +114,7 @@ Question: {question}
 Return JSON with: intent, topic, entities[]"""
 
         response = self.openai_client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "llama-3.3-70b-versatile"),
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
@@ -146,17 +132,13 @@ Return JSON with: intent, topic, entities[]"""
             return [{"text": "Milvus not available", "score": 0}]
 
         try:
-            from pymilvus import Collection
+            from pymilvus import connections, Collection
             from langchain_openai import OpenAIEmbeddings
 
             embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
             query_embedding = embeddings.embed_query(query)
 
-            collection_name = os.environ.get(
-                "MILVUS_COLLECTION_RAG",
-                os.environ.get("MILVUS_COLLECTION", "dcpr_knowledge"),
-            )
-            collection = Collection(collection_name)
+            collection = Collection("dcpr_knowledge")
             collection.load()
 
             results = collection.search(
@@ -222,7 +204,7 @@ Instructions:
 """
 
         response = self.openai_client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "llama-3.3-70b-versatile"),
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system",
@@ -253,9 +235,9 @@ class LangGraphRAG:
     """LangGraph-based RAG Agent with observability"""
 
     def __init__(self):
-        print("=" * 60)
-        print("INITIALIZING LANGGRAPH RAG WITH LANGSMITH")
-        print("=" * 60)
+        logger.info("=" * 60)
+        logger.info("INITIALIZING LANGGRAPH RAG WITH LANGSMITH")
+        logger.info("=" * 60)
 
         # Setup LangSmith
         self.langsmith = setup_langsmith()
@@ -266,7 +248,7 @@ class LangGraphRAG:
         # Build the graph
         self.graph = self._build_graph()
 
-        print("✅ LangGraph RAG initialized")
+        logger.info("LangGraph RAG initialized")
 
     def _build_graph(self) -> StateGraph:
         """Build the LangGraph state machine"""

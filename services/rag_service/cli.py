@@ -8,11 +8,6 @@ import argparse
 import sys
 from pathlib import Path
 
-# Ensure the repository root is on Python path when running cli.py directly.
-ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -43,7 +38,7 @@ Examples:
     query_parser = subparsers.add_parser("query", help="Query DCPR regulations")
     query_parser.add_argument("question", help="Your question")
     query_parser.add_argument("--model", default="qwen2.5:7b", help="LLM model")
-    query_parser.add_argument("--k", type=int, default=5, help="Number of results")
+    query_parser.add_argument("--k", type=int, default=20, help="Number of results")
 
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Analyze property")
@@ -150,7 +145,7 @@ Examples:
 def handle_query(args):
     """Query DCPR regulations - using Intelligent RAG Agent"""
     import os
-    from services.rag_service.services import IntelligentRAG
+    from services.intelligent_rag import IntelligentRAG
     from pathlib import Path
 
     # Load API key from .env file
@@ -189,7 +184,7 @@ def handle_query(args):
 
 def handle_analyze(args):
     """Analyze property and generate reports"""
-    from services.rag_service.services.property_card_workflow import (
+    from services.property_card_workflow import (
         PropertyCardWorkflow,
         PropertyCard,
         RevenueBreakdown,
@@ -263,14 +258,14 @@ def handle_analyze(args):
 
 def handle_scan(args):
     """Scan property card from file"""
-    from services.rag_service.services.property_card_workflow import PropertyCardWorkflow
+    from property_card_workflow import PropertyCardWorkflow
 
     print(f"Scanning: {args.input}")
     workflow = PropertyCardWorkflow()
 
     try:
         outputs = workflow.run_workflow(args.input, args.output)
-        print("\nReports generated:")
+        print(f"\nReports generated:")
         for report_type, path in outputs.items():
             print(f"  {report_type}: {path}")
     except Exception as e:
@@ -279,7 +274,7 @@ def handle_scan(args):
 
 def handle_compare(args):
     """Compare DCPR schemes"""
-    from services.rag_service.services.property_card_workflow import DCPRCalculator, PropertyCard
+    from property_card_workflow import DCPRCalculator, PropertyCard
 
     print(f"Comparing schemes for {args.area} sq.m plot\n")
 
@@ -456,8 +451,8 @@ def handle_index(args):
             print(f"File not found: {pdf_path}")
             return
 
-    from rag import RAGAgent, DocumentLoader
-    from pymilvus import connections, utility
+    from services.rag import RAGAgent, DocumentLoader
+    from pymilvus import connections, utility, Collection
 
     # Clear existing collection if rebuild
     if args.rebuild:

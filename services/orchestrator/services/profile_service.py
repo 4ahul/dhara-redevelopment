@@ -5,11 +5,13 @@ Refactored for consistency with the new Service/CRUD architecture.
 """
 
 import logging
+
 from fastapi import HTTPException, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
-from schemas.profile import ProfileResponse, ProfileUpdate, PortfolioUploadResponse
-from services.cloudinary import upload_portfolio, upload_avatar
+from schemas.profile import PortfolioUploadResponse, ProfileResponse, ProfileUpdate
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.cloudinary import upload_avatar, upload_portfolio
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +24,10 @@ class ProfileService:
         data = req.model_dump(exclude_unset=True)
         if not data:
             raise HTTPException(status_code=400, detail="No fields to update")
-            
+
         for k, v in data.items():
             setattr(user, k, v)
-            
+
         await self.db.flush()
         await self.db.refresh(user)
         logger.info("Profile updated: %s", user.email)
@@ -39,9 +41,9 @@ class ProfileService:
         await self.db.refresh(user)
         logger.info("Portfolio uploaded: %s", user.email)
         return PortfolioUploadResponse(
-            portfolio_url=result["secure_url"], 
-            public_id=result["public_id"], 
-            format=result["format"], 
+            portfolio_url=result["secure_url"],
+            public_id=result["public_id"],
+            format=result["format"],
             size_bytes=result["bytes"]
         )
 
@@ -52,7 +54,9 @@ class ProfileService:
         await self.db.flush()
         await self.db.refresh(user)
         return {
-            "status": "success", 
-            "avatar_url": result["secure_url"], 
+            "status": "success",
+            "avatar_url": result["secure_url"],
             "public_id": result["public_id"]
         }
+
+

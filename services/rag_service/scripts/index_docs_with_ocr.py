@@ -9,6 +9,7 @@ import sys
 import uuid
 from pathlib import Path
 import time
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,6 +23,7 @@ from pymilvus import (
     utility,
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
 MILVUS_HOST = "localhost"
@@ -104,7 +106,7 @@ def extract_text_from_pdf(filepath):
         for page in reader.pages:
             text += page.extract_text() or ""
         return text.strip()
-    except Exception:
+    except Exception as e:
         return None
 
 
@@ -140,7 +142,7 @@ def process_file(filepath):
         text = extract_text_from_pdf(filepath)
         method = "pypdf"
         if not text or len(text) < 100:
-            print("    Text extraction weak, trying OCR...")
+            print(f"    Text extraction weak, trying OCR...")
             text = extract_text_with_ocr(filepath)
             method = "ocr" if text else method
     elif filepath.suffix.lower() == ".txt":

@@ -1,5 +1,16 @@
 import asyncio
 import uuid
+import os
+import sys
+import json as _json
+
+service_dir = os.path.dirname(os.path.abspath(__file__))
+if service_dir not in sys.path:
+    sys.path.insert(0, service_dir)
+
+# Root of the report_generator service (one level above routers/)
+_svc_root = os.path.dirname(service_dir)
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from io import BytesIO
@@ -13,10 +24,15 @@ from schemas.report import (
 )
 from services.data_normalizer import normalize_report_data
 from services.pdf_builder import build_feasibility_pdf
-from services.excel_builder import build_feasibility_report
 from services.template_service import template_service
 from services.excel_to_pdf import generate_report_with_pdf
 from core.config import OUTPUT_DIR, settings, resolve_scheme_key
+from feasibility.dispatcher import generate as feasibility_generate
+from feasibility import calcs as _feasibility_calcs  # noqa: F401 — registers @register decorators
+
+MAPPING_PATH = os.path.join(_svc_root, "mappings", "33_7_B.yaml")
+TEMPLATE_PATH = os.path.join(_svc_root, "templates", "FINAL TEMPLATE _ 33 (7)(B) .xlsx")
+DOSSIER_PATH = os.path.join(_svc_root, "dossiers", "33_7_B.dossier.json")
 
 router = APIRouter()
 
@@ -59,7 +75,8 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
 async def generate_report(req: ReportRequest):
     """
     Generate the feasibility report PDF.
-    Also saves an Excel copy alongside as a secondary artifact.
+    Excel copy is produced from the hardcoded 33(20)(B) CLUBBING template
+    (testing mode — see template_service._FORCED_TEMPLATE_NAME).
     """
     report_id = str(uuid.uuid4())[:8].upper()
     safe_name = req.society_name.replace(" ", "_")
@@ -68,15 +85,42 @@ async def generate_report(req: ReportRequest):
     pdf_path = str(OUTPUT_DIR / pdf_filename)
     xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
+    # Testing mode: every /generate call uses the fixed 33(20)(B) CLUBBING template.
+    target_scheme = "33(20)(B)"
+    target_rd_type = "CLUBBING"
+
+    all_data = {
+        "society_name": req.society_name,
+        "scheme": target_scheme,
+        "plot_area_sqm": req.plot_area_sqm,
+        "road_width_m": req.road_width_m,
+        "num_flats": req.num_flats,
+        "num_commercial": req.num_commercial,
+        "site_analysis": req.site_analysis or {},
+        "height": req.height or {},
+        "premium": req.premium or {},
+        "dp_report": req.dp_report or {},
+        "mcgm_property": req.mcgm_property or {},
+        "zone_regulations": req.zone_regulations or {},
+        "ready_reckoner": req.ready_reckoner or {},
+        "financial": req.financial or {},
+        "fsi": req.fsi or {},
+        "bua": req.bua or {},
+        "manual_inputs": req.manual_inputs or {},
+    }
+
     try:
-        # 1. Normalise flat LLM input → per-scheme nested structure
         normalized = normalize_report_data(req.model_dump())
 
-        # 2. Generate PDF (primary output returned to caller)
         await asyncio.to_thread(build_feasibility_pdf, normalized, pdf_path)
 
-        # 3. Generate Excel as secondary artifact (saved to disk, not returned)
-        await asyncio.to_thread(build_feasibility_report, normalized, xlsx_path)
+        await asyncio.to_thread(
+            template_service.generate_full_report,
+            scheme=target_scheme,
+            all_data=all_data,
+            output_path=xlsx_path,
+            redevelopment_type=target_rd_type,
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
@@ -183,7 +227,7 @@ async def generate_template_report(req: TemplateReportRequest):
         report_id = str(uuid.uuid4())[:8].upper()
         safe_name = req.society_name.replace(" ", "_")
         
-        target_scheme = "33(20)(B)"
+        target_scheme = "33(7)(B)"
         target_rd_type = req.redevelopment_type.value if hasattr(req.redevelopment_type, "value") else str(req.redevelopment_type)
 
         all_data = _build_all_data(req)
@@ -258,3 +302,47 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
         raise HTTPException(
             status_code=500, detail=f"Template report with PDF generation failed: {e}"
         )
+
+
+@router.post("/generate/feasibility-report")
+async def generate_feasibility_report(req: TemplateReportRequest):
+    """Fill the 33(7)(B) template with microservice + user-input data."""
+    try:
+        safe_name = req.society_name.replace(" ", "_")
+        report_id = str(uuid.uuid4())[:8].upper()
+        xlsx_filename = f"Feasibility_33_7_B_{safe_name}_{report_id}.xlsx"
+        xlsx_path = str(OUTPUT_DIR / xlsx_filename)
+
+        resp = await asyncio.to_thread(
+            feasibility_generate,
+            request=_build_all_data(req),
+            mapping_path=MAPPING_PATH,
+            template_path=TEMPLATE_PATH,
+            output_path=xlsx_path,
+        )
+
+        return StreamingResponse(
+            BytesIO(resp.excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={xlsx_filename}",
+                "X-Report-Missing-Fields": str(len(resp.missing_fields)),
+                "X-Report-Calc-Errors": str(len(resp.calculation_errors)),
+                "X-Report-Skipped-Formulas": str(len(resp.skipped_formula_cells)),
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Feasibility report generation failed: {e}"
+        )
+
+
+@router.get("/feasibility/dossier")
+async def get_feasibility_dossier(scheme: str = Query("33(7)(B)")):
+    if scheme != "33(7)(B)":
+        raise HTTPException(status_code=404, detail=f"No dossier for scheme {scheme}")
+    try:
+        with open(DOSSIER_PATH, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dossier not generated yet")

@@ -6,10 +6,11 @@ Refactored to use CRUD layer for user retrieval.
 
 import logging
 from uuid import UUID
-from fastapi import Depends, HTTPException, Header
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.security import decode_token
+from fastapi import Depends, Header, HTTPException
 from repositories import user_repository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -164,3 +165,5 @@ async def get_settings_service(db: AsyncSession = Depends(get_db)):
 
 require_admin = require_role("admin")
 require_pmc = require_role("pmc", "admin")
+
+

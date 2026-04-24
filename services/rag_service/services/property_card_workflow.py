@@ -4,11 +4,16 @@ Property Card OCR and Report Generator
 Extracts data from property cards and generates LandWise-style reports
 """
 
+import os
+import json
 import re
+import logging
 from pathlib import Path
-from typing import Dict, List
-from dataclasses import dataclass
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass, asdict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 # Try to import OCR libraries
 EASYOCR_AVAILABLE = False
@@ -148,9 +153,9 @@ class PropertyCardOCR:
         self.reader = None
         if EASYOCR_AVAILABLE:
             self.reader = easyocr.Reader(["en"], gpu=use_gpu)
-            print("✓ EasyOCR initialized")
+            logger.info("EasyOCR initialized")
         else:
-            print("⚠ EasyOCR not available. Install with: pip install easyocr")
+            logger.warning("EasyOCR not available. Install with: pip install easyocr")
 
     def extract_from_image(self, image_path: str) -> PropertyCard:
         """Extract property card data from image"""
@@ -1096,9 +1101,9 @@ class PropertyCardWorkflow:
                         analysis, str(output_path), report_type
                     )
                     outputs[report_type] = str(output_path)
-                    print(f"✓ Generated: {output_path}")
+                    logger.info(f"Generated: {output_path}")
                 except Exception as e:
-                    print(f"✗ Failed to generate {report_type}: {e}")
+                    logger.error(f"Failed to generate {report_type}: {e}", exc_info=True)
 
         return outputs
 
@@ -1221,4 +1226,4 @@ if __name__ == "__main__":
     analysis = workflow.analyze_from_card(card)
 
     # Print financial summary
-    print(workflow.generator.generate_financial_summary(analysis))
+    logger.info(workflow.generator.generate_financial_summary(analysis))

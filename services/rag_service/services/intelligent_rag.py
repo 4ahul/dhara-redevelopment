@@ -13,14 +13,16 @@ import time
 import threading
 import hashlib
 import dataclasses
+import logging
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple, Set
+from typing import List, Optional, Dict, Tuple, Set, Any
 from collections import defaultdict, OrderedDict
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures._base import TimeoutError
-from fastapi import logger
+
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
@@ -41,6 +43,13 @@ except ImportError:
     CrossEncoder = None
 
 try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.http import models as qmodels
+except ImportError:
+    QdrantClient = None
+    qmodels = None
+
+try:
     from pymilvus import connections, Collection
 except ImportError:
     connections = None
@@ -57,6 +66,111 @@ if env_file.exists():
         if "=" in line:
             key, val = line.split("=", 1)
             os.environ[key] = val
+
+
+# House rules applied to every DCPR answer prompt. Keeps citation/table/brevity
+# behavior consistent across streaming + non-streaming generators.
+DCPR_ANSWER_RULES = """MANDATORY ANSWER RULES:
+1. SCOPE — MUMBAI DCPR 2034 ONLY: You are an expert on DCPR 2034 for
+   Mumbai. The retrieved excerpts are Mumbai DCPR 2034 only. If the
+   question is about another city, another regulation (UDCPR, Pune),
+   or a non-DCPR topic (property valuation, legal advice, market
+   rates without a regulatory angle), reply in one line: "I cover
+   only DCPR 2034 for Mumbai. Please ask within that scope." and
+   stop. Do not attempt to answer from general knowledge.
+2. ASKED-FACT BOUNDARY: Answer only the literal fact the user asked
+   for. Include at most one short sentence of directly dependent
+   context if the asked fact makes no sense without it. DO NOT
+   volunteer adjacent regulations, tables, or limits that the user
+   did not ask about.
+   NEGATIVE EXAMPLE: If the user asks "TDR rates per ASR for
+   generating and receiving plots", do NOT include FSI ceilings by
+   road width (3 for 12m, 4 for 18m, 5 for 27m). Those are adjacent
+   regulations. Answer only the TDR rate question. If the rate is
+   not in the excerpts, say "Not specified in the retrieved DCPR
+   excerpts." and stop.
+3. DCPR-NATIVE UNITS ONLY: Quote every dimension, area, height, and
+   width in the exact unit used in the DCPR excerpt. Never convert
+   between metres and feet, or between sq.m and sq.ft. If the
+   excerpt says "1.2 m × 1.0 m", the answer says "1.2 m × 1.0 m".
+   NEGATIVE EXAMPLE: If the user asks "Minimum Toilet dimensions
+   allowed" and the excerpt specifies the dimension in metres, do
+   NOT answer "3' × 4' (approximately 12 sq. ft.)". Quote the
+   metres value verbatim.
+4. COMPARISON TABLE FOR MULTI-VARIANT REGULATIONS: When the
+   retrieved excerpts describe ONE regulation with multiple variants
+   (by space type, user type, building type, or similar) AND the
+   user's question is broad enough to span those variants, render
+   the answer as a GITHUB-FLAVORED MARKDOWN TABLE using PIPE syntax
+   with one row per variant. Do NOT use tabs, spaces, or plain
+   columns — the output MUST use the `|` character as the column
+   separator and a `|---|---|` separator row under the header.
+   REQUIRED FORMAT (copy this syntax exactly, replacing the
+   placeholder text):
+   | Variant | Requirement |
+   |---|---|
+   | <variant 1 name> | <value> |
+   | <variant 2 name> | <value> |
+   Do NOT use a table when only one variant applies or the user's
+   question targets a single variant.
+   TABLE COMPLETENESS: When a table depends on combining multiple
+   contributing fields (e.g. Base FSI + TDR + Premium + Ancillary →
+   Total), include every contributing field or omit the table
+   entirely. Never fill missing cells with "N/A", "Varies", or
+   "Available on request".
+   POSITIVE EXAMPLE: "Parking requirement for educational institutes"
+   spans office, assembly hall, visitor — render as a pipe-syntax
+   markdown table.
+   NEGATIVE EXAMPLE: "FSI for a 1000 sq.m plot on 12 m road" — one
+   variant applies; use a prose sentence.
+5. INLINE CITATION: Only emit a citation tag when you have BOTH a
+   specific regulation/clause number AND a specific page number
+   from the excerpts. The tag format is exactly:
+   "— as per DCPR 2034, Regulation <X>, p.<N>"
+   (or "Clause <X>" if that's how the excerpt labels it). The
+   regulation number MUST come from the excerpt text; the page
+   number MUST come from the [Doc N] header. NEVER emit the tag
+   with empty slots (no "Regulation , p.." and no "p.0"). If you
+   don't have both values, write the sentence with no citation tag.
+6. "NOT SPECIFIED" SENTENCES GET NO CITATION: If you are saying
+   the answer is not in the excerpts, do not append any citation
+   tag to that sentence.
+7. READ THE TABLES: Before saying "not specified", scan every
+   excerpt for tables/schedules. DCPR tables frequently span
+   multiple lines with pipe-separated cells; margins/FSI/parking
+   are almost always in tables keyed to building height, plot
+   size, or road width. Quote the exact row before stating the
+   answer.
+8. NO FABRICATION — VERBATIM ONLY: Every numeric value, unit,
+   regulation/clause number, and page number in your answer MUST
+   appear VERBATIM in the provided [Doc N] excerpts. Before you
+   state any number, locate its exact substring in an excerpt; if
+   you cannot, you are fabricating. Do not infer values from
+   training knowledge, do not convert to more familiar units, do
+   not approximate, do not "fill in" plausible values. The
+   following counts as fabrication and is forbidden:
+   - Quoting a number the user's question implies but the excerpts
+     don't contain.
+   - Quoting a number from a related table/regulation when the
+     exact entity the user asked about has no row in the excerpts.
+   - Using general building-code knowledge (ASHRAE, NBC, IS codes,
+     training-data heuristics) as a fallback.
+   If no excerpt contains the specific numeric value for the asked
+   entity, reply with the single sentence: "Not specified in the
+   retrieved DCPR excerpts." with no citation tag, and stop. Do
+   not pad with context, do not suggest what it "might be", do not
+   name an adjacent regulation as a consolation.
+9. RAG IS THE SOURCE OF TRUTH: The DCPR excerpts are authoritative.
+   Web search results are supplementary context only — use them
+   for broader framing but NEVER let a web result override,
+   contradict, or replace a value from the DCPR excerpts. If DCPR
+   and web disagree, follow DCPR. If the DCPR excerpts do not
+   contain the value, do not substitute a web number. Web results
+   never earn a "— as per DCPR 2034..." citation; cite them as
+   [Web N] only.
+10. BREVITY: Target ≤6 short sentences plus one citation (tables
+    excepted — table rows don't count toward the sentence limit).
+    No section headers. No closing filler."""
 
 
 @dataclass
@@ -167,13 +281,15 @@ class DynamicKnowledgeGraph:
                     self.tables[table_key] = chunk[:500]
 
             if (i + 1) % 500 == 0:
-                print(
+                logger.info(
                     f"  KG Progress: {i + 1}/{total} chunks, {len(self.clauses)} clauses"
                 )
 
         self._extract_topics(chunks)
         self._initialized = True
-        print(f"  KG Complete: {len(self.clauses)} clauses, {len(self.tables)} tables")
+        logger.info(
+            f"  KG Complete: {len(self.clauses)} clauses, {len(self.tables)} tables"
+        )
 
     def _extract_topics(self, chunks: List[str]):
         """Extract topics from chunks using keyword clustering"""
@@ -336,7 +452,7 @@ class SessionManager:
             cls._knowledge_graph = DynamicKnowledgeGraph()
             cls._chunks = chunks
             cls._knowledge_graph.build_from_chunks(chunks)
-            print(
+            logger.info(
                 f"[OK] Knowledge graph built: {len(cls._knowledge_graph.clauses)} clauses, {len(cls._knowledge_graph.tables)} tables"
             )
 
@@ -353,15 +469,15 @@ class SessionManager:
                     caches = list(vector_dir.glob("*.json"))
                     if caches:
                         cache = caches[0]
-                        print(f"Loading knowledge graph from {cache.name}...")
+                        logger.info(f"Loading knowledge graph from {cache.name}...")
                         data = json.loads(cache.read_text())
                         if isinstance(data, list):
                             texts = [d.get("text", "") for d in data if d.get("text")]
                             cls.initialize_knowledge_graph(texts)
                     else:
-                        print("No vector cache found for knowledge graph.")
+                        logger.warning("No vector cache found for knowledge graph.")
             except Exception as e:
-                print(f"Error loading knowledge graph: {e}")
+                logger.error(f"Error loading knowledge graph: {e}", exc_info=True)
 
         return cls._knowledge_graph
 
@@ -418,9 +534,19 @@ class SessionRAG:
     _embed_cache_lock = threading.Lock()
     _EMBED_CACHE_MAX = 512
 
+    # Search result cache for repeated queries
+    _search_cache: OrderedDict = OrderedDict()
+    _SEARCH_CACHE_MAX = 50
+    _search_cache_lock = threading.Lock()
+
     # Redis cache configuration
     _redis_client = None
     _CACHE_TTL = int(os.environ.get("CACHE_TTL_SECONDS", "3600"))  # Default 1 hour
+
+    # In-memory cache for queries with history (short TTL)
+    _qctx_cache: OrderedDict = OrderedDict()
+    _QCTX_CACHE_MAX = 100
+    _QCTX_CACHE_TTL = 300  # 5 minutes for in-memory cache
 
     @classmethod
     def _get_redis_client(cls):
@@ -434,9 +560,9 @@ class SessionRAG:
                     cls._redis_client = redis.from_url(redis_url, decode_responses=True)
                     # Test connection
                     cls._redis_client.ping()
-                    print("[Redis] Connected to Redis cache")
+                    logger.info("[Redis] Connected to Redis cache")
                 except Exception as e:
-                    print(f"[Redis] Connection failed: {e}")
+                    logger.warning(f"[Redis] Connection failed: {e}")
                     cls._redis_client = False  # Mark as failed to avoid retry
             else:
                 cls._redis_client = False
@@ -480,7 +606,7 @@ class SessionRAG:
         self._knowledge_graph = SessionManager.get_knowledge_graph()
         self._init_llm()
         self._init_embeddings()  # Pre-warm shared embeddings if not yet done
-        if os.environ.get("ENABLE_RERANKER", "true").lower() == "true":
+        if os.environ.get("ENABLE_RERANKER", "false").lower() == "true":
             self._init_reranker()
 
     @classmethod
@@ -490,19 +616,22 @@ class SessionRAG:
             return
 
         if OpenAIEmbeddings is None:
-            print("[Embeddings] langchain-openai not installed")
+            logger.warning("[Embeddings] langchain-openai not installed")
             return
 
         try:
             api_key = os.environ.get("OPENAI_API_KEY", "")
             if api_key and api_key.startswith("sk-"):
+                embedding_model = os.environ.get(
+                    "EMBEDDING_MODEL", "text-embedding-3-small"
+                )
                 cls._embeddings = OpenAIEmbeddings(
-                    model="text-embedding-3-small", api_key=api_key
+                    model=embedding_model, api_key=api_key
                 )
                 cls._embeddings.embed_query("test")
-                print("[OK] Shared embeddings pre-warmed")
+                logger.info(f"[OK] Shared embeddings pre-warmed ({embedding_model})")
         except Exception as e:
-            print(f"[Embeddings] Pre-warm failed: {e}")
+            logger.warning(f"[Embeddings] Pre-warm failed: {e}")
 
     def _init_llm(self):
         """Initialize LLM - Ollama primary, OpenAI fallback"""
@@ -512,32 +641,29 @@ class SessionRAG:
         if not api_key or api_key in ["", "sk-placeholder", "sk-proj-"]:
             self._model = os.environ.get("MODEL", "glm4:latest")
             self._use_openai = False
-            print(f"[OK] LLM initialized: {self._model} (Ollama)")
+            logger.info(f"[OK] LLM initialized: {self._model} (Ollama)")
             return
 
         # Try OpenAI if key is provided and valid
         if OpenAI is None:
             self._model = os.environ.get("MODEL", "glm4:latest")
             self._use_openai = False
-            print(
+            logger.info(
                 f"[OK] LLM initialized: {self._model} (Ollama fallback - OpenAI package missing)"
             )
             return
 
         try:
-            base_url = os.environ.get("OPENAI_BASE_URL", None)
-            kwargs = {"api_key": api_key}
-            if base_url:
-                kwargs["base_url"] = base_url
-            test_client = OpenAI(**kwargs)
+            test_client = OpenAI(api_key=api_key)
+            test_client.models.list()
             self._model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
             self._use_openai = True
-            print(f"[OK] LLM initialized: {self._model} (OpenAI-compatible)")
+            logger.info(f"[OK] LLM initialized: {self._model} (OpenAI)")
         except Exception as e:
             # Fallback to Ollama on any error
             self._model = os.environ.get("MODEL", "glm4:latest")
             self._use_openai = False
-            print(f"[OK] LLM initialized: {self._model} (Ollama fallback - {e})")
+            logger.info(f"[OK] LLM initialized: {self._model} (Ollama fallback - {e})")
 
     @classmethod
     def _init_reranker(cls):
@@ -545,20 +671,26 @@ class SessionRAG:
         if cls._reranker is None and not cls._reranker_checked:
             cls._reranker_checked = True
             if CrossEncoder is None:
-                print("Reranker warning: sentence-transformers package missing")
+                logger.warning(
+                    "Reranker warning: sentence-transformers package missing"
+                )
                 return
             try:
-                print("Loading multilingual reranker (BAAI/bge-reranker-v2-m3)...")
+                logger.info(
+                    "Loading multilingual reranker (BAAI/bge-reranker-v2-m3)..."
+                )
                 # Try multilingual reranker first (best for en/mr/hi)
                 try:
                     cls._reranker = CrossEncoder("BAAI/bge-reranker-v2-m3")
-                    print("[OK] Multilingual reranker loaded (bge-reranker-v2-m3)")
+                    logger.info(
+                        "[OK] Multilingual reranker loaded (bge-reranker-v2-m3)"
+                    )
                 except Exception:
                     # Fallback to English-only
                     cls._reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-                    print("[OK] Reranker loaded (ms-marco fallback)")
+                    logger.info("[OK] Reranker loaded (ms-marco fallback)")
             except Exception as e:
-                print(f"Reranker warning (could be memory or CPU limit): {e}")
+                logger.warning(f"Reranker warning (could be memory or CPU limit): {e}")
                 cls._reranker = None
 
     @property
@@ -568,11 +700,7 @@ class SessionRAG:
                 if OpenAI is None:
                     raise ImportError("OpenAI package is required for OpenAI models")
                 api_key = os.environ.get("OPENAI_API_KEY", "")
-                kwargs = {"api_key": api_key}
-                base_url = os.environ.get("OPENAI_BASE_URL", "")
-                if base_url:
-                    kwargs["base_url"] = base_url
-                self._client = OpenAI(**kwargs)
+                self._client = OpenAI(api_key=api_key)
             else:
                 from langchain_ollama import ChatOllama
 
@@ -580,40 +708,40 @@ class SessionRAG:
         return self._client
 
     def _search_web(self, query: str) -> tuple:
-        """Search web using DuckDuckGo + SerpApi in parallel. Returns (text, sources_list)."""
-        # Always check environment variable first - failsafe to prevent any web search when disabled
-        if os.environ.get("ENABLE_WEB_SEARCH", "true").lower() != "true":
-            return "", []
+        """Search web using SerpApi (primary text) + DuckDuckGo (extra sources, if enabled)."""
+        api_key = os.environ.get("SERP_API_KEY", "")
+        ddg_enabled = os.environ.get("ENABLE_DDG", "true").lower() == "true"
 
-        api_key = os.environ.get("SERP_API_KEY", "") or os.environ.get(
-            "SERPER_API_KEY", ""
-        )
-
-        # Run DuckDuckGo and SerpApi in parallel
         with ThreadPoolExecutor(max_workers=2) as executor:
-            ddg_future = executor.submit(self._search_duckduckgo, query)
             serp_future = (
                 executor.submit(self._search_serpapi, query, api_key)
                 if api_key
                 else None
             )
+            ddg_future = (
+                executor.submit(self._search_duckduckgo, query) if ddg_enabled else None
+            )
 
-            # Get DuckDuckGo results
-            ddg_text, ddg_sources = ddg_future.result() or ("", [])
-
-            # Get SerpApi results
-            serp_text, serp_sources = ("", [])
+            # Get SerpApi results (primary)
+            serp_text, serp_sources = "", []
             if serp_future:
                 try:
-                    serp_text, serp_sources = serp_future.result(timeout=5)
-                except TimeoutError:
+                    serp_text, serp_sources = serp_future.result(timeout=10)
+                except Exception:
                     pass
 
-        # Combine results - use SerpApi as primary (better quality), DuckDuckGo as extra sources
+            # Get DuckDuckGo results (extra sources)
+            ddg_text, ddg_sources = "", []
+            if ddg_future:
+                try:
+                    ddg_text, ddg_sources = ddg_future.result(timeout=6)
+                except Exception:
+                    pass
+
         combined_text = serp_text or ddg_text
         combined_sources = serp_sources + ddg_sources
 
-        return combined_text, combined_sources[:10]  # Return top 10 sources
+        return combined_text, combined_sources[:10]
 
     def _search_serpapi(self, query: str, api_key: str) -> tuple:
         """Search using SerpApi Google AI Mode. Returns (text, sources_list)."""
@@ -640,13 +768,16 @@ class SessionRAG:
                 if markdown and not snippets:
                     snippets.append(markdown[:1000])
 
+            logger.info(
+                f"[Web search] SerpApi returned {len(snippets)} snippets, {len(sources)} sources"
+            )
             return "\n\n".join(snippets), sources
 
         except ImportError:
-            print("[Web search] SerpApi library not installed")
+            logger.warning("[Web search] SerpApi library not installed")
             return "", []
         except Exception as e:
-            print(f"[Web search] SerpApi error: {e}")
+            logger.warning(f"[Web search] SerpApi error: {e}")
             return "", []
 
     def _search_duckduckgo(self, query: str) -> tuple:
@@ -669,11 +800,13 @@ class SessionRAG:
                 "https://lite.duckduckgo.com/lite/",
                 params=params,
                 headers=headers,
-                timeout=15,
+                timeout=5,
             )
 
             if response.status_code != 200:
-                print(f"[Web search] DuckDuckGo returned {response.status_code}")
+                logger.warning(
+                    f"[Web search] DuckDuckGo returned {response.status_code}"
+                )
                 return "", []
 
             # Parse results from HTML
@@ -723,10 +856,16 @@ class SessionRAG:
                 snippets.append(f"[{title}] {url}\n{snippet}")
                 sources.append({"title": title, "url": url, "snippet": snippet[:200]})
 
+            logger.info(
+                f"[Web search] DuckDuckGo returned {len(snippets)} snippets, {len(sources)} sources"
+            )
             return "\n\n".join(snippets), sources
 
         except Exception as e:
-            print(f"[Web search] DuckDuckGo error: {e}")
+            # Suppress connection/timeout errors — expected on cloud hosts (datacenter IP blocks)
+            err = str(e).lower()
+            if "timeout" not in err and "connect" not in err:
+                logger.warning(f"[Web search] DuckDuckGo error: {e}")
             return "", []
 
     @property
@@ -743,54 +882,46 @@ class SessionRAG:
             if SessionRAG._vs_failed:
                 return None
             if connections is None or Collection is None:
-                print("Vectorstore warning: pymilvus package missing")
+                logger.warning("Vectorstore warning: pymilvus package missing")
                 SessionRAG._vs_failed = True
                 return None
             try:
+                use_lite = os.environ.get("USE_MILVUS_LITE", "false").lower() == "true"
                 milvus_host = os.environ.get("MILVUS_HOST", "localhost")
                 milvus_port = os.environ.get("MILVUS_PORT", "19530")
                 milvus_token = os.environ.get("MILVUS_TOKEN", "")
-                milvus_uri = os.environ.get("MILVUS_URI", "")
 
-                if milvus_uri and milvus_token:
-                    # Zilliz Cloud via URI
-                    uri = (
-                        milvus_uri
-                        if milvus_uri.startswith("https://")
-                        else f"https://{milvus_uri}"
-                    )
-                    print(f"Connecting to Zilliz Cloud at {uri}...")
-                    connections.connect(
-                        alias="default",
-                        uri=uri,
-                        token=milvus_token,
-                        timeout=15,
-                    )
+                if use_lite:
+                    # Milvus Lite initialization
+                    from milvus_lite import MilvusClient
+                    db_path = os.path.join(os.environ.get("DATA_DIR", "data"), "milvus_local.db")
+                    logger.info(f"Using Milvus Lite with DB: {db_path}")
+                    # Map 'default' alias to the local file for LangChain compatibility
+                    connections.connect(alias="default", uri=db_path)
                 elif milvus_token:
+                    # Cloud connection logic
                     connections.connect(
                         alias="default",
                         host=milvus_host,
                         port=milvus_port,
                         token=milvus_token,
                         secure=True,
-                        timeout=15,
+                        timeout=30,
                     )
                 else:
+                    # Standard local docker
                     connections.connect(
                         alias="default", host=milvus_host, port=milvus_port, timeout=15
                     )
-                coll_name = os.environ.get(
-                    "MILVUS_COLLECTION_RAG",
-                    os.environ.get("MILVUS_COLLECTION", "documents"),
-                )
-                vs = Collection(coll_name)
+                collection_name = os.environ.get("MILVUS_COLLECTION", "dcpr_knowledge")
+                vs = Collection(collection_name)
                 vs.load()
                 SessionRAG._vectorstore = vs
-                print(
-                    f"[OK] Connected to Milvus/Zilliz — collection '{coll_name}' loaded"
+                logger.info(
+                    f"[OK] Connected to Milvus collection '{collection_name}' (shared connection)"
                 )
             except Exception as e:
-                print(f"Vectorstore connection failed: {e}")
+                logger.warning(f"Vectorstore connection failed: {e}")
                 SessionRAG._vs_failed = True
         return SessionRAG._vectorstore
 
@@ -843,32 +974,43 @@ class SessionRAG:
             )
 
             # HNSW search params
-            search_params = {"metric_type": "COSINE", "params": {"ef": 128}}
+            search_params = {"metric_type": "COSINE", "params": {"ef": 256}}
 
             # Filter by doc_type if specified
             expr = None
             if doc_type_filter:
                 expr = f'doc_type == "{doc_type_filter}"'
 
-            # For local Milvus - text only
+            # Retrieve metadata alongside text so the synthesizer can cite source + page
             results = self.vectorstore.search(
                 data=[query_vec],
                 anns_field="embedding",
                 param=search_params,
-                limit=k,
+                limit=max(k, 20),
                 expr=expr,
-                output_fields=["text"],
+                output_fields=[
+                    "text",
+                    "source",
+                    "page",
+                    "language",
+                    "doc_type",
+                    "chunk_type",
+                ],
             )
 
             output = []
             for hits in results:
                 for hit in hits:
                     entity = hit.entity
+                    chunk_type = entity.get("chunk_type", "text")
+                    base_score = hit.distance
+                    if chunk_type in ("table", "table_row", "schedule"):
+                        base_score += 0.08
                     output.append(
                         SearchResult(
                             query=query,
                             text=entity.get("text", ""),
-                            score=hit.distance,
+                            score=base_score,
                             clauses=[],
                             tables=[],
                             relevance_tags=[],
@@ -885,15 +1027,142 @@ class SessionRAG:
             if "dimension" in err_msg.lower() or "size(byte)" in err_msg:
                 return []
             if "not exist" in err_msg.lower():
-                print("[SEARCH] Schema error: collection may need reindexing")
+                logger.warning(f"[SEARCH] Schema error: collection may need reindexing")
                 return []
-            print(f"[SEARCH] Error: {err_msg[:100]}")
+            logger.warning(f"[SEARCH] Error: {err_msg[:100]}")
             return []
+
+    def _fast_analyze_query(self, question: str) -> Optional[QueryContext]:
+        """Fast rule-based analysis for common technical queries - no LLM needed."""
+        import re
+
+        q = question.lower()
+
+        # Extract units from question
+        units = {}
+
+        # Area extraction
+        area_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*(sq\.?\s*ft|sqr?\s*ft|sq\.?\s*m|sqm)", q
+        )
+        if area_match:
+            value = float(area_match.group(1))
+            unit = area_match.group(2)
+            if "sqm" in unit or "sq m" in unit:
+                units["sq_m"] = value
+            else:
+                units["sq_ft"] = value
+
+        # Road width extraction
+        road_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meter|metre)", q)
+        if road_match:
+            units["road_width"] = float(road_match.group(1))
+
+        # Building height extraction
+        height_match = re.search(
+            r"(\d+(?:\.\d+)?)\s*(?:m|meter|metre|mt|mt\.)\s*(?:high|height)", q
+        )
+        if not height_match:
+            height_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meter|metre)\s*$", q)
+        if height_match:
+            units["building_height"] = float(height_match.group(1))
+
+        # Determine topic
+        topic = "general"
+        if "fsi" in q:
+            topic = "FSI"
+        elif "margin" in q or "setback" in q:
+            topic = "Margins"
+        elif "parking" in q:
+            topic = "Parking"
+        elif "height" in q:
+            topic = "Building Height"
+        elif "tdr" in q:
+            topic = "TDR"
+        elif "premium" in q:
+            topic = "Premium FSI"
+        elif "ground coverage" in q:
+            topic = "Ground Coverage"
+
+        # Detect location
+        location = "Mumbai"
+        if any(loc in q for loc in ["mumbai", "navi mumbai", "thane", "nagpur"]):
+            location = next(
+                loc.title()
+                for loc in ["mumbai", "navi mumbai", "thane", "nagpur"]
+                if loc in q
+            )
+
+        # Determine intent
+        intent = "technical_lookup"
+        if any(
+            word in q
+            for word in [
+                "invest",
+                "roi",
+                "profit",
+                "return",
+                "market",
+                "rate",
+                "price",
+                "cost",
+            ]
+        ):
+            intent = "feasibility_analysis"
+
+        return QueryContext(
+            original_query=question,
+            intent=intent,
+            entities=[],
+            clauses=[],
+            topic=topic,
+            subtopics=[],
+            is_compound=False,
+            compound_parts=[],
+            location=location,
+            units=units,
+            needs_market_data="market" in q or "rate" in q or "price" in q,
+            needs_regulatory_data=True,
+            is_technical=True,
+        )
 
     def _analyze_query(self, question: str, history_context: str = "") -> QueryContext:
         """Analyze query to extract intent, entities, topic, location and units"""
+        import time
+
+        # Check if query is likely technical (cacheable)
+        question_lower = question.lower()
+        is_likely_technical = any(
+            kw in question_lower
+            for kw in [
+                "fsi",
+                "margin",
+                "setback",
+                "parking",
+                "height",
+                "tdr",
+                "premium",
+                "road width",
+                "ground coverage",
+                "basement",
+                "stilt",
+                "regulations",
+            ]
+        )
+
+        # FAST PATH: Skip LLM for simple well-known technical queries
+        # These patterns are common and don't need LLM analysis
+        if is_likely_technical:
+            fast_context = self._fast_analyze_query(question)
+            if fast_context:
+                # Cache the fast result
+                qctx_key = f"qctx:{hashlib.sha256(question.lower().strip().encode()).hexdigest()[:16]}"
+                self._set_in_cache(qctx_key, dataclasses.asdict(fast_context), ttl=7200)
+                return fast_context
+
         # Cache context-free analyses (deterministic for same question + no history)
-        if not history_context:
+        # Also cache technical queries regardless of history (they're deterministic)
+        if not history_context or is_likely_technical:
             qctx_key = f"qctx:{hashlib.sha256(question.lower().strip().encode()).hexdigest()[:16]}"
             cached = self._get_from_cache(qctx_key)
             if cached:
@@ -901,6 +1170,26 @@ class SessionRAG:
                     return QueryContext(**cached)
                 except Exception:
                     pass  # fall through to LLM call if cached data is stale
+        elif history_context:
+            # Use in-memory cache for queries with history
+            qctx_key = f"qctx:{hashlib.sha256((question.lower() + history_context[:100]).encode()).hexdigest()[:16]}"
+            with SessionRAG._vs_lock:
+                if qctx_key in SessionRAG._qctx_cache:
+                    cached = SessionRAG._qctx_cache[qctx_key]
+                    # Check TTL (stored as tuple: (data, timestamp))
+                    if (
+                        isinstance(cached, tuple)
+                        and time.time() - cached[1] < SessionRAG._QCTX_CACHE_TTL
+                    ):
+                        try:
+                            return QueryContext(**cached[0])
+                        except Exception:
+                            pass
+                    elif isinstance(cached, dict):
+                        try:
+                            return QueryContext(**cached)
+                        except Exception:
+                            pass
 
         prompt = f"""Analyze this query about urban planning/real estate in India:
 
@@ -910,10 +1199,10 @@ History: {history_context}
 Return JSON with:
 - "intent": "technical_lookup" (for margins, FSI, parking, height, or specific rules), "feasibility_analysis" (for ROI, investment, or general project viability), or "explain".
 - "is_technical": true if the query is about specific regulations, numbers, or rules.
-- "entities": Key entities mentioned - include ALL of: area/locality names (Kothrud, Hinjewadi, Wakad, etc.), FSI, TDR, Premium, Scheme numbers (33(7B), 33(11), etc.), road widths, zone types (residential, commercial, industrial).
+- "entities": Key entities mentioned - include ALL of: Mumbai area/locality names (Andheri, Bandra, Goregaon, Borivali, etc.), FSI, TDR, Premium, Scheme numbers (33(7B), 33(11), etc.), road widths, zone types (residential, commercial, industrial).
 - "topic": Main topic (e.g., "Side Margins", "FSI", "Parking", "TDR", "Premium", "Plot Feasibility", "Market Analysis").
 - "subtopics": Related topics.
-- "location": Specific area/locality mentioned (e.g., "Kothrud", "Prabhadevi", "Worli"). Also extract city (Pune/Mumbai). Default to "Mumbai" if Mumbai localities or "DCPR 2034" are mentioned, otherwise default to "Pune".
+- "location": Specific area/locality mentioned in Mumbai (e.g., "Andheri", "Bandra", "Goregaon"). Extract city only if explicitly stated. Default to "Mumbai" if not specified.
 - "units": Extract area, building height, and road width from query. Convert sq ft to sq m.
    Example: if query has "2000 sq ft", return {{"original": "2000 sq ft", "sq_m": 185.8, "road_width": null}}
    Example: if query has "12m road", return {{"road_width": 12}}
@@ -923,7 +1212,7 @@ Return JSON with:
 - "needs_market_data": true ONLY if query explicitly asks about prices, rates, ROI, investment potential, or current market conditions.
 - "needs_regulatory_data": true if query asks about FSI, regulations, permissions, compliance, zoning rules.
 
-IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "FSI tables", or "redevelopment schemes (33(7), 33(20), etc.)", it is a TECHNICAL lookup.
+IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or "FSI tables", it is a TECHNICAL lookup.
 """
         try:
             kwargs = {
@@ -985,9 +1274,9 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
                 subtopics=subtopics,
                 is_compound=bool(data.get("is_compound", False)),
                 compound_parts=compound_parts,
-                location=str(data.get("location", "Pune"))
+                location=str(data.get("location", "Mumbai"))
                 if data.get("location")
-                else "Pune",
+                else "Mumbai",
                 units=units,
                 needs_market_data=bool(data.get("needs_market_data", False)),
                 needs_regulatory_data=bool(data.get("needs_regulatory_data", True)),
@@ -995,9 +1284,21 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
             )
             if not history_context:
                 self._set_in_cache(qctx_key, dataclasses.asdict(result), ttl=7200)
+            else:
+                # Cache in memory for queries with history
+                import time
+
+                with SessionRAG._vs_lock:
+                    SessionRAG._qctx_cache[qctx_key] = (
+                        dataclasses.asdict(result),
+                        time.time(),
+                    )
+                    # Evict old entries if cache is full
+                    if len(SessionRAG._qctx_cache) > SessionRAG._QCTX_CACHE_MAX:
+                        SessionRAG._qctx_cache.popitem(last=False)
             return result
         except Exception as e:
-            print(f"Query analysis error: {e}")
+            logger.error(f"Query analysis error: {e}", exc_info=True)
             return QueryContext(
                 original_query=question,
                 intent="explain",
@@ -1007,7 +1308,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
                 subtopics=[],
                 is_compound=False,
                 compound_parts=[],
-                location="Pune",
+                location="Mumbai",
                 units={},
                 needs_market_data=False,
                 needs_regulatory_data=True,
@@ -1018,8 +1319,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
         """Expand query for better retrieval using location, units, and language."""
         queries = [context.original_query]
 
-        location = context.location or "Pune"
-        reg_type = "UDCPR" if str(location).lower() == "pune" else "DCPR 2034"
+        location = context.location or "Mumbai"
+        reg_type = "DCPR 2034"
 
         # Detect if query is in Devanagari script
         query_str = str(context.original_query) if context.original_query else ""
@@ -1062,26 +1363,61 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
             # Also add the query with just English terms
             queries.append(f"{reg_type} {context.topic} regulations")
 
-        # Extract locality names from entities (e.g., Kothrud, Hinjewadi)
+        # Extract locality names from entities (e.g., Andheri, Bandra)
         entity_list = context.entities if isinstance(context.entities, list) else []
-        localities = [
-            str(e)
-            for e in entity_list
-            if e and isinstance(e, str) and len(e) > 2 and e[0].isupper()
-        ]
+        entity_list = [e for e in entity_list if isinstance(e, str)]
+        localities = [e for e in entity_list if e and len(e) > 2 and e[0].isupper()]
 
-        # Core FSI/Parking queries that always apply
-        core_terms = [
-            "FSI",
-            "parking",
-            "marginal distance",
-            "setback",
-            "height",
-            "TDR",
-            "premium",
-        ]
-        for term in core_terms[:3]:
-            queries.append(f"{term} {reg_type} Table 12")
+        # Topic-prioritized expansion terms. Leading with the detected topic
+        # keeps retrieval on-topic — otherwise generic FSI expansions drown
+        # margins/parking/height queries.
+        topic_terms = {
+            "Margins": [
+                "side and rear marginal open space",
+                "marginal distance height of building",
+                "setback Clause 41",
+            ],
+            "Parking": ["parking requirement", "vehicle parking Table", "car parking"],
+            "Building Height": [
+                "height of building",
+                "maximum permissible height",
+                "height regulation",
+            ],
+            "TDR": ["TDR", "transferable development rights"],
+            "Premium FSI": ["premium FSI", "additional FSI on payment of premium"],
+            "Ground Coverage": ["ground coverage", "buildable area"],
+            "FSI": ["FSI", "floor space index", "permissible FSI"],
+            "Dimensions": [
+                "Table 14 minimum size width habitable room Clause 37",
+                "bathroom water closet W.C. minimum size sq.m width m",
+                "kitchen habitable room minimum dimensions Clause 37",
+            ],
+        }.get(context.topic, ["FSI", "parking", "marginal distance"])
+
+        # Dimension keyword fallback — the query-analysis LLM does not
+        # always label room-dimension questions as topic="Dimensions", so
+        # keyword-match the original query and force the Clause 37 /
+        # Table 14 expansions into the retrieval set. This surfaces the
+        # authoritative minimum-size-and-width table for WC, bathroom,
+        # kitchen, habitable room, and classroom queries.
+        dim_keywords = (
+            "toilet", "bathroom", "water closet", "w.c", "urinal",
+            "kitchen", "habitable room", "minimum size", "minimum width",
+            "minimum dimension", "room size", "room dimension",
+        )
+        qs = str(context.original_query or "").lower()
+        if any(kw in qs for kw in dim_keywords):
+            dim_terms = [
+                "Table 14 minimum size width habitable room Clause 37",
+                "bathroom water closet W.C. minimum size sq.m width m",
+                "kitchen habitable room minimum dimensions Clause 37",
+            ]
+            for term in dim_terms:
+                if term not in topic_terms:
+                    topic_terms = [term, *topic_terms]
+
+        for term in topic_terms[:3]:
+            queries.append(f"{term} {reg_type}")
             if localities:
                 queries.append(f"{term} {localities[0]} {reg_type}")
 
@@ -1108,28 +1444,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
             rw = context.units["road_width"]
             queries.append(f"FSI road width {rw} meters {reg_type}")
 
-        # Mumbai Redevelopment Schemes (Specific for Mumbai context)
-        if (
-            reg_type == "DCPR 2034"
-            or "redevelop" in str(context.original_query).lower()
-        ):
-            mumbai_schemes = ["33(7)(B)", "33(20)(B)", "33(9)", "30(A)", "33(12)(B)"]
-            for scheme in mumbai_schemes:
-                queries.append(
-                    f"Regulation {scheme} Mumbai DCPR 2034 eligibility requirements"
-                )
-            queries.append("Mumbai DCPR 2034 Redevelopment Scheme Eligibility Table")
-
-        # Keep only unique queries while preserving order
-        unique_queries = []
-        seen = set()
-        for q in queries:
-            q_normalized = str(q).strip()
-            if q_normalized and q_normalized not in seen:
-                unique_queries.append(q_normalized)
-                seen.add(q_normalized)
-
-        return unique_queries[:15]
+        return queries[:8]
 
     def _multi_search(
         self, queries: List[str], context: QueryContext, k: int
@@ -1172,39 +1487,52 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
                             SessionRAG._embed_cache.popitem(last=False)
                         SessionRAG._embed_cache[key] = vec
             except Exception as e:
-                print(f"[Embed] Batch embed error: {e}")
+                logger.error(f"[Embed] Batch embed error: {e}", exc_info=True)
 
         for query in queries:
             try:
                 results = self._search_local(
                     query, k=k, precomputed_vector=query_vecs.get(query)
                 )
-                for r in results:
+                for rank, r in enumerate(results):
                     if r.text and r.text not in seen_texts:
                         seen_texts.add(r.text)
                         r.relevance_tags = [context.topic]
+                        r.query = query
+                        r.rank_in_query = rank
                         all_results.append(r)
             except Exception as e:
-                print(f"Search error for '{query}': {e}")
+                logger.error(f"Search error for '{query}': {e}", exc_info=True)
 
-        all_results.sort(key=lambda x: x.score, reverse=True)
-        return all_results[: k * 2]
+        # Reciprocal Rank Fusion (RRF) - combines results from multiple queries
+        # A chunk appearing in multiple query results gets higher score
+        K_RRF = 60
+        rrf_scores: Dict[str, float] = {}
+        text_to_result: Dict[str, SearchResult] = {}
 
-    def _extract_applicable_regulations(self, results: List[SearchResult]) -> List[str]:
-        """Detect known DCPR/UDCPR scheme references from local retrievals."""
-        import re
+        for r in all_results:
+            if r.text not in text_to_result:
+                text_to_result[r.text] = r
 
-        schemes = set()
-        pattern = re.compile(
-            r"\b(?:30\(A\)|33\(\d+\)(?:\(\w+\))?|33\(\d+\w*\))\b"
-        )
-        for result in results:
-            for match in pattern.findall(result.text or ""):
-                normalized = match.replace("33(7B)", "33(7)(B)").replace(
-                    "33(20B)", "33(20)(B)"
-                )
-                schemes.add(normalized)
-        return sorted(schemes)
+        # Calculate RRF scores based on rank position in each query's results
+        for r in all_results:
+            rank = getattr(r, 'rank_in_query', 0)
+            query_key = r.query if hasattr(r, 'query') else 'unknown'
+            rrf_scores[r.text] = rrf_scores.get(r.text, 0) + 1.0 / (rank + K_RRF)
+
+        # Combine cosine scores with RRF (0.6 cosine + 0.4 RRF)
+        max_rrf = max(rrf_scores.values()) if rrf_scores else 1.0
+        combined_results = []
+        for text, rrf_score in rrf_scores.items():
+            r = text_to_result[text]
+            normalized_rrf = rrf_score / max_rrf if max_rrf > 0 else 0
+            combined_score = 0.6 * r.score + 0.4 * normalized_rrf
+            combined_results.append((combined_score, r))
+
+        combined_results.sort(key=lambda x: x[0], reverse=True)
+        fused_results = [r for _, r in combined_results[:k * 2]]
+
+        return fused_results
 
     def _rerank_results(
         self, question: str, results: List[SearchResult]
@@ -1213,10 +1541,10 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
         if not self._reranker or not results:
             return results
 
-        # Pre-filter: only rerank candidates above cosine threshold, cap at 15
-        candidates = [r for r in results if r.score > 0.25][:15]
+        # Pre-filter: rerank candidates above lower threshold, cap at 25 for better recall
+        candidates = [r for r in results if r.score > 0.20][:25]
         if not candidates:
-            candidates = results[:15]  # keep top-15 if all below threshold
+            candidates = results[:25]  # keep top-25 if all below threshold
 
         try:
             pairs = [(question, r.text) for r in candidates]
@@ -1225,7 +1553,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
                 try:
                     scores = future.result(timeout=2.0)
                 except TimeoutError:
-                    print("[Rerank] Timeout — falling back to cosine scores")
+                    logger.warning("[Rerank] Timeout — falling back to cosine scores")
                     return results  # return original order on timeout
             for i, r in enumerate(candidates):
                 r.score = float(scores[i])
@@ -1234,17 +1562,17 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
             filtered_out = [r for r in results if r not in candidates]
             return candidates + filtered_out
         except Exception as e:
-            print(f"Rerank error: {e}")
+            logger.error(f"Rerank error: {e}", exc_info=True)
             return results
 
-    def query(self, question: str, k: int = 10) -> Dict:
+    def query(self, question: str, k: int = 20) -> Dict:
         """Main query method with parallel RAG + web search retrieval."""
         question = str(question)
         start_time = time.time()
         self.query_count += 1
         thought_process = []
 
-        print(f"[QUERY] Processing: {question}")
+        logger.info(f"[QUERY] Processing: {question}")
 
         # Check cache first (Redis or in-memory fallback)
         cache_key = (
@@ -1254,7 +1582,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
         # Try Redis cache first
         cached_result = self._get_from_cache(cache_key)
         if cached_result:
-            print(f"[CACHE HIT] Returning cached response for: {question}")
+            logger.info(f"[CACHE HIT] Returning cached response for: {question}")
             return cached_result
 
         thought_process.append(f"Received query: '{question}'")
@@ -1270,79 +1598,103 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
             f"Detected intent: {context.intent}, Topic: {context.topic}"
         )
 
-        # 2. Parallel Retrieval: local RAG retrieval using DCPR documents only
+        # 2. Parallel Retrieval: RAG + Web Search concurrently
         search_queries = self._expand_queries(context)
-        web_enabled = False
-        if context.needs_market_data and os.environ.get("ENABLE_WEB_SEARCH", "true").lower() == "true":
-            web_enabled = True
+        web_enabled = os.environ.get("ENABLE_WEB_SEARCH", "true").lower() == "true"
 
-        if web_enabled:
-            thought_process.append("Executing parallel retrieval (RAG + Web Search)...")
-        else:
-            thought_process.append(
-                "Executing local RAG retrieval using DCPR documents only..."
-            )
+        thought_process.append("Executing parallel retrieval (RAG + Web Search)...")
 
         # Web search timeout (seconds)
-        WEB_SEARCH_TIMEOUT = int(os.environ.get("WEB_SEARCH_TIMEOUT", "5"))
+        WEB_SEARCH_TIMEOUT = int(
+            os.environ.get("WEB_SEARCH_TIMEOUT", "8")
+        )  # Slightly longer for multiple searches
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        max_workers = 4 if web_enabled else 2
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Main RAG search
             rag_future = executor.submit(self._multi_search, search_queries, context, k)
+
+            # Web search (only if enabled)
             web_future = (
                 executor.submit(self._search_web, question) if web_enabled else None
             )
 
+            # Proactive enhanced web search for market/investment data
+            enhanced_web_query = f"{context.location} {context.topic} property rates price per sqft 2025 2026 investment commercial IT parks yields"
+            enhanced_web_future = (
+                executor.submit(self._search_web, enhanced_web_query)
+                if web_enabled
+                else None
+            )
+
+            # Specific yield search
+            yield_query = f"{context.location} commercial property rental yields percentage IT companies 2025"
+            yield_future = (
+                executor.submit(self._search_web, yield_query) if web_enabled else None
+            )
+
+            # Wait for local RAG
             local_results = rag_future.result()
             thought_process.append(
                 f"Retrieved {len(local_results)} local candidate chunks."
             )
 
+            # Collect all web results
             web_context = ""
             web_sources = []
-            if web_future:
+
+            # 1. Main web search result
+            if web_enabled and web_future:
                 try:
-                    web_context, web_sources = web_future.result(
+                    main_web_text, main_web_srcs = web_future.result(
                         timeout=WEB_SEARCH_TIMEOUT
                     )
-                    print(f"\n[Web Search] Found {len(web_sources)} sources:")
-                    for i, src in enumerate(web_sources[:3], 1):
-                        print(f"  {i}. {src.get('title', 'N/A')}")
-                        print(f"     {src.get('snippet', 'N/A')[:100]}...")
-                    print()
-                    thought_process.append(
-                        f"Web search completed. Found {len(web_sources)} sources."
-                    )
-                except TimeoutError:
-                    print(
-                        f"\n[Web Search] Timed out after {WEB_SEARCH_TIMEOUT}s - proceeding with RAG only"
-                    )
-                    thought_process.append(
-                        "Web search timed out - using local DCPR knowledge only."
-                    )
+                    if main_web_text:
+                        web_context += main_web_text + "\n\n"
+                        web_sources.extend(main_web_srcs)
+                except Exception as e:
+                    logger.warning(f"[Web Search] Main search error: {e}")
 
-        # Enhanced web search for feasibility/market queries
-        # Do not use web search for DCPR-focused RAG answers by default.
-        if web_enabled and context.needs_market_data and context.location:
-            enhanced_web = self._search_web(
-                f"{context.location} Pune property rates price per sqft 2025 2026 investment commercial IT parks yields"
-            )
-            if enhanced_web[0]:
-                web_context = enhanced_web[0] + "\n\n" + web_context
-                web_sources.extend(enhanced_web[1])
+            # 2. Enhanced web search result
+            if web_enabled and enhanced_web_future:
+                try:
+                    enh_web_text, enh_web_srcs = enhanced_web_future.result(
+                        timeout=WEB_SEARCH_TIMEOUT
+                    )
+                    if enh_web_text:
+                        web_context += enh_web_text + "\n\n"
+                        web_sources.extend(enh_web_srcs)
+                        thought_process.append(
+                            "Enhanced market data retrieved via web."
+                        )
+                except Exception:
+                    pass
 
-            # Additional search for specific yields and companies
-            if (
-                context.topic in ["Market Analysis", "Investment", "Commercial"]
-                or "investment" in question.lower()
-            ):
-                yield_search = self._search_web(
-                    "Pune commercial property rental yields percentage Hinjewadi Kharadi Kalyani Nagar IT companies 2025"
+            # 3. Yield search result
+            if web_enabled and yield_future:
+                try:
+                    yld_web_text, yld_web_srcs = yield_future.result(
+                        timeout=WEB_SEARCH_TIMEOUT
+                    )
+                    if yld_web_text:
+                        web_context += yld_web_text + "\n\n"
+                        web_sources.extend(yld_web_srcs)
+                except Exception:
+                    pass
+
+            if web_enabled and web_sources:
+                logger.info(
+                    f"\n[Web Search] Found {len(web_sources)} total sources (Parallelized)"
                 )
-                if yield_search[0]:
-                    web_context = yield_search[0] + "\n\n" + web_context
-                    web_sources.extend(yield_search[1])
-
-            thought_process.append("Enhanced web search for market data.")
+                thought_process.append(
+                    f"Web search completed. Found {len(web_sources)} sources."
+                )
+            elif web_enabled:
+                thought_process.append("Web search returned no results or timed out.")
+            else:
+                thought_process.append(
+                    "Web search disabled via ENABLE_WEB_SEARCH setting."
+                )
 
         # 3. Re-rank combined results (local + web)
         if self._reranker and (local_results or web_context):
@@ -1387,7 +1739,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
         self._memory.add("assistant", answer)
 
         total_time = time.time() - start_time
-        print(f"[QUERY COMPLETE] Total time: {total_time:.2f}s")
+        logger.info(f"[QUERY COMPLETE] Total time: {total_time:.2f}s")
 
         return {
             "query": question,
@@ -1439,16 +1791,14 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", "F
         query_params = {
             "area_sqft": float(area_match.group(1)) if area_match else None,
             "road_width_m": float(road_match.group(1)) if road_match else None,
-            "location": "mumbai"
-            if any(
-                x in question.lower()
-                for x in ["mumbai", "prabhadevi", "worli", "bandra", "dcpr 2034"]
-            )
-            else "pune",
+            "location": "mumbai" if "mumbai" in question.lower() else None,
         }
 
         local_text = "\n\n".join(
-            [f"[Local {i + 1}] {r.text[:500]}" for i, r in enumerate(local_results[:5])]
+            [
+                f"[Local {i + 1}] Source: {r.source or 'DCPR 2034'}, Page: {r.page}\n{r.text[:1200]}"
+                for i, r in enumerate(local_results[:10])
+            ]
         )
 
         prompt = f"""Compare and synthesize information for the question: "{question}"
@@ -1466,7 +1816,6 @@ Query Parameters Detected:
 
 INSTRUCTIONS:
 - If area and road_width are detected, look up the relevant FSI tables in the documents
-- For Mumbai (DCPR 2034), identify ALL eligible redevelopment schemes (33(7)(B), 33(20)(B), 33(9), 30(A), etc.) based on plot area and road width.
 - Identify which regulation/table applies
 - Compare local vs web sources
 
@@ -1476,16 +1825,8 @@ Return JSON:
   "key_parameters": {{
     "area": "detected or estimated from question",
     "road_width": "detected or assumed standard (9m default)",
-    "zone_type": "detected or residential default",
-    "location": "{query_params.get("location")}"
+    "zone_type": "detected or residential default"
   }},
-  "eligible_schemes": [
-    {{
-      "scheme": "Regulation number (e.g., 33(7)(B))",
-      "status": "Eligible / Potentially Eligible / Not Eligible",
-      "reason": "Brief explanation based on area/road"
-    }}
-  ],
   "applicable_regulations": ["list of regulation numbers that apply"],
   "fsi_data": {{
     "base_fsi": "value from tables",
@@ -1504,28 +1845,9 @@ Return JSON:
             if self._use_openai:
                 kwargs["response_format"] = {"type": "json_object"}
             response = self.client.chat.completions.create(**kwargs)
-            res = json.loads(response.choices[0].message.content)
-
-            # If the model did not return explicit regulations, infer them from retrieved document text.
-            if not res.get("applicable_regulations"):
-                res["applicable_regulations"] = self._extract_applicable_regulations(
-                    local_results
-                )
-
-            if not res.get("eligible_schemes"):
-                inferred_schemes = res.get("applicable_regulations", [])[:3]
-                res["eligible_schemes"] = [
-                    {
-                        "scheme": scheme,
-                        "status": "Potentially Eligible",
-                        "reason": "Detected in local regulation excerpts"
-                    }
-                    for scheme in inferred_schemes
-                ]
-
-            return res
+            return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"Synthesis error: {e}")
+            logger.error(f"Synthesis error: {e}", exc_info=True)
             return {
                 "comparison": "Error in synthesis",
                 "key_parameters": {},
@@ -1536,13 +1858,20 @@ Return JSON:
 
     def stream_query(self, question: str, k: int = 10):
         """Streaming version with parallel RAG + web search retrieval."""
+        import time
+
         question = str(question)
         self.query_count += 1
         thought_steps = []
-        web_enabled = os.environ.get("ENABLE_WEB_SEARCH", "true").lower() == "true"
 
+        t0 = time.time()
         history_context = self._memory.get_context_for_query(question)
+        t1 = time.time()
+        logger.debug(f"[TIMING] Memory context: {t1 - t0:.2f}s")
+
         context = self._analyze_query(question, history_context)
+        t2 = time.time()
+        logger.debug(f"[TIMING] Query analysis: {t2 - t1:.2f}s")
         thought_steps.append(
             f"Identified intent: {context.intent}, topic: {context.topic}"
         )
@@ -1550,48 +1879,131 @@ Return JSON:
 
         # 2. Expand queries
         search_queries = self._expand_queries(context)
+        t3 = time.time()
+        logger.debug(f"[TIMING] Query expansion: {t3 - t2:.2f}s")
         thought_steps.append(f"Expanded to {len(search_queries)} search queries")
         yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
 
-        # 3. Parallel Retrieval: RAG + Web Search
-        thought_steps.append("Executing parallel retrieval (RAG + Web)...")
+        # 3. Parallel Retrieval: RAG + Web Search concurrently
+        thought_steps.append("Executing parallel retrieval (RAG + Web Search)...")
         yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
 
         web_enabled = os.environ.get("ENABLE_WEB_SEARCH", "true").lower() == "true"
-        WEB_SEARCH_TIMEOUT = int(os.environ.get("WEB_SEARCH_TIMEOUT", "5"))
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            rag_future = executor.submit(self._multi_search, search_queries, context, k)
-            web_future = (
-                executor.submit(self._search_web, question) if web_enabled else None
-            )
+        # Check search result cache first
+        cache_key = hashlib.sha256(
+            ("+".join(sorted(search_queries)) + str(k)).encode()
+        ).hexdigest()[:16]
 
-            local_results = rag_future.result()
+        # Check cache briefly
+        cached_local = None
+        with SessionRAG._search_cache_lock:
+            cached_local = SessionRAG._search_cache.get(cache_key)
+
+        max_workers = 4 if web_enabled else 2
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # RAG search (only if not cached)
+            rag_future = None
+            if cached_local is None:
+                rag_future = executor.submit(
+                    self._multi_search, search_queries, context, k
+                )
+
+            # Web search (only if enabled)
+            if web_enabled:
+                logger.debug("[Web Search] Submitting parallel web search...")
+                web_future = executor.submit(self._search_web, question)
+
+                # Additional market web search
+                enhanced_web_query = f"{context.location} {context.topic} property rates price per sqft 2025 2026 investment"
+                enhanced_future = executor.submit(self._search_web, enhanced_web_query)
+
+                # Specific yield search
+                yield_query = f"{context.location} commercial property rental yields percentage 2025"
+                yield_future = executor.submit(self._search_web, yield_query)
+            else:
+                web_future = None
+                enhanced_future = None
+                yield_future = None
+
+            # Get RAG results
+            if cached_local is not None:
+                local_results = cached_local
+                logger.debug(f"[TIMING] Multi-search RAG: cached (0.00s)")
+            else:
+                t4 = time.time()
+                local_results = rag_future.result()
+                t5 = time.time()
+                logger.debug(f"[TIMING] Multi-search RAG: {t5 - t4:.2f}s")
+                logger.info(
+                    f"[RAG] Retrieved {len(local_results)} chunks from vector store"
+                )
+                # Cache the results briefly
+                with SessionRAG._search_cache_lock:
+                    if len(SessionRAG._search_cache) >= SessionRAG._SEARCH_CACHE_MAX:
+                        SessionRAG._search_cache.popitem(last=False)
+                    SessionRAG._search_cache[cache_key] = local_results
+
             thought_steps.append(f"Found {len(local_results)} local results")
 
+            # Get Web results
             web_context = ""
             web_sources = []
-            if web_future:
+            if web_enabled:
                 try:
-                    web_context, web_sources = web_future.result(
-                        timeout=WEB_SEARCH_TIMEOUT
-                    )
-                    thought_steps.append(f"Web search found {len(web_sources)} sources")
-                except TimeoutError:
-                    thought_steps.append("Web search timed out - using local knowledge")
+                    # 1. Main web search
+                    if web_future:
+                        res1_text, res1_srcs = web_future.result(timeout=8)
+                        if res1_text:
+                            web_context += res1_text + "\n\n"
+                            web_sources.extend(res1_srcs)
 
-        yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
+                    # 2. Enhanced search
+                    if enhanced_future:
+                        res2_text, res2_srcs = enhanced_future.result(timeout=8)
+                        if res2_text:
+                            web_context += res2_text + "\n\n"
+                            web_sources.extend(res2_srcs)
+
+                    # 3. Yield search
+                    if yield_future:
+                        res3_text, res3_srcs = yield_future.result(timeout=8)
+                        if res3_text:
+                            web_context += res3_text + "\n\n"
+                            web_sources.extend(res3_srcs)
+
+                except Exception as e:
+                    logger.warning(f"[Web Search] Error: {e}")
+            else:
+                thought_steps.append(
+                    "Web search disabled via ENABLE_WEB_SEARCH setting."
+                )
 
         # 4. Rerank combined results
-        if self._reranker and local_results:
+        # Skip reranking if: reranker not loaded OR technical query with high score
+        skip_rerank = (
+            not self._reranker  # Reranker not enabled
+            or (
+                context.is_technical and local_results and local_results[0].score > 0.7
+            )  # Already relevant
+        )
+        if not self._reranker:
+            pass
+        elif skip_rerank:
+            logger.debug(f"[TIMING] Reranking: skipped (technical query, high score)")
+        elif local_results:
             thought_steps.append("Reranking results...")
             yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
+            t6 = time.time()
             local_results = self._rerank_results(question, local_results)
+            t7 = time.time()
+            logger.debug(f"[TIMING] Reranking: {t7 - t6:.2f}s")
 
-        # 5. Synthesize
+        # 5. Synthesis
         thought_steps.append("Synthesizing answer from sources...")
         yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
 
+        # CRITICAL: Compute synthesis before yielding metadata/starting stream
         synthesis = self._synthesize_all(question, local_results, web_context, context)
 
         # Yield metadata
@@ -1647,18 +2059,21 @@ Return JSON:
         web_sources: List[Dict] = None,
     ) -> str:
         """Generate answer with proper citations from source metadata."""
-        # Build context with source metadata for each result
+        # Build context with source metadata for each result. Keep per-doc text
+        # long enough for DCPR tables (margins/FSI tables often exceed 800 chars).
+        # Use a wider window (10) than the old 6 so tables that rerank below
+        # the top few still reach the model.
         local_text = "\n\n".join(
             [
-                f"[Doc {i + 1}] Source: {r.source}, Page: {r.page}\n{r.text[:600]}"
-                for i, r in enumerate(local_results[:6])
+                f"[Doc {i + 1}] Source: {r.source}, Page: {r.page}\n{r.text[:2500]}"
+                for i, r in enumerate(local_results[:12])
                 if r.text
             ]
         )
 
         # Build citations with actual source info - include web titles
         citations = []
-        for i, r in enumerate(local_results[:6]):
+        for i, r in enumerate(local_results[:10]):
             if r.source:
                 page_info = f", p.{r.page}" if r.page else ""
                 citations.append(f"[Doc {i + 1}] {r.source}{page_info}")
@@ -1701,8 +2116,7 @@ Return JSON:
 
         if context.is_technical or context.intent == "technical_lookup":
             # Technical Regulatory Query (Like Google AI Search)
-            consultant_location = "Mumbai" if context.location == "mumbai" else "Pune"
-            prompt = f"""You are a senior Urban Planning Consultant specializing in {consultant_location} DCPR/UDCPR.
+            prompt = f"""You are a senior Urban Planning Consultant on DCPR 2034 for Mumbai.
 Provide a high-precision answer based strictly on the regulations.
 
 Question: {question}
@@ -1715,19 +2129,14 @@ REGULATION EXCERPTS:
 WEB CONTEXT:
 {web_context[:2000] if web_context else "No web results"}
 
-RULES:
-1. STRUCTURE LIKE GOOGLE AI OVERVIEWS: Categorize by building height, plot size, or zone type.
-2. MUMBAI REDEVELOPMENT: If location is Mumbai, ALWAYS include a 'Scheme Eligibility Table' comparing 33(7)(B), 33(20)(B), 33(9), 30(A), and 33(12)(B) based on the plot parameters.
-3. EXTRACT CONDITIONAL RULES: (e.g., "For buildings up to 15m...", "For plots > 1000sqm...", "H/5 Rule").
-4. USE TABLES: For any numerical comparison (Margins, FSI, Parking).
-5. CITATIONS: Cite [Doc 1], [Doc 2], etc. inline with exact page numbers.
-6. NO FILLER: Do not explain what DCPR is. Go straight to the data.
-7. DIRECT ANSWER: If the user asks for a specific number, put it in the first sentence.
-8. IF MISSING INFO: If plot area, road width, or zone is not specified, explicitly ask for these required parameters.
-9. BE SPECIFIC: Quote exact regulation numbers (e.g., "As per Regulation 33(7)(B)...").
-10. IF NO LOCAL DATA: If the regulation excerpts are empty or generic, respond: "To provide accurate feasibility analysis, please share: Plot Area (sq ft), Road Width (meters), and Zone Type (Residential/Commercial)."""
+{DCPR_ANSWER_RULES}
+
+EXTRA:
+- Lead with the specific number asked for in the first sentence.
+- If the question needs a parameter that's missing (plot area / road width /
+  zone), ask for it in one line and stop — do not invent a generic answer."""
         elif is_comparison and is_market_analysis:
-            prompt = f"""You are a real estate investment advisor for Pune, Maharashtra. Provide a comprehensive ranked list based on web search data.
+            prompt = f"""You are a real estate investment advisor for Mumbai. Provide a ranked list based on web search data.
 
 Question: {question}
 
@@ -1737,83 +2146,65 @@ WEB SEARCH RESULTS (PRIORITY - this is live market data):
 REGULATORY DATA (from documents):
 {local_text if local_text else "No local regulatory data"}
 
-RULES FOR RANKED LIST QUERIES:
-1. STRUCTURE YOUR RESPONSE LIKE A RANKED LIST - each area as a separate section with subheaders
-2. For each area, include: location name, price per sq ft, key features, investment potential, rental yields
-3. Use markdown tables to compare multiple areas side by side
-4. Include specific names of: IT parks, companies, developers, consultants mentioned in web results
-5. Mention specific infrastructure projects (metro lines, road widening, etc.)
-6. Use bullet points for quick scanning
-7. Cite sources as [Web 1], [Web 2] inline
-8. If data is not available for a specific metric, state "Data not available" - do NOT make up numbers
-9. End with a comparison table summarizing all areas
+{DCPR_ANSWER_RULES}
 
-Example format:
-## 1. Hinjewadi (Highest ROI)
-- **Price:** ₹X/sq ft
-- **Key Feature:** IT hub, Rajiv Gandhi Infotech Park
-- **Yields:** X%
-- **Companies:** [list]
-- [Web 1]
-
-## 2. Kharadi
-...
-
-## Summary Table
-| Area | Price/sqft | Key Feature | Yields |
-|------|-----------|-------------|--------|
+EXTRA (ranked-list formatting):
+- One compact section per area with: price/sqft, key feature, rental yield.
+- Cite web results as [Web N] inline at the end of each area block; for
+  regulatory claims use the "— as per DCPR 2034..." inline citation.
+- If a metric is missing for an area, omit that metric — do not write "Data
+  not available" and do not fabricate numbers.
 """
         elif context.needs_market_data or context.intent == "feasibility_analysis":
             # Feasibility/Investment query - prioritize web data, give market specifics
-            prompt = f"""You are a real estate investment advisor for Pune and Mumbai, Maharashtra. Provide a comprehensive feasibility analysis using only local DCPR document excerpts.
+            prompt = f"""You are a real estate investment advisor for Mumbai. Provide a focused feasibility analysis.
 
 Question: {question}
-Location: {context.location or "Pune"}
+Location: {context.location or "Mumbai"}
+
+WEB SEARCH RESULTS (PRIORITY - include specific prices, rates, consultants):
+{web_context[:3000] if web_context else "No web results"}
 
 REGULATORY DATA (from local documents):
 {local_text if local_text else "No local regulatory data"}
 
-RULES FOR FEASIBILITY QUERIES:
-1. Use only local DCPR documents. Do not use web results or external knowledge.
-2. Give feasibility analysis with regulatory numbers from the local documents
-3. Mention specific infrastructure or scheme guidance from the documents
-4. Then give regulatory FSI/permit information from local documents
-5. Use markdown tables for comparing values
-6. Cite sources as [Doc 1], [Doc 2]
-7. If document data is missing, clearly state "Local DCPR information not available" rather than inventing anything
-8. End with actionable next steps based on DCPR regulations
+{DCPR_ANSWER_RULES}
+
+EXTRA (feasibility formatting):
+- Lead with one line of market data (price/sqft, yield) if web results contain
+  it, then one line of regulatory position (FSI/permit) from DCPR excerpts.
+- Cite web data as [Web N]; cite DCPR data using the inline "— as per DCPR
+  2034, Regulation <X>, p.<N>" form.
+- End with a single actionable next step — no multi-paragraph closers.
 """
         else:
             # Standard regulatory query
-            prompt = f"""You are a Pune urban planning expert. Provide a comprehensive answer like Google AI Search.
+            prompt = f"""You are a Mumbai urban planning expert answering a DCPR 2034 question.
 
 Question: {question}
-Parameters: Area={context.units.get("original") if context.units else "not specified"}, Road Width={context.units.get("road_width", "9m (default)")}, Location={context.location or "Pune"}
+Parameters: Area={context.units.get("original") if context.units else "not specified"}, Road Width={context.units.get("road_width", "9m (default)")}, Location={context.location or "Mumbai"}
 
-DCPR/UDCPR Regulations:
+DCPR 2034 Regulations:
 {local_text[:2500]}
 
 Web Search:
 {web_context[:3000] if web_context else "None"}
 
-STYLE - BE LIKE GOOGLE AI SEARCH:
-1. Start with direct answer in 1-2 sentences (NO heading before it)
-2. Add details in flowing paragraphs without section headers
-3. Include tables for data
-4. Add key points naturally in paragraphs
-5. Cite sources inline
-6. Be thorough - not brief
-7. NEVER use LaTeX math notation - use plain text
-8. NO section titles like "Direct Answer", "Conclusion", etc.
+{DCPR_ANSWER_RULES}
+
+EXTRA:
+- Open with the direct answer in one sentence.
+- No LaTeX, no section headers, no "Conclusion" block. Markdown tables ARE allowed and REQUIRED when rule 4 (multi-variant comparison) applies.
 """
         try:
-            answer_model = self._model
+            # Use gpt-4o for best quality when OpenAI is available
+            answer_model = "gpt-4o" if self._use_openai else self._model
             response = self.client.chat.completions.create(
                 model=answer_model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a Pune urban planning expert. Answer using only local DCPR document excerpts. Do not use web search or external knowledge. Cite sources as 'As per [Doc N]'. If you don't have data, say so clearly and do not hallucinate.",
+                        "content": "You are a Mumbai DCPR 2034 expert. Answer ONLY what is asked, in under 6 short sentences, with exact numbers from the DCPR excerpts. End each factual paragraph with an inline citation of the form '— as per DCPR 2034, Regulation <X>, p.<N>'. For tables, include every field the final value depends on or omit the table entirely — never use placeholder values like 'Varies', 'N/A', or 'Available on request'. If data is missing, say so in one line.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -1821,11 +2212,9 @@ STYLE - BE LIKE GOOGLE AI SEARCH:
             )
             answer = response.choices[0].message.content.strip()
 
-            if citations:
-                citation_labels = [f"[Doc {i + 1}]" for i in range(len(citations))]
-                if "Sources:" not in answer:
-                    answer += "\n\n**Sources:**\n" + "\n".join(citations)
-                answer += "\n\nAs per " + ", ".join(citation_labels) + "."
+            # Add sources section if not already present
+            if "Sources:" not in answer and citations:
+                answer += "\n\n**Sources:**\n" + "\n".join(citations)
 
             return answer
         except Exception as e:
@@ -1840,10 +2229,21 @@ STYLE - BE LIKE GOOGLE AI SEARCH:
         context: QueryContext,
         web_sources: List[Dict] = None,
     ):
-        # Build context with source metadata
+        # Build context with source metadata so the model can cite inline.
+        # Keep per-doc text long enough for DCPR tables.
         local_text = "\n\n".join(
-            [f"[Doc {i + 1}] {r.text[:800]}" for i, r in enumerate(local_results[:8])]
+            [
+                f"[Doc {i + 1}] Source: {r.source or 'DCPR 2034'}, Page: {r.page}\n{r.text[:2500]}"
+                for i, r in enumerate(local_results[:12])
+            ]
         )
+
+        # Pre-build citation footer (stream version)
+        citations = []
+        for i, r in enumerate(local_results[:6]):
+            if r.source:
+                page_info = f", p.{r.page}" if r.page else ""
+                citations.append(f"[Doc {i + 1}] {r.source}{page_info}")
 
         # Different prompts for feasibility vs regulatory queries
         is_market_analysis = (
@@ -1858,9 +2258,8 @@ STYLE - BE LIKE GOOGLE AI SEARCH:
             area_str = query_params.get("area", "Not specified")
             road_str = query_params.get("road_width", "9m (standard default)")
             base_fsi = fsi_data.get("base_fsi", "See documents")
-            consultant_location = "Mumbai" if context.location == "mumbai" else "Pune"
 
-            prompt = f"""You are a high-precision Urban Planning Expert specializing in {consultant_location} DCPR/UDCPR. Provide a comprehensive answer like Google AI Search.
+            prompt = f"""You are a high-precision Urban Planning Expert answering a DCPR question.
 
 Question: {question}
 Parameters: Area={area_str}, Road={road_str}, Base FSI={base_fsi}
@@ -1868,35 +2267,34 @@ Parameters: Area={area_str}, Road={road_str}, Base FSI={base_fsi}
 REGULATION EXCERPTS:
 {local_text}
 
-STYLE - BE LIKE GOOGLE AI SEARCH:
-1. Use only local DCPR document excerpts. Do not use web results or external knowledge.
-2. Start with direct answer in 1-2 sentences (NO heading)
-3. MUMBAI REDEVELOPMENT: If location is Mumbai, ALWAYS include a 'Scheme Eligibility Table' comparing 33(7)(B), 33(20)(B), 33(9), 30(A), and 33(12)(B).
-4. Flowing paragraphs without section headers
-5. Use tables for data
-6. Include key points naturally in text
-7. Cite sources inline using 'As per [Doc N]'
-8. Quote exact regulation numbers (e.g., "As per Regulation 33(7)(B)...").
-9. NEVER use LaTeX math notation
-10. NO titles like "Direct Answer", "Conclusion", etc.
+WEB RESULTS:
+{web_context[:2500] if web_context else "None"}
+
+{DCPR_ANSWER_RULES}
+
+EXTRA:
+- One-sentence direct answer first.
+- No LaTeX, no section headers. Markdown tables ARE allowed and REQUIRED when rule 4 (multi-variant comparison) applies.
 """
         elif is_market_analysis:
-            prompt = f"""You are a real estate investment advisor for Pune and Mumbai, Maharashtra. Provide a comprehensive feasibility analysis using only local DCPR documents.
+            prompt = f"""You are a real estate investment advisor for Mumbai. Provide a focused feasibility analysis.
 
 Question: {question}
-Location: {context.location or "Pune"}
+Location: {context.location or "Mumbai"}
+
+WEB SEARCH RESULTS (PRIORITY - include specific prices, rates, consultants):
+{web_context[:3000] if web_context else "No web results"}
 
 REGULATORY DATA:
 {local_text if local_text else "No local regulatory data"}
 
-RULES FOR FEASIBILITY QUERIES:
-1. Use only local DCPR documents. Do not use web results or external knowledge.
-2. Give investment analysis with regulatory numbers from the local documents
-3. Mention specific infrastructure or scheme guidance from the documents
-4. Then give regulatory FSI/permit information based on documents
-5. Use markdown tables for comparing values
-6. Cite sources as [Doc 1], [Doc 2]
-7. If no document data is available, state "Local DCPR information not available"
+{DCPR_ANSWER_RULES}
+
+EXTRA (feasibility formatting):
+- Start with one line of market data if present, then one line of regulatory
+  position from DCPR.
+- Cite web as [Web N]; cite DCPR using "— as per DCPR 2034, Regulation <X>, p.<N>".
+- End with one actionable next step.
 """
         else:
             # Standard regulatory query
@@ -1909,12 +2307,12 @@ RULES FOR FEASIBILITY QUERIES:
             )
             area_str = query_params.get("area", "Not specified")
             road_str = query_params.get("road_width", "9m (standard default)")
-            loc_str = query_params.get("location", "Pune (default)")
+            loc_str = query_params.get("location", "Mumbai (default)")
             base_fsi = fsi_data.get("base_fsi", "See documents")
             max_fsi = fsi_data.get("max_fsi", "See documents")
             prem_fsi = fsi_data.get("premium_fsi", "See documents")
 
-            prompt = f"""You are an expert urban planning consultant for Pune, Maharashtra. Based on the DCPR/UDCPR regulation excerpts below, provide a comprehensive answer.
+            prompt = f"""You are an expert urban planning consultant for Mumbai. Answer using the DCPR 2034 excerpts below.
 
 Question: {question}
 
@@ -1926,16 +2324,17 @@ Detected Parameters:
 Applicable Regulations: {regs_str}
 FSI Data: Base={base_fsi}, Max={max_fsi}, Premium={prem_fsi}
 
-DCPR/UDCPR Regulation Excerpts:
+DCPR 2034 Regulation Excerpts:
 {local_text}
 
-RULES:
-1. Use only local DCPR documents. Do not use web search or external knowledge.
-2. Start with DIRECT answer in 1-2 sentences.
-3. If documents have the answer, cite [Doc X]
-4. NEVER fabricate values not in sources
-5. Use markdown tables for data when relevant
-6. Be direct, no filler
+Web Search Results:
+{web_context[:1000] if web_context else "None"}
+
+{DCPR_ANSWER_RULES}
+
+EXTRA:
+- Prioritize DCPR excerpts over web. Fall back to web only when the excerpts
+  don't cover the question, and cite as [Web N] in that case.
 """
         try:
             response = self.client.chat.completions.create(
@@ -1943,7 +2342,7 @@ RULES:
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful urban planning expert. Give direct, practical answers. Use tables when comparing values.",
+                        "content": "You are a helpful urban planning expert on DCPR 2034 for Mumbai. Keep answers short (≤6 short sentences). End each factual paragraph with an inline citation '— as per DCPR 2034, Regulation <X>, p.<N>'. For tables, include every contributing field or omit the table; never use 'Varies' / 'N/A' / 'Available on request'. No fabrication — if a value is missing, say so in one line.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -2092,5 +2491,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     rag = IntelligentRAG(session_id=args.session)
     result = rag.query(args.question, k=args.k)
-    print(format_result(result))
-    print(f"\nKnowledge Graph: {result.get('knowledge_graph_stats', {})}")
+    logger.info(format_result(result))
+    logger.info(f"\nKnowledge Graph: {result.get('knowledge_graph_stats', {})}")

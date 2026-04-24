@@ -6,10 +6,13 @@ Real API Integration for MahaRERA
 
 import requests
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Optional, List, Dict
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://maharera.mahaonline.gov.in/MahaRERA/api"
 
@@ -98,7 +101,7 @@ class RERAIntegration:
             return []
 
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}", exc_info=True)
             return []
 
     def get_project_details(self, project_id: str) -> Optional[Dict]:
@@ -114,7 +117,7 @@ class RERAIntegration:
             return None
 
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}", exc_info=True)
             return None
 
     def _parse_project(self, data: Dict) -> Dict:
@@ -218,26 +221,26 @@ def main():
     rera = RERAIntegration()
 
     if args.cmd == "search":
-        print(f"Searching for: {args.reg_no}")
+        logger.info(f"Searching for: {args.reg_no}")
         result = rera.search_project_by_reg_no(args.reg_no)
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     elif args.cmd == "promoter":
-        print(f"Searching promoter: {args.name}")
+        logger.info(f"Searching promoter: {args.name}")
         results = rera.search_promoter(args.name)
-        print(f"Found {len(results)} results")
+        logger.info(f"Found {len(results)} results")
         for r in results:
-            print(f"  - {r.get('name')} ({r.get('regNo')})")
+            logger.info(f"  - {r.get('name')} ({r.get('regNo')})")
 
     elif args.cmd == "credibility":
-        print(f"Checking credibility of: {args.name}")
+        logger.info(f"Checking credibility of: {args.name}")
         result = rera.check_builder_credibility(args.name)
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     elif args.cmd == "verify":
-        print(f"Verifying: {args.reg_no}")
+        logger.info(f"Verifying: {args.reg_no}")
         result = rera.verify_registration(args.reg_no)
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
 
     else:
         parser.print_help()

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple
+import json
 
 # Add parent dir to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -16,16 +17,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from semantic_chunker import SemanticChunker
-from services.milvus_utils import get_collection, setup_local_milvus
+from semantic_chunker import SemanticChunker, HybridChunker
+from milvus_utils import get_collection, setup_local_milvus
 from langchain_openai import OpenAIEmbeddings
 
 
 DOCS_DIR = Path(__file__).parent.parent / "docs"
-COLLECTION_NAME = os.environ.get(
-    "MILVUS_COLLECTION_RAG",
-    os.environ.get("MILVUS_COLLECTION", "dcpr_knowledge"),
-)
+COLLECTION_NAME = "dcpr_knowledge"
 BATCH_SIZE = 100
 
 
@@ -169,7 +167,7 @@ def main():
 
     # Setup Milvus
     print("\n[1/4] Setting up Milvus...")
-    setup_local_milvus(COLLECTION_NAME)
+    setup_local_milvus()
     collection = get_collection(COLLECTION_NAME)
 
     if collection.num_entities > 0:

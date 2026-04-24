@@ -42,7 +42,9 @@ class Ward(str, Enum):
 class PropertyLookupRequest(BaseModel):
     ward: Ward                   # e.g. "K/W" — must be one of the 24 MCGM wards
     village: str                 # e.g. "MANDVI" — normalised to uppercase
-    cts_no: str                  # e.g. "854", "1234/56", "123/1/A", "123-124", "123+124"
+    cts_no: str                  # e.g. "854" (CTS), "VI/18" (FP), "123/1/A"
+    tps_name: Optional[str] = None  # TPS scheme name (e.g. "VILE PARLE") - for FP search
+    use_fp: bool = False          # Set True if searching by FP number (e.g. "VI/18")
     include_nearby: bool = True  # also fetch adjacent plot CTS numbers
 
     @field_validator("village")
@@ -54,6 +56,15 @@ class PropertyLookupRequest(BaseModel):
     @classmethod
     def _clean_cts(cls, v: str) -> str:
         return v.strip()
+
+    @field_validator("use_fp", mode="before")
+    @classmethod
+    def _detect_fp(cls, v: bool, info) -> bool:
+        """Auto-detect FP format from cts_no field."""
+        # If use_fp already explicitly set, use that
+        if v is not None:
+            return v
+        return False
 
 
 class PropertyLookupStatus(str, Enum):

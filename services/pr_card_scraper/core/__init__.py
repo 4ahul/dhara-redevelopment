@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@postgres:5432/redevelopment"
+        "postgresql://redevelopment:redevelopment@localhost:5435/pr_card_scraper_db"
     )
 
     MAHABHUMI_URL: str = "https://bhulekh.mahabhumi.gov.in"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # CAPTCHA solver — LLM Vision APIs
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3.1-pro-preview"
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
@@ -32,3 +33,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_gemini_model():
+    """Get Gemini model name from settings."""
+    return settings.GEMINI_MODEL

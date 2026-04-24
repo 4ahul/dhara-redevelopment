@@ -3,11 +3,11 @@ LLM Client Abstraction Layer
 Supports multiple backends: Ollama, OpenAI-compatible, Anthropic (production), Mock (testing)
 """
 
-import os
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
-from typing import Optional
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class LLMClient(ABC):
     async def chat(
         self,
         messages: list[dict],
-        tools: Optional[list[dict]] = None,
+        tools: list[dict] | None = None,
         max_tokens: int = 4096,
         **kwargs,
     ) -> dict:
@@ -46,7 +46,7 @@ class OllamaClient(LLMClient):
     async def chat(
         self,
         messages: list[dict],
-        tools: Optional[list[dict]] = None,
+        tools: list[dict] | None = None,
         max_tokens: int = 4096,
         **kwargs,
     ) -> dict:
@@ -87,7 +87,7 @@ class OpenAICompatibleClient(LLMClient):
     async def chat(
         self,
         messages: list[dict],
-        tools: Optional[list[dict]] = None,
+        tools: list[dict] | None = None,
         max_tokens: int = 4096,
         **kwargs,
     ) -> dict:
@@ -141,7 +141,7 @@ class AnthropicClient(LLMClient):
     async def chat(
         self,
         messages: list[dict],
-        tools: Optional[list[dict]] = None,
+        tools: list[dict] | None = None,
         max_tokens: int = 4096,
         **kwargs,
     ) -> dict:
@@ -275,10 +275,10 @@ class GeminiClient(LLMClient):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY must be set to use GeminiClient.")
-        
+
         genai.configure(api_key=self.api_key)
         self.model_name = model or os.getenv("GEMINI_MODEL") or "gemini-3.1-pro-preview"
-        
+
         try:
             self.client = genai.GenerativeModel(model_name=self.model_name)
         except Exception as e:
@@ -290,25 +290,26 @@ class GeminiClient(LLMClient):
     async def chat(
         self,
         messages: list[dict],
-        tools: Optional[list[dict]] = None,
+        tools: list[dict] | None = None,
         max_tokens: int = 4096,
         **kwargs,
     ) -> dict:
         # 1. Convert messages to Gemini Content objects
         contents = []
         for msg in messages:
-            if msg["role"] == "system": continue 
-            
+            if msg["role"] == "system":
+                continue
+
             role = "user" if msg["role"] in ("user", "tool") else "model"
             parts = []
             content = msg.get("content", "")
-            
+
             if msg["role"] == "tool":
                 try:
                     res_data = json.loads(content) if isinstance(content, str) else content
-                except:
+                except Exception:
                     res_data = {"raw": content}
-                
+
                 parts.append({
                     "function_response": {
                         "name": msg.get("name", ""),
@@ -325,7 +326,7 @@ class GeminiClient(LLMClient):
                         parts.append({"function_response": {"name": p.get("name", ""), "response": json.loads(p.get("content", "{}"))}})
             elif isinstance(content, str) and content:
                 parts.append({"text": content})
-            
+
             # For Gemini 3.x: use raw parts if available (preserves thought_signature)
             if msg.get("_gemini_raw_parts"):
                 # Raw protobuf parts from a previous Gemini response — use directly
@@ -350,7 +351,7 @@ class GeminiClient(LLMClient):
                     "description": tool["description"],
                     "parameters": tool.get("input_schema", tool.get("parameters", {}))
                 })
-        
+
         final_tools = [{"function_declarations": gemini_tools}] if gemini_tools else None
 
         # 3. Sanitize contents — ensure no non-JSON-serializable objects leak through
@@ -441,15 +442,15 @@ def get_llm_client() -> LLMClient:
     3. OLLAMA_BASE_URL  → OllamaClient
     4. OPENAI_BASE_URL  → OpenAICompatibleClient
     """
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key and not gemini_key.startswith("YOUR_"):
-        logger.info("Using GeminiClient (model: %s)", os.getenv("GEMINI_MODEL") or "gemini-3.1-pro-preview")
-        return GeminiClient()
+    from core.config import settings
 
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if anthropic_key and not anthropic_key.startswith("sk-ant-your-"):
+    if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your_"):
+        logger.info("Using GeminiClient (model: %s)", settings.GEMINI_MODEL or "gemini-3.1-pro-preview")
+        return GeminiClient(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+
+    if settings.ANTHROPIC_API_KEY and not settings.ANTHROPIC_API_KEY.startswith("sk-ant-your-"):
         logger.info("Using AnthropicClient")
-        return AnthropicClient()
+        return AnthropicClient(api_key=settings.ANTHROPIC_API_KEY)
 
     if os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_MODEL"):
         logger.info("Using OllamaClient")
@@ -469,3 +470,5 @@ def get_llm_client() -> LLMClient:
 async def create_llm_client() -> LLMClient:
     client = get_llm_client()
     return client
+
+

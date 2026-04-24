@@ -3,7 +3,7 @@ Dhara AI — Auth Schemas
 Request/Response models for authentication endpoints.
 """
 
-from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -18,8 +18,8 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     name: str = Field(min_length=2, max_length=255)
-    phone: Optional[str] = Field(default=None, max_length=20, pattern=r"^\+?[\d\s\-]{7,20}$")
-    organization: Optional[str] = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=20, pattern=r"^\+?[\d\s\-]{7,20}$")
+    organization: str | None = Field(default=None, max_length=255)
 
 
 class AuthResponse(BaseModel):
@@ -36,20 +36,20 @@ class AuthUserInfo(BaseModel):
     email: str
     name: str
     role: str
-    organization: Optional[str] = None
-    avatar_url: Optional[str] = None
+    organization: str | None = None
+    avatar_url: str | None = None
 
 
 class MeResponse(BaseModel):
     """Full profile of the currently authenticated user."""
     id: str
-    clerk_id: Optional[str] = None
+    clerk_id: str | None = None
     email: str
     name: str
     role: str
-    organization: Optional[str] = None
-    avatar_url: Optional[str] = None
-    phone: Optional[str] = None
+    organization: str | None = None
+    avatar_url: str | None = None
+    phone: str | None = None
 
 
 class LogoutResponse(BaseModel):
@@ -67,3 +67,5 @@ class ChangePasswordRequest(BaseModel):
     """Change password request."""
     current_password: str = Field(min_length=6)
     new_password: str = Field(min_length=8, max_length=128)
+
+
