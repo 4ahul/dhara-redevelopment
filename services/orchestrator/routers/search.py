@@ -1,11 +1,13 @@
 """Search & Roles Routes — GET /api/search, GET /api/roles"""
 
 import logging
-from fastapi import APIRouter, Depends, Query
+
 from core.dependencies import get_current_user, get_search_service
-from services.search_service import SearchService
-from schemas.common import PaginatedResponse
+from fastapi import APIRouter, Depends, Query
 from schemas.admin import RoleResponse
+from schemas.common import PaginatedResponse
+
+from services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Search & Roles"])
@@ -13,11 +15,11 @@ router = APIRouter(tags=["Search & Roles"])
 
 @router.get("/search", response_model=PaginatedResponse)
 async def global_search(
-    q: str = Query(min_length=1, max_length=500), 
-    entity_type: str = Query(None), 
-    page: int = Query(1, ge=1), 
-    page_size: int = Query(20, ge=1, le=100), 
-    user=Depends(get_current_user), 
+    q: str = Query(min_length=1, max_length=500),
+    entity_type: str = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    user=Depends(get_current_user),
     service: SearchService = Depends(get_search_service)
 ):
     return await service.global_search(q, user.id, entity_type, page, page_size)
@@ -26,4 +28,6 @@ async def global_search(
 @router.get("/roles", response_model=list[RoleResponse])
 async def get_roles(service: SearchService = Depends(get_search_service)):
     return await service.get_active_roles()
+
+
 

@@ -3,13 +3,12 @@ Dhara AI — Security Utilities
 Password hashing and JWT token management. No DB access here — pure crypto helpers.
 """
 
-from datetime import datetime, timedelta
-from passlib.context import CryptContext
-from jose import jwt, JWTError
-from core.config import settings
+import logging
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
-import logging
+from core.config import settings
+from jose import JWTError, jwt
 
 logger = logging.getLogger(__name__)
 
@@ -35,23 +34,24 @@ def create_access_token(
     expires_hours: int = 24,
     permanent: bool = False,
 ) -> str:
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "email": email,
         "role": role,
         "name": name,
-        "iat": datetime.utcnow(),
+        "iat": now,
         "iss": "dhara-ai",
     }
     if not permanent:
-        payload["exp"] = datetime.utcnow() + timedelta(hours=expires_hours)
+        payload["exp"] = now + timedelta(hours=expires_hours)
     # permanent tokens have no "exp" claim → never expire
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
 def decode_token(token: str) -> dict:
     """
-    Decode JWT — tries local secret (HS256) first, 
+    Decode JWT — tries local secret (HS256) first,
     then falls back to Clerk RSA (RS256) public key validation.
     """
     # 1. Try Local Symmetric Token (PMC/Admin)
@@ -79,4 +79,6 @@ def decode_token(token: str) -> dict:
     except JWTError as e:
         from fastapi import HTTPException
         logger.warning(f"JWT Validation failed: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from e
+
+

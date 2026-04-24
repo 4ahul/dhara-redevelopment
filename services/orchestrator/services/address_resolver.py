@@ -4,10 +4,10 @@ Resolves ward, village, district, taluka from user address using web search.
 """
 
 import logging
-import re
 import os
+import re
+
 import httpx
-from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class AddressResolver:
     def __init__(self):
         self.serp_api_key = os.environ.get("SERP_API_KEY", "")
 
-    async def resolve_address(self, address: str) -> Dict[str, Optional[str]]:
+    async def resolve_address(self, address: str) -> dict[str, str | None]:
         """
         Resolve address to ward, village, district, taluka.
         Returns dict with keys: ward, village, district, taluka
@@ -69,7 +69,7 @@ class AddressResolver:
         logger.info(f"Address resolved: {address} -> {result}")
         return result
 
-    async def _search_ward_village(self, address: str) -> Dict[str, Optional[str]]:
+    async def _search_ward_village(self, address: str) -> dict[str, str | None]:
         """Search for ward and village using SerpApi."""
 
         if self.serp_api_key:
@@ -84,7 +84,7 @@ class AddressResolver:
 
 
 
-    async def _search_serpapi(self, address: str) -> Dict[str, Optional[str]]:
+    async def _search_serpapi(self, address: str) -> dict[str, str | None]:
         """Search using SerpApi."""
         # SerpApi requires direct API call with api_key parameter
         query = f"{address} Mumbai ward village MCGM"
@@ -105,7 +105,7 @@ class AddressResolver:
             data = response.json()
             return self._parse_search_results(data)
 
-    def _parse_search_results(self, data: dict) -> Dict[str, Optional[str]]:
+    def _parse_search_results(self, data: dict) -> dict[str, str | None]:
         """Parse search results to extract ward and village."""
 
         # Look for organic results
@@ -161,7 +161,7 @@ class AddressResolver:
 
         return {"ward": None, "village": None, "district": None, "taluka": None}
 
-    def _parse_address_fallback(self, address: str) -> Dict[str, Optional[str]]:
+    def _parse_address_fallback(self, address: str) -> dict[str, str | None]:
         """Fallback: Parse address manually for common Mumbai patterns."""
         address_lower = address.lower()
 
@@ -248,6 +248,8 @@ class AddressResolver:
 address_resolver = AddressResolver()
 
 
-async def resolve_address_from_input(address: str) -> Dict[str, Optional[str]]:
+async def resolve_address_from_input(address: str) -> dict[str, str | None]:
     """Utility function to resolve address to ward/village."""
     return await address_resolver.resolve_address(address)
+
+

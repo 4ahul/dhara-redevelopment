@@ -18,6 +18,7 @@ if service_dir not in sys.path:
 from fastapi import FastAPI
 from core.config import settings
 from routers.report_router import router
+from routers.ocr_router import router as ocr_router
 
 from core.banner import print_banner as _print_banner
 _print_banner()
@@ -35,6 +36,8 @@ async def health_check():
     return {"status": "ok", "service": "report_generator"}
 
 app.include_router(router)
+app.include_router(ocr_router)
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -7,16 +7,14 @@ Refactored to use CRUD and Repository layers.
 import logging
 import math
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException
 
+from fastapi import HTTPException
 from models.enums import UserRole
 from models.role import Role
+from repositories import admin_repository, enquiry_repository, user_repository
 from schemas.admin import EnquiryResponse
 from schemas.common import PaginatedResponse
-from repositories import admin_repository
-from repositories import user_repository
-from repositories import enquiry_repository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +28,10 @@ class AdminService:
             self.db, page, page_size, search, is_active
         )
         return PaginatedResponse(
-            items=items, 
-            total=total, 
-            page=page, 
-            page_size=page_size, 
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
             total_pages=math.ceil(total/page_size) if total else 0
         )
 
@@ -45,28 +43,27 @@ class AdminService:
         # For now, we'll keep the multi-entity logic here but could move to search_service
         # or a specialized search_repository if it gets more complex.
         # Keeping it for backward compatibility during re-org.
-        from repositories import society_repository
-        
+
         results, term = [], f"%{q}%"
         if not entity_type or entity_type == "user":
             users, _ = await user_repository.list_users_by_role(self.db, UserRole.PMC, 1, page_size, search=q)
             for u in users:
                 results.append({"type": "user", "id": str(u.id), "title": u.name, "subtitle": f"{u.email} — {u.role.value}", "status": "active" if u.is_active else "inactive", "created_at": u.created_at.isoformat()})
-        
+
         if not entity_type or entity_type == "society":
             # For admin search, we'll need a way to search societies across ALL users
-            from sqlalchemy import select, or_
             from models import Society
+            from sqlalchemy import or_, select
             stmt = select(Society).where(or_(Society.name.ilike(term), Society.address.ilike(term))).limit(page_size)
             for s in (await self.db.execute(stmt)).scalars().all():
                 results.append({"type": "society", "id": str(s.id), "title": s.name, "subtitle": s.address, "status": s.status, "created_at": s.created_at.isoformat()})
-                
+
         if not entity_type or entity_type == "enquiry":
-            enquiries, _ = await enquiry_repository.list_enquiries(self.db, 1, page_size) 
+            enquiries, _ = await enquiry_repository.list_enquiries(self.db, 1, page_size)
             for e in enquiries:
                 if q.lower() in e.name.lower() or q.lower() in e.email.lower():
                     results.append({"type": "enquiry", "id": str(e.id), "title": e.name, "subtitle": e.subject or e.message[:80], "status": e.status.value, "created_at": e.created_at.isoformat()})
-        
+
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         total = len(results)
         off = (page-1)*page_size
@@ -81,19 +78,23 @@ class AdminService:
     async def get_enquiry(self, enquiry_id: UUID) -> EnquiryResponse:
         """Retrieve enquiry details."""
         e = await enquiry_repository.get_enquiry_by_id(self.db, enquiry_id)
-        if not e: raise HTTPException(404, "Enquiry not found")
+        if not e:
+            raise HTTPException(404, "Enquiry not found")
         return EnquiryResponse.model_validate(e)
 
-    async def patch_enquiry(self, enquiry_id: UUID, req_data: dict) -> EnquiryResponse:
+    async def update_enquiry(self, enquiry_id: UUID, req_data: dict) -> EnquiryResponse:
         """Update enquiry status or assignment."""
         e = await enquiry_repository.get_enquiry_by_id(self.db, enquiry_id)
-        if not e: raise HTTPException(404, "Enquiry not found")
-        
+        if not e:
+            raise HTTPException(404, "Enquiry not found")
+
         if req_data.get("assigned_to"):
-            if not await user_repository.get_user_by_id(self.db, req_data["assigned_to"]):
+            assigned_user = await user_repository.get_user_by_id(self.db, req_data["assigned_to"])
+            if not assigned_user:
                 raise HTTPException(400, "Assigned user not found")
-                
-        for k, v in req_data.items(): setattr(e, k, v)
+
+        for k, v in req_data.items():
+            setattr(e, k, v)
         await self.db.flush()
         await self.db.refresh(e)
         return EnquiryResponse.model_validate(e)
@@ -106,3 +107,5 @@ class AdminService:
         """Fetch all user roles."""
         from sqlalchemy import select
         return list((await self.db.execute(select(Role).order_by(Role.name))).scalars().all())
+
+

@@ -1,17 +1,22 @@
 """Auth Routes
 
-POST /api/auth/sync          — provision/refresh DB user from a Clerk session token
-GET  /api/auth/me            — return current authenticated user's profile
-POST /api/auth/admin/login   — password login for ADMIN service accounts only
-POST /api/auth/admin/logout  — admin logout (session invalidation is Clerk-side)
+POST /auth/sync          — provision/refresh DB user from a Clerk session token
+GET  /auth/me            — return current authenticated user's profile
+POST /auth/admin/login   — password login for ADMIN service accounts only
+POST /auth/admin/logout  — admin logout (session invalidation is Clerk-side)
+POST /auth/login         — PMC user login with email/password
+POST /auth/logout        — PMC logout (session invalidation is client-side)
+POST /auth/signup        — PMC user signup with email/password
 """
 
 import logging
+
+from core.dependencies import get_auth_service, get_current_user
 from fastapi import APIRouter, Depends, Header
-from core.dependencies import get_current_user, get_auth_service
-from services.auth_service import AuthService
-from schemas.auth import LoginRequest, AuthResponse, MeResponse, LogoutResponse
 from models import UserRole
+from schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
+
+from services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -63,3 +68,24 @@ async def admin_logout(user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     logger.info("Admin logout: %s", user.email)
     return LogoutResponse()
+
+
+@router.post("/logout", response_model=LogoutResponse)
+async def pmc_logout(user=Depends(get_current_user)):
+    """PMC logout — revoke server-side session if needed."""
+    logger.info("PMC logout: %s", user.email)
+    return LogoutResponse()
+
+
+@router.post("/signup", response_model=AuthResponse)
+async def pmc_signup(req: SignupRequest, service: AuthService = Depends(get_auth_service)):
+    """PMC user signup with email/password."""
+    return await service.pmc_signup(req)
+
+
+@router.post("/login", response_model=AuthResponse)
+async def pmc_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
+    """PMC user login with email/password."""
+    return await service.pmc_login(req)
+
+

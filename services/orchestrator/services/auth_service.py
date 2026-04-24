@@ -4,16 +4,16 @@ Handles Clerk-backed user provisioning and legacy admin password auth.
 """
 
 import logging
-import httpx
 from datetime import datetime
-from fastapi import HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
+import httpx
 from core.config import settings
-from core.security import decode_token, hash_password, verify_password, create_access_token
+from core.security import create_access_token, decode_token, hash_password, verify_password
+from fastapi import HTTPException
 from models.enums import UserRole
-from schemas.auth import LoginRequest, AuthResponse, AuthUserInfo
 from repositories import user_repository
+from schemas.auth import AuthResponse, AuthUserInfo, LoginRequest, LogoutResponse, SignupRequest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -133,3 +133,72 @@ class AuthService:
                 avatar_url=user.avatar_url,
             ),
         )
+
+    async def pmc_signup(self, req: SignupRequest) -> AuthResponse:
+        """PMC user signup with email/password (creates user with PMC role)."""
+        # Check if user already exists
+        existing_user = await user_repository.get_user_by_email(self.db, req.email)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="User with this email already exists")
+
+        # Hash the password
+        password_hash = hash_password(req.password)
+
+        # Create user with PMC role
+        user = await user_repository.create_user(self.db, {
+            "email": req.email,
+            "name": req.name,
+            "role": UserRole.PMC,
+            "password_hash": password_hash,
+            "phone": req.phone,
+            "organization": req.organization,
+            "is_active": True,
+        })
+
+        # Create access token
+        token = create_access_token(str(user.id), user.email, user.role.value, user.name)
+
+        return AuthResponse(
+            access_token=token,
+            user=AuthUserInfo(
+                id=str(user.id),
+                email=user.email,
+                name=user.name,
+                role=user.role.value,
+                organization=user.organization,
+                avatar_url=user.avatar_url,
+            ),
+        )
+
+    async def pmc_login(self, req: LoginRequest) -> AuthResponse:
+        """PMC user login with email/password."""
+        user = await user_repository.get_user_by_email(self.db, req.email)
+
+        if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        if user.role != UserRole.PMC:
+            raise HTTPException(status_code=403, detail="PMC credentials required")
+
+        await user_repository.update_last_login(self.db, user)
+
+        token = create_access_token(str(user.id), user.email, user.role.value, user.name)
+        return AuthResponse(
+            access_token=token,
+            user=AuthUserInfo(
+                id=str(user.id),
+                email=user.email,
+                name=user.name,
+                role=user.role.value,
+                organization=user.organization,
+                avatar_url=user.avatar_url,
+            ),
+        )
+
+    async def pmc_logout(self) -> LogoutResponse:
+        """PMC logout (client-side token removal)."""
+        # In a JWT-based system, logout is primarily client-side.
+        # This endpoint exists for completeness and logging purposes.
+        return LogoutResponse()
+
+

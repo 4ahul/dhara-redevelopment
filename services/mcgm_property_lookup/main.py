@@ -20,13 +20,13 @@ from fastapi import FastAPI
 from core import settings
 from routers import router
 
+from shared.dhara_common.logging import setup_logging
+from shared.dhara_common.exceptions import setup_exception_handlers
+
 from core.banner import print_banner as _print_banner
 _print_banner()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -61,6 +61,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+setup_exception_handlers(app)
 
 @app.get("/health")
 async def health_check():

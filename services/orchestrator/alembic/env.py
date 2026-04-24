@@ -1,26 +1,30 @@
 import asyncio
+import os
+
+# ── Imports for Model Discovery ───────────────────
+import sys
 from logging.config import fileConfig
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from alembic import context
-
-# ── Imports for Model Discovery ───────────────────
-import sys
-import os
 # Ensure the root of the orchestrator is in path so we can import 'db' and 'models'
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.config import settings
 from db.base import Base
-# IMPORTANT: Import ALL models so metadata is complete!
-from models import * 
 
+# IMPORTANT: Import ALL models so metadata is complete!
+from models import *
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Force the sqlalchemy.url from our application settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -96,3 +100,5 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+

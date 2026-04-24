@@ -39,3 +39,43 @@ def road_width_conditional_setback(
             raise MissingData(proxy_name)
         return float(v)
     return 0.0
+
+
+@register("commercial_bua_formula")
+def commercial_bua_formula(ctx, total_fsi_cell: str, pct_path: str) -> str:
+    """Return an Excel formula string to calculate commercial BUA based on a percentage of total FSI."""
+    pct = lookup(ctx["request"], pct_path)
+    if pct is None:
+        # Fallback: if num_commercial > 0, maybe default to 10%? 
+        # But for now, let's just return 0 or keep it as user input if missing.
+        return "0"
+    
+    try:
+        pct_val = float(pct) / 100.0
+        return f"={total_fsi_cell} * {pct_val}"
+    except (ValueError, TypeError):
+        return "0"
+@register("incentive_bua_33_7_b")
+def incentive_bua_33_7_b(ctx):
+    """
+    Rule: If society age > 30 years:
+    Incentive = max(10 sq.m * num_flats, 15% * existing_bua_sqft)
+    """
+    age = lookup(ctx["request"], "society_age")
+    num_flats = lookup(ctx["request"], "num_flats")
+    existing_bua = lookup(ctx["request"], "existing_bua_sqft")
+
+    if age is None or num_flats is None or existing_bua is None:
+        return 0.0
+    
+    try:
+        if float(age) <= 30:
+            return 0.0
+        
+        # 10 sq.m converted to sqft
+        tenement_incentive = float(num_flats) * 10.0 * SQM_TO_SQFT
+        bua_incentive = float(existing_bua) * 0.15
+        
+        return max(tenement_incentive, bua_incentive)
+    except (ValueError, TypeError):
+        return 0.0

@@ -34,10 +34,12 @@ node_modules/
 .ruff_cache/
 .claude/
 .code-review-graph
+.code-review-graphignore
+.graphifyignore
 code-review-graph/
-docs/superpowers
+docs/superpowers/
 docs/code-review-graph.skill
-graphify-out
+graphify-out/
 .ipynb_checkpoints
 .vscode/
 .idea/
@@ -57,16 +59,23 @@ uvicorn.out.txt
 **/data/workflows/**
 **/data/projects/**
 **/data/templates/**
+**/debug_crops/
+**/outputs/
+**/generated_reports/
 !**/services/report_generator/templates/*.xlsx
 report_outputs/**
 uploads/**
 artifacts/**
 *.xlsx
 *.pdf
-*.png
+
 *.jpg
 *.jpeg
 *.json
+*.pem
+*.key
+*.p12
+*.cert
 !**/pyproject.toml
 !**/package.json
 !**/alembic.ini
@@ -91,6 +100,9 @@ screenshot.png
 # --- OS Metadata ---
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # --- Development Ghost Directories ---
-C*
+**/CUsers**
+**/C:/**
+

@@ -5,23 +5,23 @@ Refactored to use CRUD layer.
 """
 
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import BackgroundTasks
 
+from fastapi import BackgroundTasks
+from repositories import enquiry_repository, landing_repository
 from schemas.landing import (
-    GetStartedRequestSchema, 
-    ContactRequestSchema, 
-    LandingPageSection, 
-    LandingPageResponse, 
-    FormSubmissionResponse
+    ContactRequestSchema,
+    FormSubmissionResponse,
+    GetStartedRequestSchema,
+    LandingPageResponse,
+    LandingPageSection,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from services.email import (
-    send_get_started_confirmation, 
-    send_contact_confirmation, 
-    send_admin_notification
+    send_admin_notification,
+    send_contact_confirmation,
+    send_get_started_confirmation,
 )
-from repositories import landing_repository
-from repositories import enquiry_repository
 
 logger = logging.getLogger(__name__)
 
@@ -40,37 +40,37 @@ class LandingService:
     async def get_landing_page(self) -> LandingPageResponse:
         """Fetch active landing page sections or initialize with defaults."""
         rows = await landing_repository.list_active_landing_content(self.db)
-        
+
         if not rows:
             # Seed defaults if empty
             for d in DEFAULT_SECTIONS:
                 await landing_repository.create_landing_content(self.db, {**d, "is_active": True})
             rows = await landing_repository.list_active_landing_content(self.db)
-        
+
         sections = [
             LandingPageSection(
-                section=r.section, 
-                title=r.title, 
-                subtitle=r.subtitle, 
-                content=r.content, 
-                media_url=r.media_url, 
-                cta_text=r.cta_text, 
-                cta_url=r.cta_url, 
+                section=r.section,
+                title=r.title,
+                subtitle=r.subtitle,
+                content=r.content,
+                media_url=r.media_url,
+                cta_text=r.cta_text,
+                cta_url=r.cta_url,
                 display_order=r.display_order
             ) for r in rows
         ]
-        
+
         return LandingPageResponse(sections=sections)
 
     async def submit_get_started(self, req: GetStartedRequestSchema, bg: BackgroundTasks) -> FormSubmissionResponse:
         """Handle 'Get Started' form submission."""
         data = req.model_dump(exclude_unset=True)
         entry = await enquiry_repository.create_get_started_request(self.db, data)
-        
+
         ref = str(entry.id)[:8].upper()
         bg.add_task(send_get_started_confirmation, req.email, req.name, ref, req.society_name)
         bg.add_task(send_admin_notification, req.name, req.email, req.message or f"Get Started from {req.name}", ref, "Get Started Request", req.phone, society_name=req.society_name)
-        
+
         logger.info("Get Started Submission: %s <%s>", req.name, req.email)
         return FormSubmissionResponse(message="Thank you! We'll contact you within 24 hours.", reference_id=ref)
 
@@ -79,10 +79,12 @@ class LandingService:
         data = req.model_dump(exclude_unset=True)
         data["source"] = "contact_form"
         enquiry = await enquiry_repository.create_enquiry(self.db, data)
-        
+
         ref = str(enquiry.id)[:8].upper()
         bg.add_task(send_contact_confirmation, req.email, req.name, ref, req.subject)
         bg.add_task(send_admin_notification, req.name, req.email, req.message, ref, "Contact Form", req.phone, req.subject)
-        
+
         logger.info("Contact Us Submission: %s <%s>", req.name, req.email)
         return FormSubmissionResponse(message="Thank you! We'll respond within 1-2 business days.", reference_id=ref)
+
+

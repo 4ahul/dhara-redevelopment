@@ -3,16 +3,16 @@ Dhara AI — Redis Session Service
 Caches sessions and user profiles in Redis.
 """
 
-import redis
 import json
 import logging
-from typing import Optional
-from datetime import datetime
+from datetime import UTC, datetime
+
+import redis
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-redis_client: Optional[redis.Redis] = None
+redis_client: redis.Redis | None = None
 
 
 async def init_redis():
@@ -27,7 +27,7 @@ async def init_redis():
         redis_client = None
 
 
-def get_redis() -> Optional[redis.Redis]:
+def get_redis() -> redis.Redis | None:
     return redis_client
 
 
@@ -38,8 +38,9 @@ def save_session(session_id: str, user_id: str, data: dict) -> bool:
         key = f"session:{user_id}:{session_id}"
         data["session_id"] = session_id
         data["user_id"] = user_id
-        data["created_at"] = data.get("created_at", datetime.utcnow().isoformat())
-        data["updated_at"] = datetime.utcnow().isoformat()
+        now_iso = datetime.now(UTC).isoformat()
+        data["created_at"] = data.get("created_at", now_iso)
+        data["updated_at"] = now_iso
         redis_client.hset(key, mapping={
             "session_id": session_id, "user_id": user_id,
             "data": json.dumps(data),
@@ -52,7 +53,7 @@ def save_session(session_id: str, user_id: str, data: dict) -> bool:
         return False
 
 
-def get_session(session_id: str, user_id: str) -> Optional[dict]:
+def get_session(session_id: str, user_id: str) -> dict | None:
     if not redis_client:
         return None
     try:
@@ -122,8 +123,10 @@ def update_session_report(session_id: str, user_id: str, report_path: str) -> bo
     try:
         key = f"session:{user_id}:{session_id}"
         redis_client.hset(key, "report_path", report_path)
-        redis_client.hset(key, "updated_at", datetime.utcnow().isoformat())
+        redis_client.hset(key, "updated_at", datetime.now(UTC).isoformat())
         return True
     except Exception as e:
         logger.error("Failed to update session report: %s", e)
     return False
+
+

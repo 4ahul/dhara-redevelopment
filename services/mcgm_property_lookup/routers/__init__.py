@@ -37,8 +37,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_storage() -> StorageService:
-    return StorageService(settings.DATABASE_URL)
+def get_storage() -> Optional[StorageService]:
+    try:
+        return StorageService(settings.DATABASE_URL)
+    except Exception as e:
+        logger.warning("Storage unavailable: %s", e)
+        return None
 
 
 # ── Core lookup helper ────────────────────────────────────────────────────────
@@ -49,20 +53,23 @@ async def _do_lookup(
     ward: str,
     village: str,
     cts_no: str,
-    include_nearby: bool,
-    storage: Optional[StorageService],
+    tps_name: str = None,
+    use_fp: bool = False,
+    include_nearby: bool = True,
+    storage: Optional[StorageService] = None,
 ) -> dict:
-    """Full lookup flow. Persists to DB if lookup_id and storage are given.
+    """Full lookup flow. Persists to DB if storage is available.
 
     Strategy:
       1. Try ArcGISClient.query_by_cts() — direct REST API (~2 s)
       2. If None → fall back to MCGMBrowserScraper (~30–60 s)
       3. Parse geometry, convert to WGS84, compute centroid + area
       4. If include_nearby: call ArcGISClient.query_nearby()
-      5. Save to DB, return structured result dict
+      5. Save to DB if storage available, always return result
     """
     feature: Optional[dict] = None
     screenshot_b64: Optional[str] = None
+    _storage = storage  # May be None if DB unavailable
 
     # ── Step 1: Direct REST API ───────────────────────────────────────────
     try:
@@ -72,37 +79,73 @@ async def _do_lookup(
     except Exception as e:
         logger.warning("Direct ArcGIS query failed: %s", e)
 
-    # ── Step 2: Browser fallback ──────────────────────────────────────────
+    building_data = {}
+    screenshot_b64 = None
+
+    # ── Step 2: Only run browser scraper if API failed ────────────────────────
     if feature is None:
-        logger.info("Direct API returned no result — launching browser scraper")
-        try:
-            scraper = MCGMBrowserScraper(headless=settings.BROWSER_HEADLESS)
-            result = await scraper.scrape(ward, village, cts_no)
-            feature = result.get("feature")
-            screenshot_b64 = result.get("screenshot_b64")
-            if result.get("error") and feature is None:
-                err = result["error"]
-                if lookup_id and storage:
-                    await storage.update_lookup(
-                        lookup_id=lookup_id,
-                        status="failed",
-                        error_message=err,
-                    )
-                return {"status": "failed", "error": err}
-        except Exception as e:
-            logger.error("Browser scraper error: %s", e, exc_info=True)
-            if lookup_id and storage:
+        logger.info("API returned no result, falling back to browser scraper...")
+        scraper_attempts = []
+        errors_to_log = []
+
+        for attempt in range(3):
+            headless_mode = settings.BROWSER_HEADLESS if attempt == 0 else (attempt == 1)
+            try:
+                scraper = MCGMBrowserScraper(headless=headless_mode)
+                result = await scraper.scrape(ward, village, cts_no, tps_name=tps_name, use_fp=use_fp)
+                
+                # Get building data from scraper
+                scraped_building = result.get("building_data", {})
+                if scraped_building:
+                    building_data = scraped_building
+                    logger.info("Got building data from scraper")
+
+                feature = result.get("feature")
+                screenshot_b64 = result.get("screenshot_b64")
+
+                err_msg = result.get("error")
+
+                if feature:
+                    logger.info("Browser scraper succeeded on attempt %d", attempt + 1)
+                    break
+
+                if err_msg:
+                    errors_to_log.append(f"Attempt {attempt + 1}: {err_msg}")
+
+                if err_msg and ("not found" in err_msg.lower() or "invalid" in err_msg.lower()):
+                    logger.info("Not retrying - property not in MCGM database")
+                    break
+
+                logger.info("Browser scraper attempt %d failed: %s", attempt + 1, err_msg)
+
+            except Exception as e:
+                err_str = str(e)
+                errors_to_log.append(f"Attempt {attempt + 1}: {err_str}")
+                logger.warning("Browser scraper exception on attempt %d: %s", attempt + 1, err_str)
+    else:
+        logger.info("API returned result, skipping browser scraper")
+
+    if feature is None and not building_data:
+        err = "; ".join(errors_to_log) if errors_to_log else "Browser scraper failed all attempts"
+        if _storage and lookup_id:
+            try:
                 await storage.update_lookup(
                     lookup_id=lookup_id,
                     status="failed",
-                    error_message=str(e),
+                    error_message=err,
                 )
-            return {"status": "failed", "error": str(e)}
+            except Exception as e:
+                logger.warning("Failed to update lookup: %s", e)
+        logger.error("Browser scraper failed: %s", err)
+        return {"status": "failed", "error": err}
 
     if feature is None:
         err = "Property not found"
-        if lookup_id and storage:
-            await storage.update_lookup(lookup_id=lookup_id, status="failed", error_message=err)
+        if _storage and lookup_id:
+            try:
+                await storage.update_lookup(lookup_id=lookup_id, status="failed", error_message=err)
+            except Exception as e:
+                logger.warning("Failed to update lookup: %s", e)
         return {"status": "failed", "error": err}
 
     # ── Step 3: Parse geometry ────────────────────────────────────────────
@@ -182,20 +225,23 @@ async def _do_lookup(
 
     nearby_dicts = [n.model_dump() for n in nearby] if nearby else []
 
-    if lookup_id and storage:
-        await storage.update_lookup(
-            lookup_id=lookup_id,
-            status="completed",
-            tps_name=tps_name,
-            fp_no=fp_no,
-            centroid_lat=centroid_lat,
-            centroid_lng=centroid_lng,
-            area_sqm=area_sqm_val,
-            geometry_wgs84=geometry_wgs84,
-            nearby_properties=nearby_dicts,
-            map_screenshot=screenshot_bytes,
-            raw_data=feature,
-        )
+    if _storage and lookup_id:
+        try:
+            await storage.update_lookup(
+                lookup_id=lookup_id,
+                status="completed",
+                tps_name=tps_name,
+                fp_no=fp_no,
+                centroid_lat=centroid_lat,
+                centroid_lng=centroid_lng,
+                area_sqm=area_sqm_val,
+                geometry_wgs84=geometry_wgs84,
+                nearby_properties=nearby_dicts,
+                map_screenshot=screenshot_bytes,
+                raw_data=feature,
+            )
+        except Exception as e:
+            logger.warning("Failed to persist lookup: %s", e)
 
     return {
         "status": "completed",
@@ -209,6 +255,7 @@ async def _do_lookup(
         "centroid_lng": centroid_lng,
         "area_sqm": area_sqm_val,
         "nearby_properties": nearby_dicts,
+        "building_data": building_data,
     }
 
 
@@ -255,29 +302,46 @@ async def lookup_property(req: PropertyLookupRequest, background_tasks: Backgrou
 @router.post("/lookup/sync", response_model=PropertyLookupResponse)
 async def lookup_property_sync(req: PropertyLookupRequest, request: Request):
     """Synchronous lookup — waits for full result. Suited for orchestrator calls."""
-    storage = get_storage()
-    ward_str = req.ward.value
-    lookup_id = await storage.create_lookup(
-        ward=ward_str,
-        village=req.village,
-        cts_no=req.cts_no,
-    )
+    try:
+        storage = get_storage()
+        ward_str = req.ward.value
 
-    result = await _do_lookup(
-        lookup_id,
-        ward_str,
-        req.village,
-        req.cts_no,
-        req.include_nearby,
-        storage,
-    )
+        # Only create DB record if storage is available
+        lookup_id = None
+        if storage:
+            try:
+                lookup_id = await storage.create_lookup(
+                    ward=ward_str,
+                    village=req.village,
+                    cts_no=req.cts_no,
+                )
+            except Exception as e:
+                logger.warning("Could not create lookup record: %s", e)
 
-    row = await storage.get_lookup(lookup_id)
-    created_at = row["created_at"] if row else datetime.utcnow()
+        result = await _do_lookup(
+            lookup_id,
+            ward_str,
+            req.village,
+            req.cts_no,
+            req.tps_name,
+            req.use_fp,
+            req.include_nearby,
+            storage,
+        )
 
-    status = PropertyLookupStatus(result.get("status", "failed"))
+        if storage and lookup_id:
+            row = await storage.get_lookup(lookup_id)
+            created_at = row["created_at"] if row else datetime.utcnow()
+        else:
+            created_at = datetime.utcnow()
+
+        status = PropertyLookupStatus(result.get("status", "failed"))
+    except Exception as e:
+        logger.error("Lookup sync failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Lookup failed: {str(e)}")
     nearby = [NearbyProperty(**n) for n in (result.get("nearby_properties") or [])]
-    download_url = f"{str(request.base_url).rstrip('/')}/download/{lookup_id}/screenshot"
+
+    download_url = f"{str(request.base_url).rstrip('/')}/download/{lookup_id}/screenshot" if lookup_id else None
 
     return PropertyLookupResponse(
         id=lookup_id,

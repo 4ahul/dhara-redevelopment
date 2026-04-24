@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, Index, Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+
 from db.base import Base
 from models.enums import UserRole
+from sqlalchemy import Boolean, DateTime, Index, String
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 def _uuid():
@@ -43,3 +45,5 @@ class User(Base):
         Index("ix_users_role", "role"),
         Index("ix_users_org", "organization"),
     )
+
+

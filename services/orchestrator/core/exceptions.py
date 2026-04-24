@@ -1,7 +1,8 @@
+import logging
 import time
 import uuid
-import logging
-from fastapi import Request, HTTPException
+
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("gateway.exceptions")
@@ -12,7 +13,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     Returns a consistent JSON schema for UI and monitoring.
     """
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-    
+
     if isinstance(exc, HTTPException):
         status_code = exc.status_code
         message = exc.detail
@@ -44,3 +45,5 @@ def setup_exception_handlers(app):
     @app.exception_handler(HTTPException)
     async def http_handler(request: Request, exc: HTTPException):
         return await global_exception_handler(request, exc)
+
+

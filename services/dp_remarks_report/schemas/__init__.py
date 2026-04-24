@@ -11,10 +11,11 @@ from pydantic import BaseModel
 
 class DPReportRequest(BaseModel):
     ward: str                       # e.g. "G/S"
-    village: str                    # e.g. "WORLI"
-    cts_no: str                     # e.g. "1128"
-    lat: Optional[float] = None     # centroid latitude (from MCGM property lookup)
-    lng: Optional[float] = None     # centroid longitude (from MCGM property lookup)
+    village: str                  # e.g. "WORLI"
+    cts_no: str                  # CTS or FP number depending on scheme
+    use_fp_scheme: bool = False       # If True, search as FP (2034 scheme) instead of CTS (1991)
+    lat: Optional[float] = None    # centroid latitude (from MCGM property lookup)
+    lng: Optional[float] = None    # centroid longitude (from MCGM property lookup)
 
 
 class DPReportStatus(str, Enum):

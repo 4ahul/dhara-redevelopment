@@ -218,6 +218,25 @@ class HeightService:
     async def _query_nocas(
         self, lat: float, lng: float, site_elevation: float
     ) -> Optional[Dict[str, Any]]:
+        max_retries = 3
+        retry_delay = 120  # 2 minutes
+
+        for attempt in range(max_retries):
+            logger.info(f"[NOCAS] Attempt {attempt + 1}/{max_retries}")
+            result = await self._nocas_attempt(lat, lng, site_elevation)
+            if result:
+                return result
+
+            if attempt < max_retries - 1:
+                logger.info(f"[NOCAS] Site not responding, waiting {retry_delay}s before retry...")
+                await asyncio.sleep(retry_delay)
+
+        logger.warning("[NOCAS] All retries exhausted")
+        return None
+
+    async def _nocas_attempt(
+        self, lat: float, lng: float, site_elevation: float
+    ) -> Optional[Dict[str, Any]]:
         logger.info("[NOCAS] Starting headless browser...")
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -323,11 +342,13 @@ class HeightService:
                 if alerts:
                     logger.info(f"[STEP 5] Alerts captured: {alerts}")
 
-                logger.info("[STEP 6] Waiting for result (max 45s)...")
+                logger.info("[STEP 6] Waiting for result (max 60s)...")
                 result_text = None
                 timeout_count = 0
+                retry_count = 0
+                max_retries = 3
 
-                while timeout_count < 45 and not result_text:
+                while timeout_count < 60 and not result_text and retry_count < max_retries:
                     alerts = await page.evaluate("window.captured_alerts || []")
                     if alerts:
                         for alert in alerts:
@@ -335,26 +356,33 @@ class HeightService:
                             if "Approximate Permissible Top Elevation" in msg:
                                 result_text = msg
                                 break
-                            if "try later" in msg.lower() or "cannot" in msg.lower():
-                                logger.warning(f"[RETRY] {msg}")
-                                await page.reload(
-                                    wait_until="networkidle", timeout=20000
-                                )
-                                await page.fill("#dy", str(lat_d))
-                                await page.fill("#my", str(lat_m))
-                                await page.fill("#sy", str(lat_s))
-                                await page.fill("#dx", str(lng_d))
-                                await page.fill("#mx", str(lng_m))
-                                await page.fill("#sx", str(lng_s))
-                                await page.fill("#site_elevation", "0")
-                                await page.evaluate("onclickApprox && onclickApprox()")
-                                timeout_count = 0
+                            error_keywords = ["try again", "please try", "cannot", "error", "unavailable", "failed", "timeout", "server"]
+                            if any(keyword in msg.lower() for keyword in error_keywords):
+                                retry_count += 1
+                                logger.warning(f"[RETRY {retry_count}/{max_retries}] {msg}")
+                                if retry_count < max_retries:
+                                    await page.reload(wait_until="networkidle", timeout=30000)
+                                    await page.wait_for_timeout(3000)
+                                    await page.fill("#dy", str(lat_d))
+                                    await page.fill("#my", str(lat_m))
+                                    await page.fill("#sy", str(lat_s))
+                                    await page.fill("#dx", str(lng_d))
+                                    await page.fill("#mx", str(lng_m))
+                                    await page.fill("#sx", str(lng_s))
+                                    await page.fill("#site_elevation", "0")
+                                    await page.evaluate("onclickApprox && onclickApprox()")
+                                    timeout_count = 0
+                                else:
+                                    logger.warning("[RETRY] Max retries reached, giving up on NOCAS")
+                                    break
                     timeout_count += 1
                     await asyncio.sleep(1)
                     if timeout_count == 10:
                         logger.info("[CHECK] Still waiting... (10s)")
-                    if timeout_count == 20:
-                        logger.info("[CHECK] Still waiting... (20s)")
+                    if timeout_count == 30:
+                        logger.info("[CHECK] Still waiting... (30s)")
+                    if timeout_count == 45:
+                        logger.info("[CHECK] Still waiting... (45s)")
 
                 if result_text:
                     match = re.search(r"Elevation:\s*([\d\.]+)", result_text)

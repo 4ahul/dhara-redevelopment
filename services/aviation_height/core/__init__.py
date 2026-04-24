@@ -8,7 +8,8 @@ class Settings(BaseSettings):
     SERP_API_KEY: str = ""
 
     class Config:
-        env_file = ".env"
+        import os
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         case_sensitive = True
         extra = "ignore"
 

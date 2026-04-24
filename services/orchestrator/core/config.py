@@ -3,7 +3,11 @@ Dhara AI — Application Configuration
 All settings loaded from environment variables with sensible defaults.
 """
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+_BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -15,8 +19,9 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
-    # ── Google Maps ──────────────────────────────────────
+    # ── Google Maps & Search ────────────────────────────
     GOOGLE_MAPS_API_KEY: str = ""
+    SERP_API_KEY: str = ""
 
     # ── Clerk Auth ───────────────────────────────────────
     CLERK_SECRET_KEY: str = ""
@@ -30,7 +35,7 @@ class Settings(BaseSettings):
 
     # ── PostgreSQL ───────────────────────────────────────
     DATABASE_URL: str = (
-        "postgresql+asyncpg://redevelopment:redevelopment@localhost:5435/orchestrator_db"
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/orchestrator_db"
     )
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
@@ -54,16 +59,15 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
 
     # ── Service URLs ─────────────────────────────────────
-    SITE_ANALYSIS_URL: str = "http://site_analysis:8001"
-    HEIGHT_URL: str = "http://aviation_height:8002"
-    PREMIUM_URL: str = "http://ready_reckoner:8003"
-    REPORT_URL: str = "http://report_generator:8004"
-    PR_CARD_URL: str = "http://pr_card_scraper:8005"
-    RAG_URL: str = "http://rag_service:8006"
-    MCGM_PROPERTY_URL: str = "http://mcgm_property_lookup:8007"
-    DP_REPORT_URL: str = "http://dp_remarks_report:8008"
-    READY_RECKONER_URL: str = "http://ready_reckoner:8003"
-    REPORT_OUTPUT_DIR: str = "/tmp/reports"
+    SITE_ANALYSIS_URL: str = "http://localhost:8001"
+    HEIGHT_URL: str = "http://localhost:8002"
+    PREMIUM_URL: str = "http://localhost:8003"
+    REPORT_URL: str = "http://localhost:8004"
+    PR_CARD_URL: str = "http://localhost:8005"
+    RAG_URL: str = "http://localhost:8009"
+    MCGM_PROPERTY_URL: str = "http://localhost:8007"
+    DP_REPORT_URL: str = "http://localhost:8008"
+    READY_RECKONER_URL: str = "http://localhost:8003"
 
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "Dhara AI Orchestrator"
@@ -71,16 +75,21 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     SECRET_KEY: str = "change-me-in-production-use-a-real-secret"
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
-    UPLOAD_DIR: str = "/tmp/uploads"
+
+    UPLOAD_DIR: str = str(_BASE_DIR / "uploads")
+    REPORT_OUTPUT_DIR: str = str(_BASE_DIR / "reports")
 
     # ── Pagination Defaults ──────────────────────────────
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
 
     class Config:
-        env_file = ".env"
+        import os
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         case_sensitive = True
         extra = "ignore"
 
 
 settings = Settings()
+
+

@@ -116,7 +116,7 @@ class LLMDataExtractor:
         openai_base_url: Optional[str] = None,
     ):
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = (
             openai_base_url
@@ -180,6 +180,12 @@ class LLMDataExtractor:
                 "temperature": 0,
                 "thinkingConfig": {"thinkingBudget": 0},
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
         try:
             async with httpx.AsyncClient() as client:

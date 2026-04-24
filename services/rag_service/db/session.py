@@ -9,11 +9,10 @@ from sqlalchemy.orm import sessionmaker, Session
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from core.config import settings
+
 # --- Database Config ---
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", 
-    "postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db"
-)
+DATABASE_URL = settings.DATABASE_URL
 
 # Convert async URL if passed incorrectly
 if DATABASE_URL.startswith("postgresql+asyncpg://"):

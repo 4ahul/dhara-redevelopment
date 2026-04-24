@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4o-mini"
     GEMINI_API_KEY: str = ""
     HF_TOKEN: str = ""
+    SERP_API_KEY: str = ""
+    GOOGLE_MAPS_API_KEY: str = ""
 
     # --- Auth ---
     CLERK_JWT_KEY: str = ""
@@ -39,7 +41,7 @@ class Settings(BaseSettings):
     LOGS_DIR: Path = BASE_DIR / "logs"
 
     class Config:
-        env_file = ".env"
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         extra = "ignore"
 
 settings = Settings()

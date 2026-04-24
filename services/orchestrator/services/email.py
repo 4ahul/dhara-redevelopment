@@ -4,12 +4,12 @@ Async SMTP email sending with Jinja2 HTML templates.
 """
 
 import logging
-import aiosmtplib
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional, List
-from jinja2 import Environment, BaseLoader
+from email.mime.text import MIMEText
+
+import aiosmtplib
 from core.config import settings
+from jinja2 import BaseLoader, Environment
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +77,8 @@ _jinja = Environment(loader=BaseLoader())
 
 async def send_email(
     to_email: str, subject: str, html_body: str,
-    text_body: Optional[str] = None,
-    cc: Optional[List[str]] = None, bcc: Optional[List[str]] = None,
+    text_body: str | None = None,
+    cc: list[str] | None = None, bcc: list[str] | None = None,
 ) -> bool:
     if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
         logger.warning("SMTP not configured — skipping email to %s", to_email)
@@ -115,25 +115,27 @@ def _render(template_name: str, **ctx) -> str:
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async def send_team_invite(to_email: str, inviter_name: str, role: str, invite_url: str, name: Optional[str] = None) -> bool:
+async def send_team_invite(to_email: str, inviter_name: str, role: str, invite_url: str, name: str | None = None) -> bool:
     html = _render("team_invite", name=name, inviter_name=inviter_name, role=role, invite_url=invite_url)
     return await send_email(to_email, f"{inviter_name} invited you to Dhara AI", html)
 
 
-async def send_get_started_confirmation(to_email: str, name: str, reference_id: str, society_name: Optional[str] = None) -> bool:
+async def send_get_started_confirmation(to_email: str, name: str, reference_id: str, society_name: str | None = None) -> bool:
     html = _render("get_started_confirmation", name=name, reference_id=reference_id, society_name=society_name)
     return await send_email(to_email, "Welcome to Dhara AI", html)
 
 
-async def send_contact_confirmation(to_email: str, name: str, reference_id: str, subject: Optional[str] = None) -> bool:
+async def send_contact_confirmation(to_email: str, name: str, reference_id: str, subject: str | None = None) -> bool:
     html = _render("contact_confirmation", name=name, reference_id=reference_id, subject=subject)
     return await send_email(to_email, "Dhara AI — Message Received", html)
 
 
 async def send_admin_notification(
     name: str, email: str, message: str, reference_id: str,
-    source: str = "Enquiry", phone: Optional[str] = None,
-    subject: Optional[str] = None, society_name: Optional[str] = None,
+    source: str = "Enquiry", phone: str | None = None,
+    subject: str | None = None, society_name: str | None = None,
 ) -> bool:
     html = _render("admin_new_enquiry", name=name, email=email, phone=phone, subject=subject, message=message, reference_id=reference_id, source=source, society_name=society_name)
     return await send_email(settings.SMTP_FROM_EMAIL, f"New {source}: {name}", html)
+
+

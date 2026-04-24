@@ -18,17 +18,17 @@ if service_dir not in sys.path:
 from fastapi import FastAPI
 from core import settings
 from routers.site_router import router
+from shared.dhara_common.logging import setup_logging
+from shared.dhara_common.exceptions import setup_exception_handlers
 
 from core.banner import print_banner as _print_banner
 _print_banner()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
+setup_exception_handlers(app)
 
 @app.get("/health")
 async def health_check():

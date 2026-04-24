@@ -10,69 +10,141 @@ import math
 import os
 import re
 from uuid import UUID
+
+from core.config import settings
+from models.report import SocietyReport
+from models.society import Society
+from models.team import SocietyTender
+from repositories import society_repository
+from schemas.society import ReportCreate, SocietyCreate, SocietyUpdate, TenderCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.society import Society
-from models.report import SocietyReport
-from models.team import SocietyTender
-from schemas.society import SocietyCreate, SocietyUpdate, ReportCreate, TenderCreate
-from repositories import society_repository
-
 logger = logging.getLogger(__name__)
+
+
+
+def _get_genai_client(api_key: str):
+    """Import google.genai, working around the google namespace package conflict."""
+    import sys
+    # google-generativeai and google-genai both claim the 'google' namespace.
+    # If the venv has google-generativeai but not google-genai we fall back to
+    # searching the system (global) site-packages where google-genai is installed.
+    try:
+        from google import genai as _genai
+        from google.genai import types as _types
+        return _genai.Client(api_key=api_key), _types
+    except ImportError:
+        pass
+
+    # Fall back: inject global site-packages
+    import sysconfig
+    user_sp = sysconfig.get_path("purelib")
+    for sp in [user_sp, "C:/Users/Admin/AppData/Local/Programs/Python/Python314/Lib/site-packages"]:
+        if sp and sp not in sys.path:
+            sys.path.insert(0, sp)
+    try:
+        import importlib
+        _genai_mod = importlib.import_module("google.genai")
+        _types_mod = importlib.import_module("google.genai.types")
+        return _genai_mod.Client(api_key=api_key), _types_mod
+    except Exception as e:
+        raise ImportError(f"google-genai not available: {e}")
 
 
 async def resolve_address_with_ai(address: str) -> dict:
     """Use Google Gemini AI to extract ward, village, taluka, district from address."""
     try:
-        import google.generativeai as genai
-        
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
         if not api_key:
-            logger.warning("GEMINI_API_KEY not set, skipping address resolution")
+            logger.warning("GEMINI_API_KEY not configured, skipping address resolution")
             return {}
-        
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-3.1-pro-preview")
-        
+
+        client, gtypes = _get_genai_client(api_key)
+
         prompt = f"""Extract location details from this Mumbai address. Return ONLY a JSON object with these fields:
-- ward (e.g., "G/S", "E/S", "K/W")
-- village (e.g., "Dharavi", "Kurla", "Andheri")
-- taluka (e.g., "Kurla", "Andheri", "Borivali")
-- district (e.g., "Mumbai", "Mumbai Suburban")
+- ward (BMC ward code e.g. "K/W", "G/S", "H/E", "E")
+- village (neighbourhood e.g. "Vile Parle", "Dharavi", "Kurla")
+- taluka (e.g. "Andheri", "Kurla", "Borivali")
+- district (e.g. "Mumbai", "Mumbai Suburban")
 
 Address: {address}
 
-Return ONLY valid JSON, no other text."""
+Return ONLY valid JSON, no markdown, no explanation."""
 
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        # Extract JSON from response
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=512),
+        )
+        text = (response.text or "").strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
+
         json_match = re.search(r'\{.*\}', text, re.DOTALL)
         if json_match:
             data = json.loads(json_match.group())
             logger.info(f"AI resolved address: ward={data.get('ward')}, village={data.get('village')}")
             return {
-                "ward": data.get("ward"),
-                "village": data.get("village"),
-                "taluka": data.get("taluka"),
+                "ward":     data.get("ward"),
+                "village":  data.get("village"),
+                "taluka":   data.get("taluka"),
                 "district": data.get("district"),
             }
     except Exception as e:
         logger.warning(f"Address AI resolution failed: {e}")
     return {}
 
+
+async def resolve_tps_scheme(address: str, fp_no: str = None) -> str | None:
+    """Use Google Gemini AI to find TPS scheme name for a property."""
+    try:
+        api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return None
+
+        client, gtypes = _get_genai_client(api_key)
+
+        prompt = f"""Find the TPS (Town Planning Scheme) name for this Mumbai property.
+Return ONLY a JSON object with:
+- tps_name (e.g. "TPS IV", "TPS No. 2", or null if unknown)
+
+Address: {address}
+FP Number: {fp_no or 'unknown'}
+
+Return ONLY valid JSON, no markdown, no explanation."""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=256),
+        )
+        text = (response.text or "").strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
+
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            tps = data.get("tps_name")
+            if tps and str(tps).lower() not in ("null", "none", ""):
+                logger.info(f"AI found TPS: {tps}")
+                return tps
+    except Exception as e:
+        logger.warning(f"TPS AI resolution failed: {e}")
+    return None
+
+
 class SocietyService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def list_societies(
-        self, 
-        user_id: UUID, 
-        page: int = 1, 
-        page_size: int = 20, 
-        status: str = None, 
-        ward: str = None, 
+        self,
+        user_id: UUID,
+        page: int = 1,
+        page_size: int = 20,
+        status: str = None,
+        ward: str = None,
         search: str = None
     ) -> dict:
         """Fetch paginated societies for a user."""
@@ -88,22 +160,56 @@ class SocietyService:
         }
 
     async def create_society(self, user_id: UUID, req: SocietyCreate) -> Society:
-        """Register a new society."""
+        """Register a new society.
+
+        On creation:
+        1. Resolve ward/village/taluka/district from address using AI.
+        2. Map OCR-extracted document fields into the proper DB columns.
+        3. Save the society.
+        """
         data = req.model_dump(exclude_unset=True)
-        
-        # Auto-resolve ward/village/taluka from address if not provided
         address = data.get("address")
-        if address and not (data.get("ward") or data.get("village")):
+
+        # ── Step 1: Location resolution ──────────────────────────────────────
+        needs_location = address and not (data.get("ward") or data.get("village"))
+
+        if needs_location:
             location_data = await resolve_address_with_ai(address)
             if location_data:
-                data.setdefault("ward", location_data.get("ward"))
-                data.setdefault("village", location_data.get("village"))
-                data.setdefault("taluka", location_data.get("taluka"))
+                data.setdefault("ward",     location_data.get("ward"))
+                data.setdefault("village",  location_data.get("village"))
+                data.setdefault("taluka",   location_data.get("taluka"))
                 data.setdefault("district", location_data.get("district"))
-        
+
+        # ── Step 2: Map OCR fields into DB columns ────────────────────────────
+        ocr = data.get("ocr_data") or {}
+        if ocr:
+            # Prefer explicitly passed values; fill gaps from OCR blob
+            def _safe_int(v):
+                return int(float(v)) if v else None
+
+            def _safe_float(v):
+                return float(v) if v else None
+
+            data.setdefault("num_flats",             _safe_int(ocr.get("Number of Flats/Tenaments")))
+            data.setdefault("num_commercial",         _safe_int(ocr.get("Number of Commercial Shops")))
+            data.setdefault("residential_area_sqft",  _safe_float(ocr.get("Existing Residential area in sq ft")))
+            data.setdefault("commercial_area_sqft",   _safe_float(ocr.get("Existing Commercial area in sq ft")))
+            data.setdefault("existing_bua_sqft",      _safe_float(ocr.get("Existing Built Up Area")))
+            data.setdefault("pfa_sqft",               _safe_float(ocr.get("PFA original OC")))
+            # Society age: store raw year string as int if it looks like a year
+            raw_age = ocr.get("Society Age", "")
+            if raw_age and raw_age.isdigit():
+                data.setdefault("society_age", int(raw_age))
+
+        # ── Step 3: Persist ───────────────────────────────────────────────────
+        data["cts_validated"] = None
+
         soc = await society_repository.create_society(self.db, user_id, data)
-        logger.info("Society created: %s", soc.name)
+        logger.info("Society created: %s (ward=%s)", soc.name, soc.ward)
+
         return soc
+
 
     async def get_society(self, user_id: UUID, society_id: UUID) -> Society | None:
         """Retrieve a specific society for the user."""
@@ -114,9 +220,9 @@ class SocietyService:
         soc = await self.get_society(user_id, society_id)
         if not soc:
             return None
-        
+
         update_data = req.model_dump(exclude_unset=True)
-        
+
         # Auto-resolve ward/village/taluka from new address if address is being updated
         new_address = update_data.get("address")
         if new_address and not (update_data.get("ward") or update_data.get("village")):
@@ -126,10 +232,10 @@ class SocietyService:
                 update_data.setdefault("village", location_data.get("village"))
                 update_data.setdefault("taluka", location_data.get("taluka"))
                 update_data.setdefault("district", location_data.get("district"))
-        
+
         for k, v in update_data.items():
             setattr(soc, k, v)
-        
+
         await self.db.flush()
         await self.db.refresh(soc)
         return soc
@@ -139,7 +245,7 @@ class SocietyService:
         soc = await self.get_society(user_id, society_id)
         if not soc:
             return None
-            
+
         items, total = await society_repository.list_society_reports(self.db, society_id, page, page_size)
         return {
             "items": items,
@@ -154,7 +260,7 @@ class SocietyService:
         soc = await self.get_society(user_id, society_id)
         if not soc:
             return None
-            
+
         data = {
             "society_id": society_id,
             "title": req.title,
@@ -167,7 +273,7 @@ class SocietyService:
         soc = await self.get_society(user_id, society_id)
         if not soc:
             return None
-            
+
         items, total = await society_repository.list_society_tenders(self.db, society_id, page, page_size)
         return {
             "items": items,
@@ -182,7 +288,10 @@ class SocietyService:
         soc = await self.get_society(user_id, society_id)
         if not soc:
             return None
-            
+
         data = req.model_dump(exclude_unset=True)
         data["society_id"] = society_id
         return await society_repository.create_society_tender(self.db, data)
+
+
+

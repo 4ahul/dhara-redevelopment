@@ -3,7 +3,7 @@
 # 58/63 cells: sourced from cell_mapper.py _COMMON blocks (30(A)+33(7)(B) CLUBBING).
 # 5/63 cells: explicit overrides (see scripts/regen_mapping.py EXPLICIT dict).
 
-template: "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
+template: "FINAL TEMPLATE _ 33 (7)(B).xlsx"
 scheme: "33(7)(B)"
 version: 1
 generated_from_dossier: dossiers/33_7_B.dossier.json
@@ -12,13 +12,35 @@ last_reviewed_at: 2026-04-21
 cells:
 
   # Society name header at top of Details sheet
-  # placeholder: 'MAHESHWAR MANSION CHS Ltd /33(7)(B)  F.P no 63 of TPS-VI Vileparle'
   - cell: Details!A1
     kind: black
-    semantic_name: society_header_title
-    from: society_name
-    fallback: ""
+    calc: report_header
+    semantic_name: report_header_title
+
+  # CTS/FP and Village Labels (Top Right)
+  - cell: Details!M1
+    kind: black
+    calc: label_with_value
+    calc_args:
+      label: "Cts No. /FP No.:-"
+      path: cts_no
+    semantic_name: label_cts_fp
+
+  - cell: Details!M2
+    kind: black
+    calc: label_with_value
+    calc_args:
+      label: "Village :-"
+      path: village
+    semantic_name: label_village
     transform: str
+
+  # Incentive FSI rule (Society Age > 30 years)
+  - cell: Details!B19
+    kind: black
+    calc: incentive_bua_33_7_b
+    semantic_name: incentive_bua_33_7_b
+    transform: float
 
   # Literal label prefix; real CTS/FP number lives in a yellow cell elsewhere
   # placeholder: 'Cts No. /FP No.:- 63'
@@ -50,14 +72,16 @@ cells:
     transform: float
 
   - cell: Details!P7
-    kind: yellow
+    kind: black
     semantic_name: setback_area_sqm
-    from: dp_report.setback_area_sqm
+    sources:
+      - dp_report.setback_area_sqm
+      - manual_inputs.setback_area_sqm
     fallback: 0
     transform: float
 
   - cell: Details!P14
-    kind: yellow
+    kind: black
     semantic_name: encroachment_area_sqm
     from: manual_inputs.encroachment_area_sqm
     fallback: 0
@@ -65,19 +89,22 @@ cells:
 
   # Reservation TDR
   - cell: Details!N17
-    kind: yellow
+    kind: black
     semantic_name: reservation_area_sqm
-    from: dp_report.reservation_area_sqm
+    sources:
+      - dp_report.reservation_area_sqm
+      - manual_inputs.reservation_area_sqm
     fallback: 0
     transform: float
 
   # Road
   - cell: Details!R17
-    kind: yellow
+    kind: black
     semantic_name: road_width_m
     sources:
       - dp_report.road_width_m
       - road_width_m
+      - site_analysis.road_width_m
     fallback: 18.3
     transform: float
 
@@ -90,87 +117,95 @@ cells:
 
   # Old Set Back Area
   - cell: Details!N20
-    kind: yellow
+    kind: black
     semantic_name: old_setback_sqm
     from: manual_inputs.old_setback_sqm
     fallback: 0
     transform: float
 
-  # Highway NOC
+  # Highway NOC (P25)
   - cell: Details!R25
-    kind: black
-    semantic_name: noc_mmrda
-    from: manual_inputs.noc_mmrda
-    fallback: 0
-    transform: int
-
-  # MMRDA NOC
-  - cell: Details!R26
-    kind: black
-    semantic_name: noc_moef
-    from: manual_inputs.noc_moef
-    fallback: 0
-    transform: int
-
-  # MOEF NOC/ MPCB NOC
-  - cell: Details!R27
     kind: black
     semantic_name: noc_highway
     from: manual_inputs.noc_highway
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # Railway NOC
+  # MMRDA NOC (P26)
+  - cell: Details!R26
+    kind: black
+    semantic_name: noc_mmrda
+    from: manual_inputs.noc_mmrda
+    fallback: 0
+    transform: bool_toggle
+
+  # MOEF NOC/ MPCB NOC (P27)
+  - cell: Details!R27
+    kind: black
+    semantic_name: noc_moef
+    from: manual_inputs.noc_moef
+    fallback: 0
+    transform: bool_toggle
+
+  # Railway NOC (P28)
   - cell: Details!R28
     kind: black
     semantic_name: noc_railway
     from: manual_inputs.noc_railway
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # ASI NOC
+  # ASI NOC (P29)
   - cell: Details!R29
     kind: black
-    semantic_name: noc_mhcc
-    from: manual_inputs.noc_mhcc
+    semantic_name: noc_asi
+    sources:
+      - dp_report.archaeological_site
+      - manual_inputs.noc_asi
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # MHCC/MA NOC
+  # MHCC/MA NOC (P30)
   - cell: Details!R30
     kind: black
-    semantic_name: noc_railway_2
-    from: manual_inputs.noc_railway
+    semantic_name: noc_mhcc
+    sources:
+      - dp_report.heritage_zone
+      - dp_report.heritage_building
+      - manual_inputs.noc_mhcc
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # Civil Aviation NOC
+  # Civil Aviation NOC (P31)
   - cell: Details!R31
     kind: black
     semantic_name: noc_civil_aviation
-    from: manual_inputs.noc_civil_aviation
+    sources:
+      - manual_inputs.noc_civil_aviation
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # CRZ NOC
+  # CRZ NOC (P32)
   - cell: Details!R32
     kind: black
-    semantic_name: noc_railway_3
-    from: manual_inputs.noc_railway
+    semantic_name: noc_crz
+    sources:
+      - dp_report.crz_zone
+      - manual_inputs.noc_crz
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
-  # Other NOCs, if any
+  # Other NOCs, if any (P33)
   - cell: Details!R33
     kind: black
-    semantic_name: noc_asi
-    from: manual_inputs.noc_asi
+    semantic_name: noc_other
+    from: manual_inputs.noc_other
     fallback: 0
-    transform: int
+    transform: bool_toggle
 
   # Plot length abutting road
   - cell: Details!O40
-    kind: yellow
+    kind: black
     semantic_name: plot_road_length_m
     from: manual_inputs.plot_road_length_m
     fallback: 100
@@ -178,26 +213,26 @@ cells:
 
   # Sale Commercial MUN BUA
   - cell: Details!J45
-    kind: yellow
-    semantic_name: sale_commercial_mun_bua_sqm
-    from: manual_inputs.sale_commercial_mun_bua_sqm
-    fallback: 0
-    transform: float
+    kind: black
+    semantic_name: commercial_bua
+    calc: commercial_bua_formula
+    calc_args:
+      total_fsi_cell: J31
+      pct_path: manual_inputs.commercial_percentage
 
-  # No cell_mapper.py entry — review in template
-  # placeholder: 'Input or Read Old plan'
+  # Existing Carpet Area (M47)
   - cell: Details!O47
-    kind: yellow
-    semantic_name: details_o47
-    from: manual_inputs.details_o47
+    kind: black
+    semantic_name: existing_commercial_carpet_sqft
+    from: existing_commercial_carpet_sqft
     fallback: 0
     transform: float
 
   - cell: Details!Q47
-    kind: yellow
+    kind: black
     semantic_name: existing_residential_carpet_sqft
     from: existing_residential_carpet_sqft
-    fallback: 22305
+    fallback: 0
     transform: float
 
   # No. of existing tenements
@@ -216,15 +251,8 @@ cells:
     fallback: 138
     transform: int
 
-  # Rent
-  - cell: Details!N50
-    kind: yellow
-    semantic_name: num_commercial_2
-    from: num_commercial
-    fallback: 0
-    transform: int
 
-  # ₹
+  # Rent (M50)
   - cell: Details!O50
     kind: black
     semantic_name: rent_commercial
@@ -232,23 +260,14 @@ cells:
     fallback: 150
     transform: float
 
-  # Fetch from Housing/jll etc
-  - cell: Details!P50
-    kind: yellow
-    semantic_name: num_flats_2
-    from: num_flats
-    fallback: 21
-    transform: int
-
-  # ₹
   - cell: Details!Q50
     kind: black
     semantic_name: rent_residential
     from: manual_inputs.rent_residential
-    fallback: 125
+    fallback: 70
     transform: float
 
-  # Corpus Fund
+  # Corpus Fund (M51)
   - cell: Details!O51
     kind: yellow
     semantic_name: corpus_commercial
@@ -256,7 +275,6 @@ cells:
     fallback: 1500
     transform: float
 
-  # User input
   - cell: Details!Q51
     kind: yellow
     semantic_name: corpus_residential
@@ -290,29 +308,6 @@ cells:
     fallback: 36
     transform: float
 
-  # Period of Completion (months)
-  - cell: Details!N55
-    kind: yellow
-    semantic_name: num_commercial_3
-    from: num_commercial
-    fallback: 0
-    transform: int
-
-  # Period of Completion (months)
-  - cell: Details!O55
-    kind: black
-    semantic_name: existing_commercial_carpet_sqft
-    from: existing_commercial_carpet_sqft
-    fallback: 0
-    transform: float
-
-  # Note: - Per floor is 3mtr min - Calcuate no of floors as per
-  - cell: Details!P55
-    kind: yellow
-    semantic_name: num_flats_3
-    from: num_flats
-    fallback: 30
-    transform: int
 
   # Note: - Per floor is 3mtr min - Calcuate no of floors as per
   - cell: Details!Q55
@@ -446,7 +441,9 @@ cells:
   - cell: Profit & Loss Statement!D19
     kind: yellow
     semantic_name: sale_rate_commercial_gf
-    from: financial.sale_rate_commercial_gf
+    sources:
+      - ready_reckoner.sale_rate_commercial_gf
+      - financial.sale_rate_commercial_gf
     fallback: 75000
     transform: float
 
@@ -501,6 +498,7 @@ cells:
     kind: yellow
     semantic_name: sale_rate_residential
     sources:
+      - ready_reckoner.sale_rate_residential
       - financial.sale_rate_residential
       - sale_rate_per_sqft
     fallback: 50000
@@ -518,6 +516,15 @@ cells:
   - cell: Profit & Loss Statement!D30
     kind: yellow
     semantic_name: parking_price_per_unit
-    from: financial.parking_price_per_unit
+    sources:
+      - ready_reckoner.parking_price_per_unit
+      - financial.parking_price_per_unit
     fallback: 1200000
     transform: float
+
+  # --- EXPIRY TRACKING ---
+  - cell: Details!J55
+    kind: red
+    description: "Development charge for BUA (31763)"
+    expires_on: "2027-03-31"
+    alert_days_before: 60

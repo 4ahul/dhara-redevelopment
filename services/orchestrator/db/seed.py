@@ -5,16 +5,17 @@ Seeds default admin user and roles on first run.
 
 import logging
 import os
-from sqlalchemy import select, func
-from db import async_session_factory
+
 from core.security import hash_password
+from db import async_session_factory
+from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
 
 
 async def seed_defaults():
     """Create default admin user and roles if tables are empty."""
-    from models import User, Role, Society
+    from models import Role, Society, User
     from models.enums import UserRole
 
 
@@ -50,7 +51,7 @@ async def seed_defaults():
         # ── Seed sample society ──────────────────────────
         name = "Prabhadevi Heights CHS"
         exists = (await db.execute(select(Society).filter(Society.name == name))).scalar()
-        
+
         if not exists:
             admin = (await db.execute(select(User).filter(User.email == "admin@dharaai.com"))).scalar()
             if admin:
@@ -67,5 +68,7 @@ async def seed_defaults():
                 logger.info(f"Sample society seeded: {name}")
 
         await db.commit()
+
+
 
 
