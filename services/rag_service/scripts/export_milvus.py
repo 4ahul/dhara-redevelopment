@@ -60,3 +60,4 @@ def export_collection(collection_name, output_file):
 
 if __name__ == "__main__":
     export_collection(COLLECTION_NAME, "documents_text.json")
+

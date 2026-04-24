@@ -2,49 +2,24 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy pyproject.toml first so it's available for installation
-COPY pyproject.toml .
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    wget \
-    gnupg \
-    libpq-dev \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv playwright
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-# Install dependencies from pyproject.toml
-RUN uv pip install --system .
+# Install dependencies
+COPY services/mcgm_property_lookup/pyproject.toml ./services/mcgm_property_lookup/
+RUN pip install ./services/mcgm_property_lookup/
 
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN playwright install chromium
+# Copy packages preserving path
+COPY services/mcgm_property_lookup/ ./services/mcgm_property_lookup/
+COPY services/mcgm_property_lookup/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY main.py .
-
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8007"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.mcgm_property_lookup.main:app", "--host", "0.0.0.0", "--port", "8007"]

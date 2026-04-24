@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from services.rag import RAGAgent, DocumentLoader
+from services.rag_service.services.rag import RAGAgent, DocumentLoader
 from pymilvus import connections, utility, Collection
 
 def load_and_chunk(filepath):
@@ -104,3 +104,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

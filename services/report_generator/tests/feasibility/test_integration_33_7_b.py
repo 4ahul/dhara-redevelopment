@@ -38,3 +38,4 @@ def test_golden_33_7_b(tmp_path):
                 mismatches.append(f"{item['cell']}: expected {exp!r}, got {actual!r}")
 
     assert not mismatches, "Golden mismatches:\n" + "\n".join(mismatches[:10])
+

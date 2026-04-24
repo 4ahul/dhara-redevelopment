@@ -15,7 +15,7 @@ DCPR 2034 rules to fill all four schemes.
 
 from __future__ import annotations
 
-from core.config import settings
+from services.report_generator.core.config import settings
 
 SCHEMES = ["33(7)(B)", "33(20)(B)", "33(11)", "33(12)(B)"]
 
@@ -358,3 +358,4 @@ def normalize_report_data(raw: dict) -> dict:
         result["plot_area_sqm"] = plot_sqm
 
     return result
+

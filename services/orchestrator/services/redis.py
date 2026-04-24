@@ -8,7 +8,7 @@ import logging
 from datetime import UTC, datetime
 
 import redis
-from core.config import settings
+from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -128,5 +128,6 @@ def update_session_report(session_id: str, user_id: str, report_path: str) -> bo
     except Exception as e:
         logger.error("Failed to update session report: %s", e)
     return False
+
 
 

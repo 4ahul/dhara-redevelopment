@@ -1,0 +1,17 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.claude
+.code-review-graph
+code-review-graph
+graphify-out
+test_docs
+services/rag_service/data/docs/
+*.env
+*.bak
+*.csv
+*.xlsx
+*.pdf

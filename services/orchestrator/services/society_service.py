@@ -11,12 +11,12 @@ import os
 import re
 from uuid import UUID
 
-from core.config import settings
-from models.report import SocietyReport
-from models.society import Society
-from models.team import SocietyTender
-from repositories import society_repository
-from schemas.society import ReportCreate, SocietyCreate, SocietyUpdate, TenderCreate
+from services.orchestrator.core.config import settings
+from services.orchestrator.models.report import SocietyReport
+from services.orchestrator.models.society import Society
+from services.orchestrator.models.team import SocietyTender
+from services.orchestrator.repositories import society_repository
+from services.orchestrator.schemas.society import ReportCreate, SocietyCreate, SocietyUpdate, TenderCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -292,6 +292,7 @@ class SocietyService:
         data = req.model_dump(exclude_unset=True)
         data["society_id"] = society_id
         return await society_repository.create_society_tender(self.db, data)
+
 
 
 

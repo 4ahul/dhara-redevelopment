@@ -425,3 +425,4 @@ class MahabhumiScraperSelenium(MahabhumiScraper):
             return asyncio.ensure_future(super().scrape_pr_card(**kwargs))
         else:
             return loop.run_until_complete(super().scrape_pr_card(**kwargs))
+

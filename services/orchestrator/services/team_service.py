@@ -9,15 +9,15 @@ import math
 import uuid as uuid_mod
 from uuid import UUID
 
-from core.config import settings
+from services.orchestrator.core.config import settings
 from fastapi import HTTPException
-from models.enums import InviteStatus
-from repositories import team_repository, user_repository
-from schemas.common import PaginatedResponse
-from schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
+from services.orchestrator.models.enums import InviteStatus
+from services.orchestrator.repositories import team_repository, user_repository
+from services.orchestrator.schemas.common import PaginatedResponse
+from services.orchestrator.schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.email import send_team_invite
+from services.orchestrator.services.email import send_team_invite
 
 logger = logging.getLogger(__name__)
 
@@ -110,5 +110,6 @@ class TeamService:
         await self.db.delete(member)
         await self.db.flush()
         return {"status": "success", "message": f"{member.email} removed"}
+
 
 

@@ -17,3 +17,4 @@ class FeedbackRequest(BaseModel):
 class CreateSessionRequest(BaseModel):
     title: Optional[str] = None
     is_incognito: bool = False
+

@@ -95,3 +95,4 @@ df.to_excel(filename, index=False)
 passed = sum(1 for r in results if float(r['Confidence'].replace('%','')) >= 40)
 logger.info(f"\nSAVED: {filename}")
 logger.info(f"Total: {len(results)} | Answered: {passed} ({passed/len(results)*100:.0f}%)")
+

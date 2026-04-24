@@ -14,7 +14,7 @@ import json
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
-from services.browser import BaseBrowser, MahabhumiScraper
+from services.pr_card_scraper.services.browser import BaseBrowser, MahabhumiScraper
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  SCRAPE TARGETS
@@ -112,3 +112,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(main(headless=not args.visible))
+

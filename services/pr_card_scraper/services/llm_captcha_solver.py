@@ -182,3 +182,4 @@ class LLMCaptchaSolver:
         except Exception as e:
             logger.warning("OpenAI CAPTCHA failed: %s", e)
         return None
+

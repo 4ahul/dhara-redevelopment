@@ -32,3 +32,4 @@ def sum_resolved(ctx, names: List[str]) -> float:
             raise MissingData(n)
         total += float(v)
     return total
+

@@ -1,3 +1,6 @@
+import sys, os
+_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _dir not in sys.path: sys.path.insert(0, _dir)
 import asyncio
 import base64
 import logging
@@ -10,10 +13,10 @@ from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 
-from schemas import PRCardRequest, PRCardResponse, PRCardStatus
+from services.pr_card_scraper.schemas import PRCardRequest, PRCardResponse, PRCardStatus
 
 try:
-    from services.browser import (
+    from services.pr_card_scraper.services.browser import (
         create_browser_service,
         MahabhumiScraper as MahabhumiScraperSelenium,
     )
@@ -26,8 +29,8 @@ except ImportError as e:
         f"PR Card Scraper requires Playwright browser dependencies: {e}"
     ) from e
 
-from services.storage import AsyncStorageService as StorageService
-from core import settings
+from services.pr_card_scraper.services.storage import AsyncStorageService as StorageService
+from services.pr_card_scraper.core import settings
 
 router = APIRouter()
 
@@ -369,3 +372,5 @@ async def _persist_result(storage: StorageService, pr_id: str, result: dict):
             error_message=result.get("error", "Unknown error"),
         )
         logger.error(f"PR Card {pr_id} failed: {result.get('error')}")
+
+

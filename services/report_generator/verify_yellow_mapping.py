@@ -140,3 +140,4 @@ if __name__ == "__main__":
     rd = sys.argv[2] if len(sys.argv) > 2 else "CLUBBING"
     mode = sys.argv[3] if len(sys.argv) > 3 else "summary"
     raise SystemExit(main(scheme, rd, mode))
+

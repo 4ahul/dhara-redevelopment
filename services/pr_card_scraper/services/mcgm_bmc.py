@@ -33,3 +33,4 @@ class MCGMBMCService:
         }
 
 mcgm_bmc_service = MCGMBMCService()
+

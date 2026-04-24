@@ -572,3 +572,4 @@ STEP 3 – Re-index recommendation (OPTIONAL but high-impact):
     table row.  If your chunker splits on newlines, add a rule:
         "do not split if current line contains | and next line also contains |"
 """
+

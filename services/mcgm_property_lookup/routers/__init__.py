@@ -1,3 +1,6 @@
+import sys, os
+_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _dir not in sys.path: sys.path.insert(0, _dir)
 """
 MCGM Property Lookup — FastAPI Router
 Endpoints:
@@ -16,16 +19,16 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 
-from core import settings
-from schemas import (
+from services.mcgm_property_lookup.core import settings
+from services.mcgm_property_lookup.schemas import (
     NearbyProperty,
     PropertyLookupRequest,
     PropertyLookupResponse,
     PropertyLookupStatus,
 )
-from services import ArcGISClient, MCGMBrowserScraper
-from services.storage import AsyncStorageService as StorageService
-from services.geometry import (
+from services.mcgm_property_lookup.services import ArcGISClient, MCGMBrowserScraper
+from services.mcgm_property_lookup.services.storage import AsyncStorageService as StorageService
+from services.mcgm_property_lookup.services.geometry import (
     polygon_area_sqm,
     polygon_centroid_mercator,
     rings_to_wgs84,
@@ -427,3 +430,7 @@ def health():
         "service": "mcgm_property_lookup",
         "arcgis_layer_cached": ArcGISClient._layer_url is not None,
     }
+
+
+
+

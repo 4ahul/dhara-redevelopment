@@ -38,8 +38,19 @@ dependencies = [
     "beautifulsoup4",
     "redis",
     "serpapi",
+    "dhara_shared",
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["db*", "core*", "data*", "routers*", "schemas*", "services*", "integrations*"]
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+

@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 async def test_dprmarks():
-    from services.dp_scraper import DPBrowserScraper, DPREMARKS_URL
-    from core import settings
+    from services.dp_remarks_report.services.dp_scraper import DPBrowserScraper, DPREMARKS_URL
+    from services.dp_remarks_report.core import settings
     from playwright.async_api import async_playwright
 
     # Set credentials
@@ -93,3 +93,4 @@ async def test_dprmarks():
 if __name__ == "__main__":
     result = asyncio.run(test_dprmarks())
     print("Result:", result)
+

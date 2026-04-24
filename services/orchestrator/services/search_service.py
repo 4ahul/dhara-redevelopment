@@ -8,9 +8,9 @@ import logging
 import math
 from uuid import UUID
 
-from models import FeasibilityReport, Role, Society, SocietyTender
-from schemas.admin import RoleResponse
-from schemas.common import PaginatedResponse
+from services.orchestrator.models import FeasibilityReport, Role, Society, SocietyTender
+from services.orchestrator.schemas.admin import RoleResponse
+from services.orchestrator.schemas.common import PaginatedResponse
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,11 +106,12 @@ class SearchService:
 
         if not rows:
             logger.info("No roles found in DB. Seeding defaults...")
-            from db.seed import seed_defaults
+            from services.orchestrator.db.seed import seed_defaults
             await seed_defaults()
             # Re-fetch after seeding
             rows = (await self.db.execute(stmt)).scalars().all()
 
         return [RoleResponse.model_validate(r) for r in rows]
+
 
 

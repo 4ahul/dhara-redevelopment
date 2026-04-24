@@ -442,7 +442,7 @@ def get_llm_client() -> LLMClient:
     3. OLLAMA_BASE_URL  → OllamaClient
     4. OPENAI_BASE_URL  → OpenAICompatibleClient
     """
-    from core.config import settings
+    from services.orchestrator.core.config import settings
 
     if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your_"):
         logger.info("Using GeminiClient (model: %s)", settings.GEMINI_MODEL or "gemini-3.1-pro-preview")
@@ -470,5 +470,6 @@ def get_llm_client() -> LLMClient:
 async def create_llm_client() -> LLMClient:
     client = get_llm_client()
     return client
+
 
 

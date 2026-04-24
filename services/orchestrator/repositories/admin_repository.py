@@ -3,12 +3,12 @@ Admin CRUD Operations — Specialized queries for the Admin dashboard and user m
 Optimized to avoid N+2 query problems.
 """
 
-from models.enquiry import Enquiry, GetStartedRequest
-from models.enums import EnquiryStatus, UserRole
-from models.report import FeasibilityReport
-from models.society import Society
-from models.team import TeamMember
-from models.user import User
+from services.orchestrator.models.enquiry import Enquiry, GetStartedRequest
+from services.orchestrator.models.enums import EnquiryStatus, UserRole
+from services.orchestrator.models.report import FeasibilityReport
+from services.orchestrator.models.society import Society
+from services.orchestrator.models.team import TeamMember
+from services.orchestrator.models.user import User
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,5 +97,6 @@ async def get_dashboard_counts(db: AsyncSession) -> dict[str, int]:
         "total_team_members": (await db.execute(select(func.count(TeamMember.id)))).scalar() or 0,
     }
     return stats
+
 
 

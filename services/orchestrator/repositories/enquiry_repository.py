@@ -5,8 +5,8 @@ Enquiry CRUD Operations — Repository for Contact forms and Get Started request
 from collections.abc import Sequence
 from uuid import UUID
 
-from models.enquiry import Enquiry, GetStartedRequest
-from models.enums import EnquiryStatus
+from services.orchestrator.models.enquiry import Enquiry, GetStartedRequest
+from services.orchestrator.models.enums import EnquiryStatus
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,5 +53,6 @@ async def create_get_started_request(db: AsyncSession, data: dict) -> GetStarted
     await db.flush()
     await db.refresh(entry)
     return entry
+
 
 

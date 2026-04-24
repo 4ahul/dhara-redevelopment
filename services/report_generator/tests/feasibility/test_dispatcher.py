@@ -128,3 +128,4 @@ cells:
     wb2 = openpyxl.load_workbook(tpl, data_only=False)
     assert wb2["Details"]["A1"].value == 18.3
     assert wb2["Details"]["B1"].value == 20.0
+

@@ -1227,3 +1227,4 @@ if __name__ == "__main__":
 
     # Print financial summary
     logger.info(workflow.generator.generate_financial_summary(analysis))
+

@@ -90,3 +90,4 @@ class CaptchaSubmitRequest(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     service: str
+

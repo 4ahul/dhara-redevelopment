@@ -174,3 +174,4 @@ def test_validate_against_workbook_kind_mismatch(tmp_path):
     ])
     with pytest.raises(MappingError, match="kind mismatch"):
         validate_against_workbook(mf, wb)
+

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from db.base import Base
+from services.orchestrator.db.base import Base
 from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,5 +57,6 @@ class Society(Base):
     feasibility_reports = relationship('FeasibilityReport', back_populates='society', lazy='selectin', cascade='all, delete-orphan')
 
     __table_args__ = (Index('ix_societies_created_by', 'created_by'),)
+
 
 

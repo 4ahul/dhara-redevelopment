@@ -54,3 +54,4 @@ def polygon_area_sqm(rings: list) -> float:
         area += ring[i][0] * ring[j][1]
         area -= ring[j][0] * ring[i][1]
     return abs(area) / 2.0
+

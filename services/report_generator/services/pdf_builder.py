@@ -1494,3 +1494,4 @@ def build_feasibility_pdf(data: dict, output_path: str) -> str:
         onLaterPages=lambda c, d: on_page(c, d, data),
     )
     return output_path
+

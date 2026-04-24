@@ -16,3 +16,4 @@ def completion_months_from_area(
         raise MissingData(area_name)
     months = int(math.ceil(float(a) / float(rate_sqft_per_month)))
     return max(months, int(minimum))
+

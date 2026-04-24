@@ -5,8 +5,8 @@ Team CRUD Operations — Repository for organization members and invites.
 from collections.abc import Sequence
 from uuid import UUID
 
-from models.enums import InviteStatus
-from models.team import TeamMember
+from services.orchestrator.models.enums import InviteStatus
+from services.orchestrator.models.team import TeamMember
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,5 +51,6 @@ async def get_member_by_email_and_org(db: AsyncSession, email: str, organization
     return (await db.execute(
         select(TeamMember).where(TeamMember.email == email, TeamMember.organization == organization)
     )).scalar_one_or_none()
+
 
 

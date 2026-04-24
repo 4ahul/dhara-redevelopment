@@ -29,7 +29,12 @@ dependencies = [
     "bcrypt==4.0.1",
     "passlib[bcrypt]>=1.7.4",
     "tenacity>=8.5.0",
+    "psycopg2-binary>=2.9.0",
+    "dhara_shared",
 ]
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
 
 [tool.setuptools.packages.find]
 where = ["."]

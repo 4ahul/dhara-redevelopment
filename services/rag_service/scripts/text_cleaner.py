@@ -266,3 +266,4 @@ if __name__ == "__main__":
         print(f"Expected: {expected}, Detected: {lang}")
         print(f"  Clean: {cleaned[:80]}")
         print()
+

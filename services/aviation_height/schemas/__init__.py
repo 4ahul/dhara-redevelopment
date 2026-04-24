@@ -22,3 +22,4 @@ class HeightResponse(BaseModel):
     is_real_data: bool = True
     data_source: str = "aai_nocas"
     error: Optional[str] = None
+

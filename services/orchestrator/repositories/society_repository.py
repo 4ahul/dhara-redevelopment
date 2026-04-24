@@ -5,9 +5,9 @@ Society CRUD Operations — Repository for Societies, Reports, and Tenders.
 from collections.abc import Sequence
 from uuid import UUID
 
-from models.report import FeasibilityReport, SocietyReport
-from models.society import Society
-from models.team import SocietyTender
+from services.orchestrator.models.report import FeasibilityReport, SocietyReport
+from services.orchestrator.models.society import Society
+from services.orchestrator.models.team import SocietyTender
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -163,5 +163,6 @@ async def create_feasibility_report(db: AsyncSession, user_id: UUID, data: dict)
     await db.flush()
     await db.refresh(report)
     return report
+
 
 

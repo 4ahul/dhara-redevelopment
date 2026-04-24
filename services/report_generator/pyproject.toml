@@ -12,6 +12,8 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "reportlab>=4.0.0",
     "PyYAML>=6.0",
+    "python-multipart>=0.0.12",
+    "dhara_shared",
 ]
 
 [tool.setuptools.packages.find]
@@ -30,3 +32,7 @@ asyncio_mode = "auto"
 dev = [
     "pytest>=9.0.3",
 ]
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+

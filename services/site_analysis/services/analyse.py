@@ -8,7 +8,7 @@ import googlemaps
 import httpx
 
 try:
-    from core import settings
+    from services.site_analysis.core import settings
 except ImportError:
     from services.site_analysis.core import settings
 
@@ -267,3 +267,4 @@ class SiteAnalysisService:
 
 
 site_analysis_service = SiteAnalysisService()
+

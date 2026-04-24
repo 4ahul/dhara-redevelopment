@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "DP Report Service"
+    APP_NAME: str = "dp_remarks_report"
     APP_VERSION: str = "1.0.0"
 
     DATABASE_URL: str = (
@@ -36,3 +36,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

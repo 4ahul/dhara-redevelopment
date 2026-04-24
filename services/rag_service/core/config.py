@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # --- App ---
-    APP_NAME: str = "Dhara RAG API"
+    APP_NAME: str = "rag_service"
     APP_VERSION: str = "2.0.0"
     PORT: int = 8007
     HOST: str = "0.0.0.0"
@@ -45,3 +45,4 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 settings = Settings()
+

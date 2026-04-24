@@ -29,3 +29,4 @@ def is_registered(name: str) -> bool:
 def _clear_for_tests() -> None:
     """Wipe the registry. Do not call outside tests."""
     _REGISTRY.clear()
+

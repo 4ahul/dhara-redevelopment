@@ -9,13 +9,13 @@ import logging
 import math
 from uuid import UUID
 
-from agent import run_agent
-from db import async_session_factory
+from services.orchestrator.agent import run_agent
+from services.orchestrator.db import async_session_factory
 from fastapi import BackgroundTasks
-from models.enums import ReportStatus
-from models.report import FeasibilityReport
-from repositories import society_repository
-from schemas.society import FeasibilityReportCreate, FeasibilityReportUpdate
+from services.orchestrator.models.enums import ReportStatus
+from services.orchestrator.models.report import FeasibilityReport
+from services.orchestrator.repositories import society_repository
+from services.orchestrator.schemas.society import FeasibilityReportCreate, FeasibilityReportUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,7 +70,7 @@ class FeasibilityService:
 
         updates = {}
         if req_cts_no or req_fp_no:
-            from services.cts_fp_resolver import get_resolver
+            from services.orchestrator.services.cts_fp_resolver import get_resolver
             resolver = get_resolver()
 
             res = await resolver.resolve(
@@ -257,5 +257,6 @@ class FeasibilityService:
             logger.error(
                 "Feasibility background task CRITICAL ERROR for %s: %s", report_id, e
             )
+
 
 

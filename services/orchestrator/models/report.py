@@ -1,8 +1,8 @@
 import uuid
 
-from db.base import Base
-from db.mixins import TimestampMixin, UUIDMixin
-from models.enums import ReportStatus
+from services.orchestrator.db.base import Base
+from services.orchestrator.db.mixins import TimestampMixin, UUIDMixin
+from services.orchestrator.models.enums import ReportStatus
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -52,6 +52,7 @@ class FeasibilityReport(Base, UUIDMixin, TimestampMixin):
         Index("ix_feasibility_user", "user_id"),
         Index("ix_feasibility_society", "society_id"),
     )
+
 
 
 

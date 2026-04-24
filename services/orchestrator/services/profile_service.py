@@ -7,11 +7,11 @@ Refactored for consistency with the new Service/CRUD architecture.
 import logging
 
 from fastapi import HTTPException, UploadFile
-from models.user import User
-from schemas.profile import PortfolioUploadResponse, ProfileResponse, ProfileUpdate
+from services.orchestrator.models.user import User
+from services.orchestrator.schemas.profile import PortfolioUploadResponse, ProfileResponse, ProfileUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.cloudinary import upload_avatar, upload_portfolio
+from services.orchestrator.services.cloudinary import upload_avatar, upload_portfolio
 
 logger = logging.getLogger(__name__)
 
@@ -58,5 +58,6 @@ class ProfileService:
             "avatar_url": result["secure_url"],
             "public_id": result["public_id"]
         }
+
 
 

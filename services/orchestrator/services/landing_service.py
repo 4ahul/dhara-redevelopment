@@ -7,8 +7,8 @@ Refactored to use CRUD layer.
 import logging
 
 from fastapi import BackgroundTasks
-from repositories import enquiry_repository, landing_repository
-from schemas.landing import (
+from services.orchestrator.repositories import enquiry_repository, landing_repository
+from services.orchestrator.schemas.landing import (
     ContactRequestSchema,
     FormSubmissionResponse,
     GetStartedRequestSchema,
@@ -17,7 +17,7 @@ from schemas.landing import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.email import (
+from services.orchestrator.services.email import (
     send_admin_notification,
     send_contact_confirmation,
     send_get_started_confirmation,
@@ -86,5 +86,6 @@ class LandingService:
 
         logger.info("Contact Us Submission: %s <%s>", req.name, req.email)
         return FormSubmissionResponse(message="Thank you! We'll respond within 1-2 business days.", reference_id=ref)
+
 
 

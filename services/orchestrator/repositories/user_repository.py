@@ -6,8 +6,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from models.enums import UserRole
-from models.user import User
+from services.orchestrator.models.enums import UserRole
+from services.orchestrator.models.user import User
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,5 +64,6 @@ async def update_last_login(db: AsyncSession, user: User) -> None:
     """Atomic update for last login timestamp."""
     user.last_login_at = datetime.utcnow()
     await db.flush()
+
 
 

@@ -2,24 +2,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install LibreOffice for PDF conversion
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libreoffice \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Install dependencies
+COPY services/report_generator/pyproject.toml ./services/report_generator/
+RUN pip install ./services/report_generator/
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY templates/ ./templates/
-COPY main.py .
+# Copy packages preserving path
+COPY services/report_generator/ ./services/report_generator/
+COPY services/report_generator/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.report_generator.main:app", "--host", "0.0.0.0", "--port", "8004"]

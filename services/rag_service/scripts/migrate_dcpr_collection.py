@@ -160,3 +160,4 @@ def migrate_collection():
 
 if __name__ == "__main__":
     migrate_collection()
+

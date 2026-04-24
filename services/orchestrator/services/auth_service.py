@@ -7,12 +7,12 @@ import logging
 from datetime import datetime
 
 import httpx
-from core.config import settings
-from core.security import create_access_token, decode_token, hash_password, verify_password
+from services.orchestrator.core.config import settings
+from services.orchestrator.core.security import create_access_token, decode_token, hash_password, verify_password
 from fastapi import HTTPException
-from models.enums import UserRole
-from repositories import user_repository
-from schemas.auth import AuthResponse, AuthUserInfo, LoginRequest, LogoutResponse, SignupRequest
+from services.orchestrator.models.enums import UserRole
+from services.orchestrator.repositories import user_repository
+from services.orchestrator.schemas.auth import AuthResponse, AuthUserInfo, LoginRequest, LogoutResponse, SignupRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -200,5 +200,6 @@ class AuthService:
         # In a JWT-based system, logout is primarily client-side.
         # This endpoint exists for completeness and logging purposes.
         return LogoutResponse()
+
 
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from db.base import Base
+from services.orchestrator.db.base import Base
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,5 +39,6 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_logs_actor_action", "actor_id", "action"),
     )
+
 
 

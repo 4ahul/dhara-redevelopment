@@ -28,3 +28,4 @@ def podium_count_from_plot_area(ctx) -> int:
     if a < 5000:
         return 2
     return 3
+

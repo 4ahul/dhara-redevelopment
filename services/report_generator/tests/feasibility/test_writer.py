@@ -38,3 +38,4 @@ def test_preserves_style():
     w.flush(wb)
     assert ws["A1"].fill.fgColor.rgb == "FFFFFF00"
     assert ws["A1"].font.bold is True
+

@@ -3,20 +3,22 @@
 import logging
 from uuid import UUID
 
-from core.dependencies import get_current_user, get_db
+from services.orchestrator.core.dependencies import get_current_user, get_db
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from repositories import society_repository
-from schemas.common import PaginatedResponse
-from schemas.society import (
+from services.orchestrator.repositories import society_repository
+from services.orchestrator.schemas.common import PaginatedResponse
+from services.orchestrator.schemas.society import (
     FeasibilityReportCreate,
     FeasibilityReportResponse,
     FeasibilityReportUpdate,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.feasibility_orchestrator import feasibility_orchestrator
-from services.feasibility_service import FeasibilityService
+from services.orchestrator.services.feasibility_orchestrator import (
+    feasibility_orchestrator,
+)
+from services.orchestrator.services.feasibility_service import FeasibilityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/feasibility-reports", tags=["Feasibility Reports"])
@@ -91,7 +93,7 @@ async def patch_report(
 
 # ─── New Analyze Endpoint ────────────────────────────────────────────
 
-from schemas.feasibility import FeasibilityAnalyzeRequest, FeasibilityAnalyzeResponse
+from services.orchestrator.schemas.feasibility import FeasibilityAnalyzeRequest, FeasibilityAnalyzeResponse
 
 
 @router.post("/analyze", response_model=FeasibilityAnalyzeResponse)
@@ -150,7 +152,7 @@ async def download_feasibility_report(
     user=Depends(get_current_user),
 ):
     """Download the generated Excel feasibility report for a completed job."""
-    from services.feasibility_orchestrator import _REPORT_STORE
+    from services.orchestrator.services.feasibility_orchestrator import _REPORT_STORE
     report_path = _REPORT_STORE.get(job_id)
     if not report_path:
         raise HTTPException(404, f"No report found for job_id={job_id}. Run /analyze first.")
@@ -162,5 +164,6 @@ async def download_feasibility_report(
         filename=f"Feasibility_Report_{job_id}.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 

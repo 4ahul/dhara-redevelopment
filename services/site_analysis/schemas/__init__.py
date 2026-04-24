@@ -25,3 +25,4 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     step: int
+

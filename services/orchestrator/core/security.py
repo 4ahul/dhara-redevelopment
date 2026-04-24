@@ -7,7 +7,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from core.config import settings
+from services.orchestrator.core.config import settings
 from jose import JWTError, jwt
 
 logger = logging.getLogger(__name__)
@@ -80,5 +80,6 @@ def decode_token(token: str) -> dict:
         from fastapi import HTTPException
         logger.warning(f"JWT Validation failed: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
+
 
 

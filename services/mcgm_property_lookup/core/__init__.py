@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "MCGM Property Lookup Service"
+    APP_NAME: str = "mcgm_property_lookup"
     APP_VERSION: str = "1.0.0"
 
     # Load from this service's .env file
@@ -31,3 +31,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

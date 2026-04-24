@@ -28,3 +28,4 @@ def test_dossier_endpoint():
     assert data["scheme"] == "33(7)(B)"
     assert isinstance(data["cells"], list)
     assert len(data["cells"]) > 0
+

@@ -672,3 +672,4 @@ if __name__ == "__main__":
         cmd_check_rera(args)
     else:
         parser.print_help()
+

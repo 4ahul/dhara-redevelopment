@@ -102,3 +102,4 @@ class PremiumResponse(BaseModel):
     total_mcgm_charges: float
     grand_total: float
     grand_total_crore: float
+

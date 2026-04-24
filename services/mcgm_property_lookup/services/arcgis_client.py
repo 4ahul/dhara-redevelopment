@@ -205,3 +205,4 @@ def _extract_operational_layers(config: dict) -> list[dict]:
 
     _walk(config)
     return results
+

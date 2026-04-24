@@ -6,8 +6,8 @@ Seeds default admin user and roles on first run.
 import logging
 import os
 
-from core.security import hash_password
-from db import async_session_factory
+from services.orchestrator.core.security import hash_password
+from services.orchestrator.db import async_session_factory
 from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 async def seed_defaults():
     """Create default admin user and roles if tables are empty."""
-    from models import Role, Society, User
-    from models.enums import UserRole
+    from services.orchestrator.models import Role, Society, User
+    from services.orchestrator.models.enums import UserRole
 
 
     async with async_session_factory() as db:
@@ -68,6 +68,7 @@ async def seed_defaults():
                 logger.info(f"Sample society seeded: {name}")
 
         await db.commit()
+
 
 
 

@@ -9,9 +9,9 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
-from db.session import get_db, User, ChatSession, Message, FeedbackLog, SessionLocal
-from core.dependencies import require_auth
-from schemas.chat import ChatMessageRequest, EditMessageRequest, FeedbackRequest, CreateSessionRequest
+from services.rag_service.db.session import get_db, User, ChatSession, Message, FeedbackLog, SessionLocal
+from services.rag_service.core.dependencies import require_auth
+from services.rag_service.schemas.chat import ChatMessageRequest, EditMessageRequest, FeedbackRequest, CreateSessionRequest
 
 router = APIRouter(prefix="/api", tags=["Chat"])
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def sanitize_session_title(message: str) -> str:
     return title or "New Chat"
 
 def get_rag_agent():
-    from services.intelligent_rag import IntelligentRAG
+    from services.rag_service.services.intelligent_rag import IntelligentRAG
     return IntelligentRAG()
 
 def _save_chat_messages(
@@ -478,3 +478,4 @@ async def add_feedback(
     message.feedback_at = datetime.now(timezone.utc)
     db.commit()
     return {"success": True}
+

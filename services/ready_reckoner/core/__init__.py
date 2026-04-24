@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Premium Checker Service"
+    APP_NAME: str = "ready_reckoner"
     APP_VERSION: str = "1.0.0"
 
     class Config:
@@ -13,3 +13,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

@@ -10,21 +10,27 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Ensure the root of the orchestrator is in path so we can import 'db' and 'models'
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from core.config import settings
-from db.base import Base
-
-# IMPORTANT: Import ALL models so metadata is complete!
-from models import *
+try:
+    from services.orchestrator.core.config import settings
+    from services.orchestrator.db.base import Base
+    # IMPORTANT: Import ALL models so metadata is complete!
+    from services.orchestrator.models import *  # noqa: F401,F403
+except ModuleNotFoundError:
+    # Fallback for container/runtime contexts where orchestrator is executed
+    # as the working package root instead of services.orchestrator.
+    _service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if _service_root not in sys.path:
+        sys.path.insert(0, _service_root)
+    from core.config import settings
+    from db.base import Base
+    from models import *  # noqa: F401,F403
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
 # Force the sqlalchemy.url from our application settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -100,5 +106,6 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
 
 

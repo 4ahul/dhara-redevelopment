@@ -21,3 +21,4 @@ setup(
         "unidecode>=1.3.0",
     ],
 )
+

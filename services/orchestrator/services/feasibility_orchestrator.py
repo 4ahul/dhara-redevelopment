@@ -11,7 +11,8 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks
 
-from shared.dhara_common.http import AsyncHTTPClient
+from dhara_shared.dhara_shared.dhara_common.http import AsyncHTTPClient
+from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,25 +23,14 @@ _REPORT_STORE: dict[str, str] = {}
 _REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "./generated_reports"))
 _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Use docker network names when in container, localhost when local
-_in_docker = os.path.exists("/.dockerenv")
-
-
-def _svc_url(docker_name: str, local_port: int) -> str:
-    """Return the correct base URL depending on runtime environment."""
-    if _in_docker:
-        return f"http://{docker_name}:{local_port}"
-    return f"http://localhost:{local_port}"
-
-
-MCGM_URL             = _svc_url("mcgm_property_lookup", 8007)
-SITE_ANALYSIS_URL    = _svc_url("site_analysis",        8001)
-DP_REMARKS_URL       = _svc_url("dp_remarks_report",    8008)
-PR_CARD_URL          = _svc_url("pr_card_scraper",      8005)
-AVIATION_HEIGHT_URL  = _svc_url("aviation_height",      8002)
-READY_RECKONER_URL   = _svc_url("ready_reckoner",       8003)
-REPORT_GENERATOR_URL = _svc_url("report_generator",     8004)
-OCR_URL              = _svc_url("report_generator",     8004)  # OCR endpoint lives on the report_generator
+MCGM_URL = settings.MCGM_PROPERTY_URL
+SITE_ANALYSIS_URL = settings.SITE_ANALYSIS_URL
+DP_REMARKS_URL = settings.DP_REPORT_URL
+PR_CARD_URL = settings.PR_CARD_URL
+AVIATION_HEIGHT_URL = settings.HEIGHT_URL
+READY_RECKONER_URL = settings.READY_RECKONER_URL
+REPORT_GENERATOR_URL = settings.REPORT_URL
+OCR_URL = settings.REPORT_URL  # OCR endpoint lives on the report_generator
 
 
 class FeasibilityOrchestrator:
@@ -63,7 +53,7 @@ class FeasibilityOrchestrator:
         cts_no = req.get("cts_no")
         fp_no = req.get("fp_no")
         if cts_no or fp_no:
-            from services.cts_fp_resolver import get_resolver
+            from services.orchestrator.services.cts_fp_resolver import get_resolver
             resolver = get_resolver()
             res = await resolver.resolve(
                 cts_no=cts_no,
@@ -520,9 +510,7 @@ class FeasibilityOrchestrator:
         """Check for red cells in the generated report and send notifications if close to expiry."""
         try:
             import openpyxl
-            from core.config import settings
-
-            from services.email import send_email
+            from services.orchestrator.services.email import send_email
 
             report_path = _REPORT_STORE.get(job_id)
             if not report_path or not os.path.exists(report_path):
@@ -571,5 +559,6 @@ class FeasibilityOrchestrator:
 
 # Singleton instance
 feasibility_orchestrator = FeasibilityOrchestrator()
+
 
 

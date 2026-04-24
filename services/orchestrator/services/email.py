@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import aiosmtplib
-from core.config import settings
+from services.orchestrator.core.config import settings
 from jinja2 import BaseLoader, Environment
 
 logger = logging.getLogger(__name__)
@@ -137,5 +137,6 @@ async def send_admin_notification(
 ) -> bool:
     html = _render("admin_new_enquiry", name=name, email=email, phone=phone, subject=subject, message=message, reference_id=reference_id, source=source, society_name=society_name)
     return await send_email(settings.SMTP_FROM_EMAIL, f"New {source}: {name}", html)
+
 
 

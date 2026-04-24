@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from db.base import Base
-from models.enums import UserRole
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import UserRole
 from sqlalchemy import Boolean, DateTime, Index, String
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
@@ -45,5 +45,6 @@ class User(Base):
         Index("ix_users_role", "role"),
         Index("ix_users_org", "organization"),
     )
+
 
 

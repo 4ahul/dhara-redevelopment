@@ -10,15 +10,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - dhara_net
+    logging: *default-logging
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
@@ -36,8 +34,10 @@ services:
       - POSTGRES_DB=redevelopment
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "redevelopment" ]
       interval: 30s
@@ -46,17 +46,26 @@ services:
       start_period: 10s
 
   orchestrator:
-    build: ./services/orchestrator
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
     image: redevelopment-ai/orchestrator:v1
-    volumes:
-      - ./services/orchestrator:/app
-      - ./report_outputs:/tmp/reports
-      - upload_data:/tmp/uploads
     ports:
       - "8000:8000"
     env_file:
-      - .env # For global defaults if needed
+      - .env
       - ./services/orchestrator/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://redevelopment:redevelopment@postgres:5432/orchestrator_db
+      - REDIS_URL=redis://redis:6379
+      - SITE_ANALYSIS_URL=http://site_analysis:8001
+      - HEIGHT_URL=http://aviation_height:8002
+      - PREMIUM_URL=http://ready_reckoner:8003
+      - REPORT_URL=http://report_generator:8004
+      - PR_CARD_URL=http://pr_card_scraper:8005
+      - RAG_URL=http://rag_service:8006
+      - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
+      - DP_REPORT_URL=http://dp_remarks_report:8008
     depends_on:
       redis:
         condition: service_healthy
@@ -64,16 +73,21 @@ services:
         condition: service_healthy
     networks:
       - dhara_net
+    logging: *default-logging
     restart: unless-stopped
 
   site_analysis:
-    build: ./services/site_analysis
+    build:
+      context: .
+      dockerfile: services/site_analysis/Dockerfile
+    image: redevelopment-ai/site_analysis:v1
     ports:
       - "8001:8001"
     env_file:
       - ./services/site_analysis/.env
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 30s
@@ -82,13 +96,17 @@ services:
       start_period: 10s
 
   aviation_height:
-    build: ./services/aviation_height
+    build:
+      context: .
+      dockerfile: services/aviation_height/Dockerfile
+    image: redevelopment-ai/aviation_height:v1
     ports:
       - "8002:8002"
     env_file:
       - ./services/aviation_height/.env
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8002/health" ]
       interval: 30s
@@ -97,13 +115,17 @@ services:
       start_period: 10s
 
   ready_reckoner:
-    build: ./services/ready_reckoner
+    build:
+      context: .
+      dockerfile: services/ready_reckoner/Dockerfile
+    image: redevelopment-ai/ready_reckoner:v1
     ports:
       - "8003:8003"
     env_file:
       - ./services/ready_reckoner/.env
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8003/health" ]
       interval: 30s
@@ -112,7 +134,10 @@ services:
       start_period: 10s
 
   report_generator:
-    build: ./services/report_generator
+    build:
+      context: .
+      dockerfile: services/report_generator/Dockerfile
+    image: redevelopment-ai/report_generator:v1
     ports:
       - "8004:8004"
     volumes:
@@ -121,6 +146,7 @@ services:
       - ./services/report_generator/.env
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s
@@ -129,7 +155,10 @@ services:
       start_period: 10s
 
   pr_card_scraper:
-    build: ./services/pr_card_scraper
+    build:
+      context: .
+      dockerfile: services/pr_card_scraper/Dockerfile
+    image: redevelopment-ai/pr_card_scraper:v1
     ports:
       - "8005:8005"
     env_file:
@@ -138,12 +167,82 @@ services:
       - postgres
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8005/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  mcgm_property_lookup:
+    build:
+      context: .
+      dockerfile: services/mcgm_property_lookup/Dockerfile
+    image: redevelopment-ai/mcgm_property_lookup:v1
+    ports:
+      - "8007:8007"
+    env_file:
+      - ./services/mcgm_property_lookup/.env
+    depends_on:
+      - postgres
+    networks:
+      - dhara_net
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8007/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dp_remarks_report:
+    build:
+      context: .
+      dockerfile: services/dp_remarks_report/Dockerfile
+    image: redevelopment-ai/dp_remarks_report:v1
+    ports:
+      - "8008:8008"
+    env_file:
+      - ./services/dp_remarks_report/.env
+    depends_on:
+      - postgres
+    networks:
+      - dhara_net
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8008/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  rag_service:
+    build:
+      context: .
+      dockerfile: services/rag_service/Dockerfile
+    image: redevelopment-ai/rag_service:v2
+    ports:
+      - "8006:8006"
+    env_file:
+      - ./services/rag_service/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dhara_net
+    logging: *default-logging
+    restart: on-failure:5
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8006/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   milvus:
     image: milvusdb/milvus:v2.4.0
@@ -162,6 +261,7 @@ services:
       - milvus_data:/var/lib/milvus
     networks:
       - dhara_net
+    logging: *default-logging
     depends_on:
       milvus_etcd:
         condition: service_healthy
@@ -185,6 +285,7 @@ services:
     command: etcd -advertise-client-urls=http://milvus_etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
       test: [ "CMD", "etcdctl", "endpoint", "health" ]
       interval: 30s
@@ -195,11 +296,12 @@ services:
   milvus_attu:
     image: zilliz/attu:latest
     ports:
-      - "8081:3000" # Expose Attu on port 8081 on the host
+      - "8081:3000"
     environment:
-      - MILVUS_URL=milvus:19530 # Point to the Milvus service within the Docker network
+      - MILVUS_URL=milvus:19530
     networks:
       - dhara_net
+    logging: *default-logging
     depends_on:
       milvus:
         condition: service_healthy
@@ -210,71 +312,16 @@ services:
       retries: 3
       start_period: 60s
 
-  mcgm_property_lookup:
-    build: ./services/mcgm_property_lookup
-    ports:
-      - "8007:8007"
-    env_file:
-      - ./services/mcgm_property_lookup/.env
-    depends_on:
-      - postgres
-    networks:
-      - dhara_net
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8007/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-  dp_remarks_report:
-    build: ./services/dp_remarks_report
-    ports:
-      - "8008:8008"
-    env_file:
-      - ./services/dp_remarks_report/.env
-    depends_on:
-      - postgres
-    networks:
-      - dhara_net
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8008/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-  rag_service:
-    build: ./services/rag_service
-    image: redevelopment-ai/rag-service:v2
-    ports:
-      - "8006:8006"
-    env_file:
-      - ./services/rag_service/.env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - dhara_net
-    volumes:
-      - ./services/rag_service/data:/app/data
-    restart: on-failure:5
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8006/api/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
 networks:
   dhara_net:
     driver: bridge
+
+# Global Logging Strategy
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 volumes:
   redis_data:
@@ -282,3 +329,4 @@ volumes:
   upload_data:
   milvus_data:
   etcd_data:
+

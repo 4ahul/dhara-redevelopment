@@ -324,3 +324,4 @@ def index_document(filepath: str, description: str = "") -> str:
 
 if __name__ == "__main__":
     main()
+

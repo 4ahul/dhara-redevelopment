@@ -9,11 +9,11 @@ import math
 from uuid import UUID
 
 from fastapi import HTTPException
-from models.enums import UserRole
-from models.role import Role
-from repositories import admin_repository, enquiry_repository, user_repository
-from schemas.admin import EnquiryResponse
-from schemas.common import PaginatedResponse
+from services.orchestrator.models.enums import UserRole
+from services.orchestrator.models.role import Role
+from services.orchestrator.repositories import admin_repository, enquiry_repository, user_repository
+from services.orchestrator.schemas.admin import EnquiryResponse
+from services.orchestrator.schemas.common import PaginatedResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class AdminService:
 
         if not entity_type or entity_type == "society":
             # For admin search, we'll need a way to search societies across ALL users
-            from models import Society
+            from services.orchestrator.models import Society
             from sqlalchemy import or_, select
             stmt = select(Society).where(or_(Society.name.ilike(term), Society.address.ilike(term))).limit(page_size)
             for s in (await self.db.execute(stmt)).scalars().all():
@@ -107,5 +107,6 @@ class AdminService:
         """Fetch all user roles."""
         from sqlalchemy import select
         return list((await self.db.execute(select(Role).order_by(Role.name))).scalars().all())
+
 
 

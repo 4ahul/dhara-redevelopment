@@ -385,3 +385,4 @@ if __name__ == "__main__":
     logger.info("Starting OCR API Server...")
     logger.info("API Documentation: http://localhost:8001/docs")
     uvicorn.run(app, host="0.0.0.0", port=8001)
+

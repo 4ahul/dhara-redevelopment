@@ -39,3 +39,4 @@ class FeasibilityAnalyzeResponse(BaseModel):
     report_error: str | None = None
 
 
+

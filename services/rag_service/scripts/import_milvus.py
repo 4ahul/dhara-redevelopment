@@ -73,3 +73,4 @@ def import_collection(input_file, collection_name="documents"):
 
 if __name__ == "__main__":
     import_collection("collection.json")
+

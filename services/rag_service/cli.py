@@ -145,7 +145,7 @@ Examples:
 def handle_query(args):
     """Query DCPR regulations - using Intelligent RAG Agent"""
     import os
-    from services.intelligent_rag import IntelligentRAG
+    from services.rag_service.services.intelligent_rag import IntelligentRAG
     from pathlib import Path
 
     # Load API key from .env file
@@ -184,7 +184,7 @@ def handle_query(args):
 
 def handle_analyze(args):
     """Analyze property and generate reports"""
-    from services.property_card_workflow import (
+    from services.rag_service.services.property_card_workflow import (
         PropertyCardWorkflow,
         PropertyCard,
         RevenueBreakdown,
@@ -451,7 +451,7 @@ def handle_index(args):
             print(f"File not found: {pdf_path}")
             return
 
-    from services.rag import RAGAgent, DocumentLoader
+    from services.rag_service.services.rag import RAGAgent, DocumentLoader
     from pymilvus import connections, utility, Collection
 
     # Clear existing collection if rebuild
@@ -491,3 +491,4 @@ def handle_index(args):
 
 if __name__ == "__main__":
     main()
+

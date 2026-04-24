@@ -28,3 +28,4 @@ def test_floors_missing_raises():
     fn = get("floors_from_max_height")
     with pytest.raises(MissingData):
         fn({"request": {}, "resolved": {}}, floor_height_m=3)
+

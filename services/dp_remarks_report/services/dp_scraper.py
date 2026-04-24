@@ -375,7 +375,7 @@ class DPBrowserScraper:
         Navigate the DPRMarks portal (https://dpremarks.mcgm.gov.in/dp2034/)
         Workflow: login -> Report button -> ward/village/CTS -> next -> next -> create challan
         """
-        from core import settings
+        from services.dp_remarks_report.core import settings
 
         try:
             # Use JavaScript evaluation to navigate instead of page.goto
@@ -472,7 +472,7 @@ class DPBrowserScraper:
 
     async def _dprmarks_login(self, page: Page) -> bool:
         """Login to DPRMarks portal with credentials from settings."""
-        from core import settings
+        from services.dp_remarks_report.core import settings
 
         username = settings.DPRMARKS_USERNAME
         password = settings.DPRMARKS_PASSWORD
@@ -768,3 +768,4 @@ def _parse_popup_text(text: str) -> Optional[dict]:
             attrs[key] = val
 
     return attrs if attrs else None
+

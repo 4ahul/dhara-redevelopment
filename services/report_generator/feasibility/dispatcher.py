@@ -100,3 +100,4 @@ def generate(
         calculation_errors=ctx["errors"],
         skipped_formula_cells=write_report["skipped_formula_cells"],
     )
+

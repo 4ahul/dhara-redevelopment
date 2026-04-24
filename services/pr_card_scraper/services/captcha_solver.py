@@ -245,3 +245,4 @@ class CaptchaSolver:
         variants.discard(text)
 
         return [v for v in variants if 4 <= len(v) <= 8]
+

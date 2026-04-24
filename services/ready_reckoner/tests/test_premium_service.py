@@ -364,3 +364,4 @@ class TestPremiumService:
         assert rr_rates[0].previous_year_rate == 45000.0
         assert rr_rates[0].increase_amount == 5000.0
         assert rr_rates[0].increase_or_decrease_percent == 11.11
+

@@ -1,14 +1,14 @@
 import logging
 from fastapi import APIRouter, Depends, Request, Header, Query
 from typing import Optional
-from core.dependencies import require_auth
-from db.session import get_db
+from services.rag_service.core.dependencies import require_auth
+from services.rag_service.db.session import get_db
 
 router = APIRouter(prefix="/api", tags=["Query"])
 logger = logging.getLogger(__name__)
 
 def get_rag_agent():
-    from services.intelligent_rag import IntelligentRAG
+    from services.rag_service.services.intelligent_rag import IntelligentRAG
     return IntelligentRAG()
 
 @router.post("/rag-query")
@@ -54,3 +54,4 @@ async def query_legacy(
         "clauses": answer_data.get("clauses", []),
         "confidence": answer_data.get("confidence", 0),
     }
+

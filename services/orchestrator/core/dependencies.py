@@ -7,9 +7,9 @@ Refactored to use CRUD layer for user retrieval.
 import logging
 from uuid import UUID
 
-from core.security import decode_token
+from services.orchestrator.core.security import decode_token
 from fastapi import Depends, Header, HTTPException
-from repositories import user_repository
+from services.orchestrator.repositories import user_repository
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 # ─── DB Session ─────────────────────────────────────────────────────────────
 
 async def get_db() -> AsyncSession:
-    """Yield an async DB session. Imported from db module at runtime."""
-    from db import async_session_factory
+    """Yield an async DB session. Imported from services.orchestrator.db module at runtime."""
+    from services.orchestrator.db import async_session_factory
 
     async with async_session_factory() as session:
         try:
@@ -66,7 +66,7 @@ async def get_current_user(
 
         if not user:
             # Auto-provision on first request for this Clerk user
-            from services.auth_service import AuthService
+            from services.orchestrator.services.auth_service import AuthService
             await AuthService(db).sync_clerk_user(token)
             user = await user_repository.get_user_by_clerk_id(db, user_id)
 
@@ -104,66 +104,57 @@ def require_role(*allowed_roles: str):
 # ─── Service Providers ───────────────────────────────────────────────────────
 
 async def get_auth_service(db: AsyncSession = Depends(get_db)):
-    from services.auth_service import AuthService
+    from services.orchestrator.services.auth_service import AuthService
     return AuthService(db)
 
 
 async def get_team_service(db: AsyncSession = Depends(get_db)):
-    from services.team_service import TeamService
+    from services.orchestrator.services.team_service import TeamService
     return TeamService(db)
 
 
 async def get_admin_service(db: AsyncSession = Depends(get_db)):
-    from services.admin_service import AdminService
+    from services.orchestrator.services.admin_service import AdminService
     return AdminService(db)
 
 
 async def get_society_service(db: AsyncSession = Depends(get_db)):
-    from services.society_service import SocietyService
+    from services.orchestrator.services.society_service import SocietyService
     return SocietyService(db)
 
 
 async def get_feasibility_service(db: AsyncSession = Depends(get_db)):
-    from services.feasibility_service import FeasibilityService
+    from services.orchestrator.services.feasibility_service import FeasibilityService
     return FeasibilityService(db)
 
 
 async def get_profile_service(db: AsyncSession = Depends(get_db)):
-    from services.profile_service import ProfileService
+    from services.orchestrator.services.profile_service import ProfileService
     return ProfileService(db)
 
 
 async def get_landing_service(db: AsyncSession = Depends(get_db)):
-    from services.landing_service import LandingService
+    from services.orchestrator.services.landing_service import LandingService
     return LandingService(db)
 
 
 async def get_agent_service(db: AsyncSession = Depends(get_db)):
-    from services.agent_service import AgentService
+    from services.orchestrator.services.agent_service import AgentService
     return AgentService(db)
 
 
 async def get_legacy_service(db: AsyncSession = Depends(get_db)):
-    from services.legacy_service import LegacyService
+    from services.orchestrator.services.legacy_service import LegacyService
     return LegacyService(db)
 
 
 async def get_search_service(db: AsyncSession = Depends(get_db)):
-    from services.search_service import SearchService
+    from services.orchestrator.services.search_service import SearchService
     return SearchService(db)
-
-
-async def get_notification_service(db: AsyncSession = Depends(get_db)):
-    from services.notification_service import NotificationService
-    return NotificationService(db)
-
-
-async def get_settings_service(db: AsyncSession = Depends(get_db)):
-    from services.settings_service import SettingsService
-    return SettingsService(db)
 
 
 require_admin = require_role("admin")
 require_pmc = require_role("pmc", "admin")
+
 
 

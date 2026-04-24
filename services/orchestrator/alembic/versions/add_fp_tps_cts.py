@@ -30,3 +30,4 @@ def downgrade() -> None:
     op.drop_column("societies", "fp_no")
 
 
+

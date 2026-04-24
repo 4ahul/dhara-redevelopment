@@ -1,6 +1,0 @@
-address,lat,lng,formatted_address,area_type,zone,maps_url
-"Prabhadevi, Mumbai, India",19.016328299999998,72.8291129,"Mumbai, Maharashtra, India",Mixed Use (Residential + Commercial),Mumbai Suburban — Residential (R) Zone,"https://www.google.com/maps/search/?api=1&query=19.016328299999998,72.8291129"
-"Bandra West, Mumbai, India",19.0595596,72.8295287,"Mumbai, Maharashtra, India",Mixed Use (Residential + Commercial),Mumbai Suburban — Residential (R) Zone,"https://www.google.com/maps/search/?api=1&query=19.0595596,72.8295287"
-"Worli, Mumbai, India",18.998640599999998,72.8173599,"Mumbai, Maharashtra, India",Mixed Use (Residential + Commercial),Mumbai Suburban — Residential (R) Zone,"https://www.google.com/maps/search/?api=1&query=18.998640599999998,72.8173599"
-"Andheri East, Mumbai, India",19.1178548,72.8631304,"Mumbai, Maharashtra, India",Predominantly Commercial,Mumbai Suburban — Residential (R) Zone,"https://www.google.com/maps/search/?api=1&query=19.1178548,72.8631304"
-"Dadar, Mumbai, India",19.0177989,72.84781199999999,"Mumbai, Maharashtra, India",Predominantly Commercial,Mumbai Suburban — Residential (R) Zone,"https://www.google.com/maps/search/?api=1&query=19.0177989,72.84781199999999"

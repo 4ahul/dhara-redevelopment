@@ -26,3 +26,4 @@ def test_sum_resolved():
     fn = get("sum_resolved")
     ctx = {"request": {}, "resolved": {"a": 1, "b": 2, "c": 3}}
     assert fn(ctx, names=["a", "b", "c"]) == 6
+

@@ -79,3 +79,4 @@ def reembed_and_import(input_file, collection_name="documents"):
 
 if __name__ == "__main__":
     reembed_and_import("documents_text.json")
+

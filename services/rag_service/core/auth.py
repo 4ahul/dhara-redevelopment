@@ -44,3 +44,4 @@ def decode_token(token: str) -> Optional[dict]:
 def generate_session_id() -> str:
     """Generates a random short session ID."""
     return str(uuid.uuid4())[:8]
+

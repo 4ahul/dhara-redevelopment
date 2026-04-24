@@ -11,14 +11,14 @@ import logging
 import os
 import uuid
 
-from agent.llm_client import get_llm_client as get_factory_llm_client
-from agent.prompts import SYSTEM_PROMPT
-from agent.tool_executor import tool_executor
-from agent.tools import TOOLS
-from db import async_session_factory
-from models import AuditLog
+from services.orchestrator.agent.llm_client import get_llm_client as get_factory_llm_client
+from services.orchestrator.agent.prompts import SYSTEM_PROMPT
+from services.orchestrator.agent.tool_executor import tool_executor
+from services.orchestrator.agent.tools import TOOLS
+from services.orchestrator.db import async_session_factory
+from services.orchestrator.models import AuditLog
 
-from shared.dhara_common.http import AsyncHTTPClient
+from dhara_shared.dhara_shared.dhara_common.http import AsyncHTTPClient
 
 logger = logging.getLogger(__name__)
 
@@ -199,44 +199,53 @@ def _map_rr_location(ward: str) -> tuple[str, str]:
     return "mumbai", "mumbai-city"  # Fallback
 
 
+def _validate_location_inputs(society_data: dict) -> str | None:
+    """Return a user-facing error when a request lacks enough location detail."""
+    has_address = bool((society_data.get("address") or "").strip())
+    has_plot_reference = bool(
+        (society_data.get("cts_no") or society_data.get("fp_no") or society_data.get("survey_no") or "").strip()
+    )
+    has_location_context = bool((society_data.get("ward") or "").strip()) and bool(
+        (society_data.get("village") or "").strip()
+    )
+
+    if has_address or (has_plot_reference and has_location_context):
+        return None
+
+    return "Feasibility analysis needs either a site address or ward + village + CTS/FP/survey details."
+
+
 async def run_agent(society_data: dict, request_id: str = None, progress_callback=None) -> dict:
     """
     Two-phase agent:
       Phase 1 — Call all microservices deterministically (parallel groups)
       Phase 2 — Send collected data to LLM → it picks schemes → generates reports
     """
-    # ── Dhiraj Kunj Test Defaults ──────────────────────────────────────────
-    # If input is missing, default to Dhiraj Kunj Gold Standard
-    if not society_data.get("address"):
-        society_data["address"] = "Dhiraj Kunj, 40-41, Bajaj Road, Vile Parle West, Mumbai, Maharashtra 400056"
-    if not society_data.get("ward"):
-        society_data["ward"] = "K/W"
-    if not society_data.get("village"):
-        society_data["village"] = "VILE PARLE"
-    if not society_data.get("cts_no"):
-        society_data["cts_no"] = "854"
-    if not society_data.get("survey_no"):
-        society_data["survey_no"] = "854"
-    if not society_data.get("district"):
-        society_data["district"] = "mumbai-suburban"
-    if not society_data.get("taluka"):
-        society_data["taluka"] = "andheri"
-    if not society_data.get("plot_area_sqm"):
-        society_data["plot_area_sqm"] = 1876.4
-    if not society_data.get("residential_area_sqft"):
-        society_data["residential_area_sqft"] = 21470
-
     request_id = request_id or str(uuid.uuid4())
-    society_name = society_data.get("society_name", "Dhiraj Kunj CHS")
+    society_name = society_data.get("society_name", "Unnamed Society")
+    validation_error = _validate_location_inputs(society_data)
+    if validation_error:
+        logger.warning("[%s] %s | society=%s", request_id, validation_error, society_name)
+        return {
+            "status": "error",
+            "error": validation_error,
+            "summary": validation_error,
+            "report_path": None,
+            "all_reports": [],
+            "reports_count": 0,
+            "tool_calls": 0,
+            "tool_log": [],
+            "llm_client": "N/A",
+            "model": "N/A",
+            "request_id": request_id,
+        }
     logger.info("[%s] Starting feasibility analysis for %s", request_id, society_name)
 
     tool_results_log = []  # [{tool, input, result}, ...]
     collected = {}         # {tool_name: result_dict}
     report_paths = []
 
-    async with AsyncHTTPClient() as http:
-        http.headers["X-Request-ID"] = request_id
-
+    async with AsyncHTTPClient(request_id=request_id) as http:
         # ══════════════════════════════════════════════════════════════
         # PHASE 1: Deterministic data collection from all microservices
         # ══════════════════════════════════════════════════════════════
@@ -261,9 +270,6 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             pr_card_task = asyncio.create_task(
                 _call_tool("get_pr_card", pr_card_args, http, request_id, progress_callback)
             )
-
-        # ── Real Data Injection for Dhiraj Kunj Test ──────────────────────────
-        # (Removed after successful verification)
 
         # ── GROUP 1 (parallel): MCGM Property + Site Analysis ──
 
@@ -369,6 +375,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         permissible_bua = plot_sqft * total_fsi
 
         group3_calls = []
+        requested_scheme = society_data.get("scheme") or "33(20)(B)"
 
         # Query Regulations — adapt query based on collected data
         ward = society_data.get("ward", "")
@@ -394,40 +401,54 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         )
         group3_calls.append(("query_regulations", {
             "query": rag_query,
-            "scheme": "33(20)(B)",
+            "scheme": requested_scheme,
         }))
 
         # Calculate Premiums
-        # Extract locality from address
-        locality = society_data.get("village", "").lower()
-        if not locality or "vile parle" in locality.lower():
-            locality = "vile parle west" # Gold Standard locality
+        locality = (society_data.get("village") or "").strip().lower()
+        if not locality:
+            locality = (society_data.get("address") or "").strip().lower()
 
         rr_dist, rr_tal = _map_rr_location(society_data.get("ward", ""))
+        rr_zone = (society_data.get("rr_zone") or "").strip()
+        premium_skip_error = None
 
-        # Gold Standard RR Zone for Dhiraj Kunj
-        rr_zone = society_data.get("rr_zone") or "37/187"
-
-        group3_calls.append(("calculate_premiums", {
-            "district": society_data.get("district") or rr_dist,
-            "taluka": society_data.get("taluka") or rr_tal,
-            "locality": locality,
-            "zone": rr_zone,
-            "sub_zone": "",
-            "scheme": "33(20)(B)",
-            "property_type": "residential",
-            "plot_area_sqm": plot_sqm,
-            "permissible_bua_sqft": permissible_bua,
-            "residential_bua_sqft": permissible_bua * 0.7,
-            "commercial_bua_sqft": permissible_bua * 0.3,
-            "fungible_residential_sqft": permissible_bua * 0.7 * 0.35,
-            "premium_fsi_ratio": 0.50,
-        }))
+        if rr_zone and locality:
+            group3_calls.append(("calculate_premiums", {
+                "district": society_data.get("district") or rr_dist,
+                "taluka": society_data.get("taluka") or rr_tal,
+                "locality": locality,
+                "zone": rr_zone,
+                "sub_zone": "",
+                "scheme": requested_scheme,
+                "property_type": "residential",
+                "plot_area_sqm": plot_sqm,
+                "permissible_bua_sqft": permissible_bua,
+                "residential_bua_sqft": permissible_bua * 0.7,
+                "commercial_bua_sqft": permissible_bua * 0.3,
+                "fungible_residential_sqft": permissible_bua * 0.7 * 0.35,
+                "premium_fsi_ratio": 0.50,
+            }))
+        else:
+            premium_skip_error = (
+                "Ready Reckoner lookup skipped: missing rr_zone or locality context."
+            )
+            logger.warning("[%s] %s", request_id, premium_skip_error)
 
         g3 = await _call_tools_parallel(group3_calls, http, request_id, progress_callback)
         collected.update(g3)
         for name in g3:
             tool_results_log.append({"tool": name, "input": dict(next(a for n, a in group3_calls if n == name)), "result": g3[name]})
+        if premium_skip_error:
+            skipped = {"error": premium_skip_error}
+            collected["calculate_premiums"] = skipped
+            tool_results_log.append(
+                {
+                    "tool": "calculate_premiums",
+                    "input": {"rr_zone": rr_zone, "locality": locality},
+                    "result": skipped,
+                }
+            )
 
         # Extract legal citations from regulations
         legal_citations = []
@@ -860,5 +881,6 @@ def _enrich_report_args(
 
     # Final sanitization — ensure no protobuf/PostGIS objects leak to report generator
     return json.loads(json.dumps(enriched, default=str))
+
 
 

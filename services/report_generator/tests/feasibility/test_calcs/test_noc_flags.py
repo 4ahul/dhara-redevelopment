@@ -14,3 +14,4 @@ def test_noc_missing_field_returns_zero():
     fn = get("noc_flag_from_dp")
     ctx = {"request": {}, "resolved": {}}
     assert fn(ctx, noc_type="highway") == 0
+

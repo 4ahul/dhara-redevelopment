@@ -291,3 +291,4 @@ class AsyncStorageService(StorageService):
 
     async def get_screenshot(self, report_id: str):
         return await _asyncio.to_thread(StorageService.get_screenshot, self, report_id)
+

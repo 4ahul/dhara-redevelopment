@@ -676,3 +676,4 @@ def build_feasibility_report(data: dict, output_path: str) -> str:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
     return output_path
+

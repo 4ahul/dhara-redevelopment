@@ -6,20 +6,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Install dependencies
+COPY services/ready_reckoner/pyproject.toml ./services/ready_reckoner/
+RUN pip install ./services/ready_reckoner/
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY repositories/ ./repositories/
-COPY main.py .
+# Copy packages preserving path
+COPY services/ready_reckoner/ ./services/ready_reckoner/
+COPY services/ready_reckoner/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.ready_reckoner.main:app", "--host", "0.0.0.0", "--port", "8003"]

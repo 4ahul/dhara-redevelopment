@@ -1,3 +1,20 @@
+from dhara_shared.dhara_common.banner import print_banner
+import sys, os
+_dir = os.path.dirname(os.path.abspath(__file__))
+if _dir not in sys.path: sys.path.insert(0, _dir)
+_root = os.path.dirname(os.path.dirname(_dir))
+if _root not in sys.path: sys.path.append(_root)
+import sys
+import os
+from pathlib import Path
+
+# Fix pathing for standalone execution and internal service imports
+SERVICE_ROOT = str(Path(os.path.abspath(__file__)).resolve().parent)
+MONOREPO_ROOT = str(Path(SERVICE_ROOT).resolve().parent.parent)
+
+for p in [SERVICE_ROOT, MONOREPO_ROOT]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 import os
 import sys
 import logging
@@ -12,10 +29,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
-from core.config import settings
-from db.session import init_db, engine
-from core.middleware import rate_limit_middleware, security_headers_middleware
-from routers import chat_router, doc_router, query_router, auth_router
+from services.rag_service.core.config import settings
+from services.rag_service.db.session import init_db, engine
+from services.rag_service.core.middleware import rate_limit_middleware, security_headers_middleware
+from services.rag_service.routers import chat_router, doc_router, query_router, auth_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,11 +101,16 @@ app.include_router(query_router.router)
 if __name__ == "__main__":
     # Move heavy banner import here to keep main logic fast-starting
     try:
-        from core.banner import print_banner as _print_banner
-        _print_banner()
+        from services.rag_service.core.banner import print_banner as _print_banner
+        
     except ImportError:
         print(f"\n--- Starting {settings.APP_NAME} ---")
 
     import uvicorn
     port = int(os.environ.get("PORT", 8006))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+
+
+

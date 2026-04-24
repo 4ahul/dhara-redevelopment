@@ -6,25 +6,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Install dhara_shared first
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-# Install dependencies only (no local package install to avoid stale code)
-COPY pyproject.toml .
-# If you have a requirements.txt, use that. Otherwise, install from pyproject.
-RUN uv pip install --system .
+# Install service dependencies
+COPY services/orchestrator/pyproject.toml ./services/orchestrator/
+RUN pip install ./services/orchestrator
 
-# Copy packages in dependency order (for image stability)
-COPY core/ ./core/
-COPY db/ ./db/
-COPY models/ ./models/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY agent/ ./agent/
-COPY routers/ ./routers/
-COPY main.py .
+# Copy entire service directory to preserve path for absolute imports
+COPY services/orchestrator/ ./services/orchestrator/
 
+# Fix Entrypoint path
+COPY services/orchestrator/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Force Python to look at the local folder BEFORE system packages
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+# Start using the standardized monorepo path
+CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

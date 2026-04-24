@@ -2,16 +2,16 @@
 
 import logging
 
-from core.dependencies import get_landing_service
+from services.orchestrator.core.dependencies import get_landing_service
 from fastapi import APIRouter, BackgroundTasks, Depends
-from schemas.landing import (
+from services.orchestrator.schemas.landing import (
     ContactRequestSchema,
     FormSubmissionResponse,
     GetStartedRequestSchema,
     LandingPageResponse,
 )
 
-from services.landing_service import LandingService
+from services.orchestrator.services.landing_service import LandingService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Landing Page"])
@@ -39,5 +39,6 @@ async def contact_us(
     service: LandingService = Depends(get_landing_service)
 ):
     return await service.submit_contact(req, bg)
+
 
 

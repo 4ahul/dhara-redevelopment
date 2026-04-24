@@ -5,11 +5,11 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Form, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from db.session import get_db, User
-from core.auth import (
+from services.rag_service.db.session import get_db, User
+from services.rag_service.core.auth import (
     decode_token, generate_session_id
 )
-from core.config import settings
+from services.rag_service.core.config import settings
 
 # Note: We need password hashing and token generation logic. 
 # Re-adding them here or importing from a utility.
@@ -32,7 +32,7 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
-from schemas.auth import RegisterRequest, LoginRequest
+from services.rag_service.schemas.auth import RegisterRequest, LoginRequest
 
 @router.post("/register")
 async def register(
@@ -85,3 +85,4 @@ async def login(
             "full_name": user.full_name,
         }
     }
+

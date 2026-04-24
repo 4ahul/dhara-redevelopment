@@ -364,3 +364,4 @@ def _find_service_url_in_config(config: dict) -> Optional[str]:
             if result:
                 return result
     return None
+

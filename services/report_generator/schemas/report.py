@@ -133,3 +133,4 @@ class TemplateApplyRequest(BaseModel):
 
     scheme: str
     values: Dict[str, Any]
+

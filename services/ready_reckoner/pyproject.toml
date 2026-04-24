@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn>=0.30.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.7.0",
+    "dhara_shared",
 ]
 
 [tool.setuptools.packages.find]
@@ -17,3 +18,7 @@ include = ["config*", "schemas*", "services*", "routes*"]
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+

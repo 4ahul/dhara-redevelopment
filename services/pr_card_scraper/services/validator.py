@@ -101,3 +101,4 @@ def validate_location(district: str, taluka: str, village: Optional[str] = None)
                 f"in district '{district}' on Bhulekh. "
                 f"It may belong to a different Bhulekh office/taluka."
             )
+

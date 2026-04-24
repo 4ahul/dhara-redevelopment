@@ -1,3 +1,9 @@
+import sys, os
+_dir = os.path.dirname(os.path.abspath(__file__))
+if _dir not in sys.path: sys.path.insert(0, _dir)
+_root = os.path.dirname(os.path.dirname(_dir))
+if _root not in sys.path: sys.path.append(_root)
+
 """
 Dhara AI — Orchestrator Service
 Entry point: thin FastAPI app with lifespan, CORS, and router registration.
@@ -5,34 +11,25 @@ All business logic lives in dedicated packages (agent/, routers/, services/).
 """
 
 import logging
-import os
-import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
-
-from core.banner import print_banner as _print_banner
-from core.config import settings
-from core.middleware import (
+from dhara_shared.dhara_common.banner import print_banner
+from services.orchestrator.core.config import settings
+from dhara_shared.dhara_common.logging import setup_logging
+from dhara_shared.dhara_common.exceptions import setup_exception_handlers
+from services.orchestrator.core.middleware import (
+    request_id_middleware,
     logging_middleware,
     rate_limit_middleware,
-    request_id_middleware,
     response_cache_middleware,
 )
 
-from shared.dhara_common.exceptions import setup_exception_handlers
-from shared.dhara_common.logging import setup_logging
-
-_print_banner()
+print_banner(settings.APP_NAME)
 
 setup_logging(loggers=["gateway", "agent", "services"])
 logger = logging.getLogger("gateway")
@@ -42,28 +39,28 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing Orchestrator | DB: %s", settings.DATABASE_URL)
 
     # 1. PostgreSQL
-    from db import init_db
+    from services.orchestrator.db import init_db
     await init_db()
 
     # 2. Redis
-    from services.redis import init_redis
+    from services.orchestrator.services.redis import init_redis
     await init_redis()
 
     # 3. LLM Client → inject into agent runner
-    from agent.llm_client import get_llm_client
-    from agent.runner import set_llm_client
+    from services.orchestrator.agent.llm_client import get_llm_client
+    from services.orchestrator.agent.runner import set_llm_client
     client = get_llm_client()
     set_llm_client(client)
     logger.info("LLM: %s (%s)", type(client).__name__, client.get_model_name())
 
     # 4. Seed defaults (admin user + roles)
-    from db.seed import seed_defaults
+    from services.orchestrator.db.seed import seed_defaults
     await seed_defaults()
 
     yield
 
     # Shutdown
-    from db import close_db
+    from services.orchestrator.db import close_db
     await close_db()
     logger.info("Shutdown complete")
 
@@ -98,7 +95,7 @@ app.middleware("http")(response_cache_middleware)
 
 # ─── Register Routers ───────────────────────────────────────────────────────
 
-from routers import api_router, ws_router
+from services.orchestrator.routers import api_router, ws_router
 
 app.include_router(api_router)
 app.include_router(ws_router)
@@ -109,10 +106,9 @@ app.include_router(ws_router)
 @app.get("/health")
 async def health():
     """Deep Health Check verifying connectivity to critical dependencies and microservices."""
+    from services.orchestrator.services.redis import get_redis
     import httpx
-
-    from services.redis import get_redis
-
+    
     health_status = {
         "status": "healthy",
         "service": "orchestrator",
@@ -121,18 +117,18 @@ async def health():
         "checks": {},
         "microservices": {}
     }
-
+    
     # 1. Check PostgreSQL
     try:
-        from db import engine
         from sqlalchemy import text
+        from services.orchestrator.db import engine
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         health_status["checks"]["postgres"] = "UP"
     except Exception as e:
         health_status["status"] = "degraded"
         health_status["checks"]["postgres"] = f"DOWN: {str(e)}"
-
+        
     # 2. Check Redis
     try:
         redis = get_redis()
@@ -166,7 +162,7 @@ async def health():
             except Exception:
                 health_status["microservices"][name] = "UNREACHABLE"
                 health_status["status"] = "degraded"
-
+        
     return health_status
 
 
@@ -175,6 +171,4 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8006)
-
-
+    uvicorn.run(app, host="0.0.0.0", port=8000)

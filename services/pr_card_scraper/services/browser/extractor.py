@@ -339,3 +339,4 @@ class ImageExtractor:
                 continue
 
         return None
+

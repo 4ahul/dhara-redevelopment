@@ -1,0 +1,24 @@
+[project]
+name = "redevelopment-ai"
+version = "0.1.0"
+description = "Monorepo for Dhara AI Redeasibility Engine"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "httpx",
+    "python-dotenv",
+    "pydantic-settings",
+    "dhara_shared",
+]
+
+[tool.uv.workspace]
+members = [
+    "services/*",
+    "dhara_shared",
+]
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+
+

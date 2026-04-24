@@ -1,6 +1,6 @@
 import logging
-from repositories.rr_repository import rr_repository
-from schemas import (
+from services.ready_reckoner.repositories.rr_repository import rr_repository
+from services.ready_reckoner.schemas import (
     PremiumRequest,
     PremiumResponse,
     PremiumLineItem,
@@ -294,3 +294,5 @@ class PremiumService:
 
 
 premium_service = PremiumService()
+
+

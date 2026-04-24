@@ -13,8 +13,8 @@ os.environ["REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql+asyncpg://redevelopment:redevelopment@localhost:5432/redevelopment")
 
 # Import the runner
-from agent.llm_client import get_llm_client
-from agent.runner import run_agent, set_llm_client
+from services.orchestrator.agent.llm_client import get_llm_client
+from services.orchestrator.agent.runner import run_agent, set_llm_client
 
 
 async def test_full_pipeline():
@@ -56,5 +56,6 @@ async def test_full_pipeline():
 
 if __name__ == "__main__":
     asyncio.run(test_full_pipeline())
+
 
 

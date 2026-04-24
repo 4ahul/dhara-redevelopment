@@ -14,8 +14,8 @@ if str(root_path) not in sys.path:
 services_to_add = [
     "orchestrator",
     "site_analysis",
-    "height_service",
-    "premium_checker",
+    "aviation_height",
+    "ready_reckoner",
     "rag_service",
     "report_generator"
 ]
@@ -113,15 +113,15 @@ class TestHeightService:
 
     def test_decimal_to_dms(self):
         """Test coordinate conversion logic."""
-        from services.height_service.services.height_service import height_service
-        dd, mm, ss = height_service.decimal_to_dms(18.9967)
+        from services.aviation_height.services.height_service import height_service as aviation_height
+        dd, mm, ss = aviation_height.decimal_to_dms(18.9967)
         assert dd == 18
         assert mm == 59
         assert ss == pytest.approx(48.12, rel=0.01)
 
     def test_no_mock_response(self):
         """Verify mock response is removed — service fails honestly."""
-        from services.height_service.services.height_service import HeightService
+        from services.aviation_height.services.height_service import HeightService
         assert not hasattr(HeightService, "_mock_response")
 
 
@@ -132,11 +132,11 @@ class TestReadyReckonerService:
         import importlib.util, sys
         spec = importlib.util.spec_from_file_location(
             "rr_repository",
-            str(Path(__file__).parent.parent / "services" / "premium_checker" / "repositories" / "rr_repository.py"),
+            str(Path(__file__).parent.parent / "services" / "ready_reckoner" / "repositories" / "rr_repository.py"),
         )
         mod = importlib.util.module_from_spec(spec)
-        # Temporarily prepend premium_checker to sys.path for internal imports
-        pc_path = str(Path(__file__).parent.parent / "services" / "premium_checker")
+        # Temporarily prepend ready_reckoner to sys.path for internal imports
+        pc_path = str(Path(__file__).parent.parent / "services" / "ready_reckoner")
         sys.path.insert(0, pc_path)
         try:
             spec.loader.exec_module(mod)
@@ -167,16 +167,16 @@ class TestPremiumCheckerService:
 
     @pytest.fixture(autouse=True)
     def _setup_premium_path(self):
-        """Temporarily add premium_checker to sys.path for imports."""
-        pc_path = str(Path(__file__).parent.parent / "services" / "premium_checker")
+        """Temporarily add ready_reckoner to sys.path for imports."""
+        pc_path = str(Path(__file__).parent.parent / "services" / "ready_reckoner")
         sys.path.insert(0, pc_path)
         yield
         sys.path.remove(pc_path)
 
     def test_additional_fsi_premium_calculation(self):
         """Test Additional FSI premium calculation."""
-        from services.premium_checker.schemas import PremiumRequest
-        from services.premium_checker.services.premium_service import premium_service
+        from services.ready_reckoner.schemas import PremiumRequest
+        from services.ready_reckoner.services.premium_service import premium_service
 
         req = PremiumRequest(**SAMPLE_PREMIUM_REQUEST)
         result = premium_service.calculate_premiums(req)
@@ -196,8 +196,8 @@ class TestPremiumCheckerService:
 
     def test_total_premium_calculation(self):
         """Test total premium calculation."""
-        from services.premium_checker.schemas import PremiumRequest
-        from services.premium_checker.services.premium_service import premium_service
+        from services.ready_reckoner.schemas import PremiumRequest
+        from services.ready_reckoner.services.premium_service import premium_service
 
         req = PremiumRequest(**SAMPLE_PREMIUM_REQUEST)
         result = premium_service.calculate_premiums(req)
@@ -207,8 +207,8 @@ class TestPremiumCheckerService:
 
     def test_scheme_comparison(self):
         """Test premium calculation for different schemes."""
-        from services.premium_checker.schemas import PremiumRequest
-        from services.premium_checker.services.premium_service import premium_service
+        from services.ready_reckoner.schemas import PremiumRequest
+        from services.ready_reckoner.services.premium_service import premium_service
 
         schemes = ["33(7)(B)", "33(20)(B)", "33(11)", "33(12)(B)"]
         results = {}
@@ -340,7 +340,7 @@ class TestModels:
 
     def test_plot_data_model(self):
         """Test PlotData model."""
-        from shared.models import PlotData
+        from dhara_shared.models import PlotData
 
         data = PlotData(
             cts_no="FP 1128", village="Prabhadevi", ward="G/S", plot_area_sqm=1372.56
@@ -351,7 +351,7 @@ class TestModels:
 
     def test_site_analysis_result_model(self):
         """Test SiteAnalysisResult model."""
-        from shared.models import SiteAnalysisResult
+        from dhara_shared.models import SiteAnalysisResult
 
         result = SiteAnalysisResult(
             lat=18.9967,
@@ -368,7 +368,7 @@ class TestModels:
 
     def test_feasibility_input_model(self):
         """Test FeasibilityInput model."""
-        from shared.models import (
+        from dhara_shared.models import (
             FeasibilityInput,
             PlotData,
             SiteAnalysisResult,

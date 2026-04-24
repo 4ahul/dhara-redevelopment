@@ -28,7 +28,7 @@ def check_whatsapp_compliance():
 
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent))
-        from integrations.whatsapp_integration import WhatsAppIntegration
+        from services.rag_service.integrations.whatsapp_integration import WhatsAppIntegration
 
         whatsapp = WhatsAppIntegration()
 
@@ -75,3 +75,4 @@ def send_alert(updates):
 if __name__ == "__main__":
     count = check_whatsapp_compliance()
     sys.exit(0 if count == 0 else 1)
+

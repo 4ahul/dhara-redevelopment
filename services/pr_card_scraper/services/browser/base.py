@@ -66,3 +66,4 @@ class BaseBrowser:
             await route.abort()
         else:
             await route.continue_()
+

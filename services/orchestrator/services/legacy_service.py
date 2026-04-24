@@ -6,7 +6,7 @@ import logging
 import uuid
 
 from fastapi import HTTPException
-from schemas import (
+from services.orchestrator.schemas import (
     ChatMessage,
     SessionCreate,
     SessionResponse,
@@ -14,7 +14,7 @@ from schemas import (
     UserProfileUpdate,
 )
 
-from services.redis import (
+from services.orchestrator.services.redis import (
     delete_session,
     get_session,
     get_user_profile,
@@ -54,7 +54,7 @@ class LegacyService:
             raise HTTPException(404, "Session not found")
 
         # Lazy import to avoid circular dependency
-        from agent import run_agent
+        from services.orchestrator.agent import run_agent
         result = await run_agent(data)
 
         if result.get("report_path"):
@@ -70,7 +70,7 @@ class LegacyService:
         for mod in req.modifications:
             data[mod["field"]] = mod["value"]
 
-        from agent import run_agent
+        from services.orchestrator.agent import run_agent
         result = await run_agent(data)
         save_session(session_id, user_id, data)
 
@@ -112,5 +112,6 @@ class LegacyService:
             } for s in sessions if s.get("data", {}).get("report_path")
         ]
         return {"reports": reports, "count": len(reports)}
+
 
 

@@ -29,7 +29,7 @@ def check_rera_updates():
 
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent))
-        from integrations.rera_integration import RERAIntegration
+        from services.rag_service.integrations.rera_integration import RERAIntegration
 
         rera = RERAIntegration()
 
@@ -87,3 +87,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Script failed: {e}")
         sys.exit(1)
+

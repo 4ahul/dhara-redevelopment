@@ -11,12 +11,12 @@ POST /auth/signup        — PMC user signup with email/password
 
 import logging
 
-from core.dependencies import get_auth_service, get_current_user
+from services.orchestrator.core.dependencies import get_auth_service, get_current_user
 from fastapi import APIRouter, Depends, Header
-from models import UserRole
-from schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
+from services.orchestrator.models import UserRole
+from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
 
-from services.auth_service import AuthService
+from services.orchestrator.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -87,5 +87,6 @@ async def pmc_signup(req: SignupRequest, service: AuthService = Depends(get_auth
 async def pmc_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
     """PMC user login with email/password."""
     return await service.pmc_login(req)
+
 
 

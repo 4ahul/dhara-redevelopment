@@ -14,6 +14,7 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "pypdf>=4.0.0",
     "python-multipart>=0.0.12",
+    "dhara_shared",
 ]
 
 [tool.setuptools.packages.find]
@@ -23,3 +24,7 @@ include = ["routers*", "services*", "core*", "schemas*"]
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+

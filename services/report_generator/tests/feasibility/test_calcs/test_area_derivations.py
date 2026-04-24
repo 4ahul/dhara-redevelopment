@@ -37,3 +37,4 @@ def test_road_width_conditional_setback():
     assert fn(ctx, min_width=9, max_width=12, proxy_name="setback_base_sqm") == 500
     ctx2 = {"request": {"dp_report": {"road_width_m": 20}}, "resolved": {"setback_base_sqm": 500}}
     assert fn(ctx2, min_width=9, max_width=12, proxy_name="setback_base_sqm") == 0
+

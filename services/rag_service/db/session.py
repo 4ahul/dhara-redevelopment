@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker, Session
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from core.config import settings
+from services.rag_service.core.config import settings
 
 # --- Database Config ---
 DATABASE_URL = settings.DATABASE_URL
@@ -83,7 +83,7 @@ def get_db():
 def init_db():
     """Initializes the database schema and creates a default system and admin user."""
     try:
-        from routers.auth_router import hash_password
+        from services.rag_service.routers.auth_router import hash_password
         Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         try:
@@ -122,3 +122,4 @@ def init_db():
             db.close()
     except Exception as e:
         logger.error(f"Schema creation failed: {e}")
+

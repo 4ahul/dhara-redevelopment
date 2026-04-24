@@ -1,17 +1,14 @@
-import os
-from pydantic_settings import BaseSettings
+from dhara_shared.dhara_shared.config import BaseServiceSettings
 
 
-class Settings(BaseSettings):
-    GOOGLE_MAPS_API_KEY: str = ""
-    SERP_API_KEY: str = ""
-    APP_NAME: str = "Site Analysis Service"
+class Settings(BaseServiceSettings):
+    APP_NAME: str = "site_analysis"
     APP_VERSION: str = "1.0.0"
 
-    class Config:
-        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
-        case_sensitive = True
-        extra = "ignore"
+    class Config(BaseServiceSettings.Config):
+        env_file = BaseServiceSettings.get_env_file(__file__)
 
 
 settings = Settings()
+
+

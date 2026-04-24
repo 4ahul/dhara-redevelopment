@@ -107,3 +107,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run(Path(args.pdf), drop_existing=not args.keep)
+

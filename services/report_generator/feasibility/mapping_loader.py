@@ -187,3 +187,4 @@ def validate_against_workbook(mf: MappingFile, wb) -> None:
             raise MappingError(f"{e.cell}: kind mismatch — declared yellow, actual fill={rgb}")
         if e.kind == "black" and rgb != BLACK_RGB:
             raise MappingError(f"{e.cell}: kind mismatch — declared black, actual fill={rgb}")
+

@@ -132,3 +132,4 @@ def test_build_dossier_end_to_end(tmp_path):
     import json
     loaded = json.loads(out_path.read_text())
     assert loaded["template"].endswith("t.xlsx")
+

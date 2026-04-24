@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     TEMPLATES_DIR: Path = BASE_DIR / "templates"
 
     # App Settings
-    APP_NAME: str = "Report Generator Service"
+    # App
+    APP_NAME: str = "report_generator"
     APP_VERSION: str = "1.0.0"
-
     # ── Financial / FSI Constants (Default to Mumbai Standard) ──────────────────
     ZONAL_FSI: float = float(os.getenv("ZONAL_FSI", 1.33))
     CONST_RATE_PER_SQFT: float = float(os.getenv("CONST_RATE_PER_SQFT", 4000.0))
@@ -79,3 +79,4 @@ APP_VERSION = settings.APP_VERSION
 
 # Ensure output dir exists
 settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+

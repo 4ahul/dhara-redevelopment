@@ -616,3 +616,4 @@ class MahabhumiFormHandler:
                     )
         finally:
             self.page.remove_listener("dialog", handle_dialog)
+

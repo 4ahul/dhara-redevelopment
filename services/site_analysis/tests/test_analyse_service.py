@@ -124,3 +124,4 @@ class TestSiteAnalysisService:
             raise SiteAnalysisUnavailableError("Test error")
         except SiteAnalysisUnavailableError as e:
             assert str(e) == "Test error"
+

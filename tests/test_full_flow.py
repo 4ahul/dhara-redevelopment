@@ -7,7 +7,7 @@ import json
 import httpx
 import openpyxl
 
-REPORT_URL = "http://127.0.0.1:8005"
+REPORT_URL = "http://127.0.0.1:8004"
 
 # ── User Input ────────────────────────────────────────────────────────────────
 society_data = {

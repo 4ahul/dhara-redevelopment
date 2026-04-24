@@ -6,19 +6,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Install dependencies
+COPY services/site_analysis/pyproject.toml ./services/site_analysis/
+RUN pip install ./services/site_analysis/
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY main.py .
+# Copy packages preserving path
+COPY services/site_analysis/ ./services/site_analysis/
+COPY services/site_analysis/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.site_analysis.main:app", "--host", "0.0.0.0", "--port", "8001"]

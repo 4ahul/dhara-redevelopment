@@ -6,7 +6,7 @@ import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
-from services.redis import get_redis
+from services.orchestrator.services.redis import get_redis
 
 logger = logging.getLogger("gateway")
 
@@ -132,5 +132,6 @@ async def response_cache_middleware(request: Request, call_next):
             logger.error(f"Cache storage error: {e}")
 
     return response
+
 
 

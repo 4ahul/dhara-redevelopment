@@ -21,7 +21,7 @@ if PROJ_ROOT not in sys.path:
 
 from services.report_generator.services.template_service import template_service
 from services.report_generator.services.cell_mapper import cell_mapper  # ensure package resolves
-from core.config import OUTPUT_DIR
+from services.report_generator.core.config import OUTPUT_DIR
 
 
 def main():
@@ -77,3 +77,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -15,3 +15,4 @@ class MissingData(FeasibilityError):
     The dispatcher catches this and substitutes the mapping's fallback,
     logging the cell in ``response.missing_fields``.
     """
+

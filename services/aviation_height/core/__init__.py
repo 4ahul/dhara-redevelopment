@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Height Service"
+    APP_NAME: str = "aviation_height"
     APP_VERSION: str = "1.0.0"
     GOOGLE_MAPS_API_KEY: str = ""
     SERP_API_KEY: str = ""
@@ -15,3 +15,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+

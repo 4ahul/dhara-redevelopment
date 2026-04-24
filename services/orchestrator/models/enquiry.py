@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from db.base import Base
-from models.enums import EnquiryStatus
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import EnquiryStatus
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
@@ -51,5 +51,6 @@ class GetStartedRequest(Base):
     address: Mapped[str | None] = mapped_column(Text, nullable=True)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
 
 

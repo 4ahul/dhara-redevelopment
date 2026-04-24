@@ -1,44 +1,25 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
-    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Install dependencies
+COPY services/aviation_height/pyproject.toml ./services/aviation_height/
+RUN pip install ./services/aviation_height/
 
-RUN playwright install chromium
+# Copy packages preserving path
+COPY services/aviation_height/ ./services/aviation_height/
+COPY services/aviation_height/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY main.py .
-
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.aviation_height.main:app", "--host", "0.0.0.0", "--port", "8002"]

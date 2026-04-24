@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "PR Card Scraper Service"
+    APP_NAME: str = "pr_card_scraper"
     APP_VERSION: str = "1.0.0"
 
     DATABASE_URL: str = (
@@ -38,3 +38,4 @@ settings = Settings()
 def get_gemini_model():
     """Get Gemini model name from settings."""
     return settings.GEMINI_MODEL
+

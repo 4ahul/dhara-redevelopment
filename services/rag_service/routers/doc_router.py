@@ -2,8 +2,8 @@ import os
 import logging
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header, Query
-from db.session import get_db
-from core.dependencies import require_auth
+from services.rag_service.db.session import get_db
+from services.rag_service.core.dependencies import require_auth
 
 router = APIRouter(prefix="/api", tags=["Documents"])
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ async def upload_document(
 
     try:
         # Note: assuming scripts/index_docs_with_ocr.py exists or similar
-        from services.ocr_api import index_document 
+        from services.rag_service.services.ocr_api import index_document 
         # Wait, the original code imported from scripts.index_docs_with_ocr
         # I'll check where index_document is defined. 
         # In api.py it was: from scripts.index_docs_with_ocr import index_document
@@ -94,3 +94,4 @@ async def upload_document(
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+

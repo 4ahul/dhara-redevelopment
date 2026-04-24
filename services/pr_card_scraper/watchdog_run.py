@@ -297,7 +297,7 @@ def _site_is_up() -> bool:
 
 
 def _run_scrape(target: dict) -> dict:
-    from services.browser import create_browser_service, MahabhumiScraperSelenium
+    from services.pr_card_scraper.services.browser import create_browser_service, MahabhumiScraperSelenium
 
     browser = None
     try:
@@ -529,3 +529,4 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
+

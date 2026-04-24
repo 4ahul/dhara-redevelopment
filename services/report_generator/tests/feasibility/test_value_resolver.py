@@ -22,3 +22,4 @@ def test_index_access():
 
 def test_none_path_component():
     assert lookup({"a": None}, "a.b") is None
+

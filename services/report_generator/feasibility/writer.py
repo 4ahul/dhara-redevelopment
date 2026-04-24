@@ -30,3 +30,4 @@ class Writer:
             cell.value = value
             written.append(ref)
         return {"written": written, "skipped_formula_cells": skipped}
+

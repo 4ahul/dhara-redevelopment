@@ -1,64 +1,53 @@
-# Dhara RAG Service
+# RAG Service
 
-Microservice for DCPR 2034 knowledge retrieval and regulatory question answering.
+Intelligent Chatbot engine capable of answering complex regulatory questions about DCPR 2034.
 
-## Architecture
+## 📂 Service Structure
 
-This service follows a modular, layered architecture:
-
-- main.py: Application factory and entry point (Port 8006).
-- core/: Shared middleware, authentication logic, and dependencies.
-- db/: Database models and session management (PostgreSQL).
-- routers/: Modular API routes organized by domain:
-  - auth_router.py: User registration, login, and OAuth.
-  - chat_router.py: RAG-powered chat sessions and feedback.
-  - doc_router.py: Document upload and processing.
-  - query_router.py: Raw knowledge retrieval for orchestrator tools.
-- services/: Core business logic:
-  - intelligent_rag.py: Multi-stage RAG agent with thought process.
-  - rag.py: Milvus-based vector search and chunking.
-  - property_card_workflow.py: OCR and parsing for Land Records.
-- schemas/: Pydantic models for request/response validation.
-
-## Features
-
-- Multi-Source RAG: Searches DCPR 2034 PDF documents, knowledge graphs, and cached vectors.
-- Hybrid Search: Combines BM25 and Milvus vector search for precision.
-- Intelligent Workflows: Specialized logic for PMC, Builders, and Societies.
-- OCR Integration: Built-in support for processing scanned property documents.
-
-## Local Development
-
-### Prerequisites
-- Python 3.12+
-- PostgreSQL
-- Milvus (Vector DB)
-
-### Setup
-1. Create a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\Scripts\activate
-   ```
-2. Install dependencies:
-   ```bash
-   pip install .
-   ```
-3. Run the service:
-   ```bash
-   PORT=8006 uvicorn main:app --reload
-   ```
-
-## Docker
-
-The service is containerized using the root docker-compose.yml.
-
-```bash
-docker compose up -d --build rag_service
+```text
+├── core/             # Configuration and App lifespan
+├── db/               # PostgreSQL session and chat models
+├── data/             # Regulatory source documents (PDFs)
+├── integrations/     # External LLM and Vector DB connections
+├── routers/          # FastAPI API Endpoints
+├── schemas/          # Pydantic models
+├── services/         # LangGraph reasoning and search logic
+└── main.py           # Application entry point
 ```
 
-## API Documentation
+## 🚀 Isolated Execution (Local Dev)
 
-Once running, visit:
-- Swagger UI: http://localhost:8006/docs
-- ReDoc: http://localhost:8006/redoc
+To run this service in isolation for development:
+
+1. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   # Add GEMINI_API_KEY or OPENAI_API_KEY
+   ```
+
+2. **Sync Dependencies**
+   ```bash
+   uv sync
+   ```
+
+3. **Database Initialization**
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+4. **Launch Service**
+   ```bash
+   uv run python main.py
+   ```
+The API will be available at `http://localhost:8006`.
+
+## 🎯 Features
+- **Regulatory RAG:** Semantic search across development notifications.
+- **Milvus Integration:** Vector search for document grounding.
+- **LangGraph Orchestration:** Multi-step agent reasoning.
+
+## 🛠️ Tech Stack
+- **LangChain / LangGraph**
+- **Milvus** (Vector DB)
+- **SQLAlchemy + Alembic**
+- **dhara_shared** (Unified Logging)

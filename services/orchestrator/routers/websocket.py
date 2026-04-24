@@ -3,11 +3,11 @@
 import asyncio
 import logging
 
-from core.dependencies import get_agent_service
-from core.security import decode_token
+from services.orchestrator.core.dependencies import get_agent_service
+from services.orchestrator.core.security import decode_token
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
-from services.agent_service import AgentService
+from services.orchestrator.services.agent_service import AgentService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["WebSocket"])
@@ -86,5 +86,6 @@ async def ws_admin(
                 await service.mgr.send(websocket, {"type": "error", "message": f"Unknown action: {data.get('action')}"})
     except WebSocketDisconnect:
         service.mgr.disconnect(session_id, websocket)
+
 
 

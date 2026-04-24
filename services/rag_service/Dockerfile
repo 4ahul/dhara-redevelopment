@@ -1,69 +1,25 @@
-FROM python:3.12-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install uv for fast dependency management
-RUN pip install uv
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy pyproject.toml for dependency resolution
-COPY pyproject.toml .
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies without package setup
-ENV UV_HTTP_TIMEOUT=300
-RUN uv pip install --system \
-    fastapi \
-    uvicorn \
-    pydantic \
-    pydantic-settings \
-    python-multipart \
-    requests \
-    bcrypt \
-    pyjwt \
-    psycopg2-binary \
-    pymilvus \
-    pypdf \
-    reportlab \
-    langchain-ollama \
-    langchain-core \
-    langgraph \
-    easyocr \
-    python-dotenv \
-    opencv-python \
-    torch \
-    torchvision \
-    torchaudio \
-    langchain-openai \
-    langchain-text-splitters \
-    sqlalchemy \
-    httpx \
-    openai \
-    google-cloud-discoveryengine \
-    starlette \
-    itsdangerous \
-    beautifulsoup4 \
-    redis \
-    serpapi
+# Install dhara_shared
+COPY dhara_shared/ /tmp/dhara_shared/
+RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
 
-# Copy the rest of the application
-COPY . .
+# Install dependencies
+COPY services/rag_service/pyproject.toml ./services/rag_service/
+RUN pip install ./services/rag_service/
 
-# Create necessary directories
-RUN mkdir -p logs data/docs data/vectors reports data/uploads data/workflows data/projects data/templates
+# Copy packages preserving path
+COPY services/rag_service/ ./services/rag_service/
+COPY services/rag_service/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-# Environment Variables (Defaults)
-ENV PORT=8006
-ENV HOST=0.0.0.0
 ENV PYTHONPATH=/app
 
-# Expose backend port
-EXPOSE 8006
-
-# Start FastAPI server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8006"]
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uvicorn", "services.rag_service.main:app", "--host", "0.0.0.0", "--port", "8006"]

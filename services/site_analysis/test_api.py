@@ -7,7 +7,7 @@ import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
-from services.analyse import site_analysis_service
+from services.site_analysis.services.analyse import site_analysis_service
 
 
 async def test():
@@ -27,3 +27,4 @@ async def test():
 
 if __name__ == "__main__":
     asyncio.run(test())
+

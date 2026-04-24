@@ -3,10 +3,10 @@
 import logging
 from uuid import UUID
 
-from core.dependencies import get_current_user, get_db
+from services.orchestrator.core.dependencies import get_current_user, get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
-from schemas.common import PaginatedResponse
-from schemas.society import (
+from services.orchestrator.schemas.common import PaginatedResponse
+from services.orchestrator.schemas.society import (
     ReportCreate,
     ReportResponse,
     SocietyCreate,
@@ -18,7 +18,7 @@ from schemas.society import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.society_service import SocietyService
+from services.orchestrator.services.society_service import SocietyService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/societies", tags=["Societies"])
@@ -147,5 +147,6 @@ async def create_tender(
     if not t:
         raise HTTPException(404, "Society not found")
     return TenderResponse.model_validate(t)
+
 
 

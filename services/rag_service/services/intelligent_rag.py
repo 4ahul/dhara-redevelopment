@@ -2493,3 +2493,4 @@ if __name__ == "__main__":
     result = rag.query(args.question, k=args.k)
     logger.info(format_result(result))
     logger.info(f"\nKnowledge Graph: {result.get('knowledge_graph_stats', {})}")
+

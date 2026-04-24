@@ -19,7 +19,7 @@ class StorageService:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self._init_db()
+        # Schema is managed by Alembic
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -228,3 +228,4 @@ class AsyncStorageService(StorageService):
 
     async def get_screenshot(self, lookup_id: str):
         return await _asyncio.to_thread(StorageService.get_screenshot, self, lookup_id)
+

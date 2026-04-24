@@ -27,3 +27,4 @@ def test_duplicate_registration_raises():
 def test_unknown_calc_raises():
     with pytest.raises(KeyError, match="Unknown calc"):
         get("nope")
+

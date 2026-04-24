@@ -18,3 +18,4 @@ def noc_flag_from_dp(ctx, noc_type: str) -> int:
         if isinstance(n, str) and n.lower().strip() == target:
             return 1
     return 0
+

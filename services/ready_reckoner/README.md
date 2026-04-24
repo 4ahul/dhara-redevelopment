@@ -1,33 +1,42 @@
-# Ready Reckoner Service - Government Charges Calculator
+# Ready Reckoner Service
 
-Microservice for calculating MCGM premiums, taxes, and government charges based on Ready Reckoner (RR) rates.
+Retrieves authoritative land and construction rates (Ready Reckoner rates) for Mumbai properties.
 
-## Purpose
+## 📂 Service Structure
 
-- RR Rate lookup for any ward/village in Mumbai
-- Calculation of Staircase/Lift/Lobby premiums
-- Fungible FSI premium calculation
-- Open Space Deficiency (OSD) charges
-
-## Architecture
-
-+-----------------------------------------------------------------------------+
-|                             FastAPI Entry Point                             |
-|                              (main.py : 8003)                               |
-+-------------------------------+-----------------------------------------------+
-
-## Local Development
-
-### Setup
-```bash
-cd services/ready_reckoner
-uv venv .venv --python 3.11
-uv sync
-.venv\Scripts\python.exe main.py
+```text
+├── core/             # Central Config and Pydantic Settings
+├── routers/          # FastAPI API Endpoints
+├── schemas/          # Pydantic Request/Response models
+├── services/         # Business logic (RR Rate Lookups)
+└── main.py           # Application entry point
 ```
 
-## Docker
+## 🚀 Isolated Execution (Local Dev)
 
-```bash
-docker compose up -d ready_reckoner
-```
+To run this service in isolation for development:
+
+1. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Sync Dependencies**
+   ```bash
+   uv sync
+   ```
+
+3. **Launch Service**
+   ```bash
+   uv run python main.py
+   ```
+The API will be available at `http://localhost:8003`.
+
+## 🎯 Features
+- **Land Rates:** Fetches open land and residential rates by ward/village.
+- **Dossier Mapping:** Maps internal keys for direct Excel template injection.
+
+## 🛠️ Tech Stack
+- **FastAPI**
+- **dhara_shared** (Logging, Caching)
+- **Redis Integration:** Caches lookups for high-performance retrieval.

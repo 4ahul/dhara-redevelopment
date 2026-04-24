@@ -142,3 +142,4 @@ async def ocr_extract(req: OcrExtractRequest):
     except Exception as e:
         logger.exception("OCR extraction failed")
         raise HTTPException(500, f"OCR extraction failed: {e}")
+

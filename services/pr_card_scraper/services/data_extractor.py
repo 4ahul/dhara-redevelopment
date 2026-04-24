@@ -15,7 +15,7 @@ from typing import Optional
 import httpx
 from PIL import Image, ImageEnhance
 
-from core import settings
+from services.pr_card_scraper.core import settings
 
 logger = logging.getLogger(__name__)
 
@@ -261,3 +261,4 @@ class LLMDataExtractor:
 
 # Backward-compatible alias — old code imports DataExtractor
 DataExtractor = LLMDataExtractor
+

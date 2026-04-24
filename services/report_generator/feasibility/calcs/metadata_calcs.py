@@ -39,3 +39,4 @@ def label_with_value(ctx, label: str, path: str, fallback: str = ""):
     if val is None:
         return f"{label} {fallback}"
     return f"{label} {val}"
+

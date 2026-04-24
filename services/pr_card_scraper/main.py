@@ -1,3 +1,20 @@
+from dhara_shared.dhara_common.banner import print_banner
+import sys, os
+_dir = os.path.dirname(os.path.abspath(__file__))
+if _dir not in sys.path: sys.path.insert(0, _dir)
+_root = os.path.dirname(os.path.dirname(_dir))
+if _root not in sys.path: sys.path.append(_root)
+import sys
+import os
+from pathlib import Path
+
+# Fix pathing for standalone execution and internal service imports
+SERVICE_ROOT = str(Path(os.path.abspath(__file__)).resolve().parent)
+MONOREPO_ROOT = str(Path(SERVICE_ROOT).resolve().parent.parent)
+
+for p in [SERVICE_ROOT, MONOREPO_ROOT]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 """
 PR Card Scraper Service
 Main entry point for Mahabhumi Bhulekh PR Card automation.
@@ -17,11 +34,11 @@ if service_dir not in sys.path:
 
 from fastapi import FastAPI
 
-from core import settings
-from routers import router
+from services.pr_card_scraper.core import settings
+from services.pr_card_scraper.routers import router
 
-from core.banner import print_banner as _print_banner
-_print_banner()
+from services.pr_card_scraper.core.banner import print_banner as _print_banner
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
@@ -36,7 +53,7 @@ async def lifespan(app: FastAPI):
     # Pre-load the ddddocr model so the first CAPTCHA solve is fast
     try:
         import asyncio
-        from services.captcha_solver import CaptchaSolver
+        from services.pr_card_scraper.services.captcha_solver import CaptchaSolver
         solver = CaptchaSolver()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, solver._reader_instance)
@@ -52,6 +69,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
 
+print_banner(settings.APP_NAME)
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "pr_card_scraper"}
@@ -61,3 +81,8 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8005)
+
+
+
+
+

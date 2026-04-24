@@ -79,3 +79,4 @@ def incentive_bua_33_7_b(ctx):
         return max(tenement_incentive, bua_incentive)
     except (ValueError, TypeError):
         return 0.0
+

@@ -9,7 +9,7 @@ from io import BytesIO
 import cloudinary
 import cloudinary.api
 import cloudinary.uploader
-from core.config import settings
+from services.orchestrator.core.config import settings
 from fastapi import HTTPException, UploadFile
 
 logger = logging.getLogger(__name__)
@@ -96,3 +96,4 @@ def delete_file(public_id: str, resource_type: str = "image") -> bool:
     except Exception as e:
         logger.error("Failed to delete %s: %s", public_id, e)
         return False
+

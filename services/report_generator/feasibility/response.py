@@ -14,3 +14,4 @@ class FeasibilityReportResponse:
     missing_fields: List[str] = field(default_factory=list)
     calculation_errors: List[Tuple[str, str]] = field(default_factory=list)
     skipped_formula_cells: List[str] = field(default_factory=list)
+

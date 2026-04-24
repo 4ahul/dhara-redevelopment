@@ -8,9 +8,9 @@ from playwright_stealth import Stealth
 import httpx
 
 try:
-    from core import settings
+    from services.aviation_height.core import settings
 except ImportError:
-    from services.height_service.core import settings
+    from services.aviation_height.core import settings
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -415,3 +415,4 @@ class HeightService:
 
 
 height_service = HeightService()
+

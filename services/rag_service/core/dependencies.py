@@ -3,9 +3,9 @@ import logging
 from typing import Optional
 from fastapi import Header, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
-from db.session import get_db, User
-from core.auth import decode_token
-from core.config import settings
+from services.rag_service.db.session import get_db, User
+from services.rag_service.core.auth import decode_token
+from services.rag_service.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,3 +91,4 @@ def require_auth(
             # We still allow the request if we have the ID
     
     return payload
+

@@ -20,3 +20,4 @@ def test_completion_missing_raises():
     fn = get("completion_months_from_area")
     with pytest.raises(MissingData):
         fn({"request": {}, "resolved": {}}, area_name="bua_sqft", rate_sqft_per_month=5000)
+

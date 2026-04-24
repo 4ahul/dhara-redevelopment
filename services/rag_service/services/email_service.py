@@ -203,3 +203,4 @@ def send_welcome_email(to_email: str, full_name: str) -> bool:
     Get started by asking your first regulatory question!
     """
     return send_email(to_email, subject, html_content, text_content)
+

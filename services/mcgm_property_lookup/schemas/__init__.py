@@ -95,3 +95,4 @@ class PropertyLookupResponse(BaseModel):
     download_url: Optional[str] = None
     error_message: Optional[str] = None
     created_at: Optional[datetime] = None
+
