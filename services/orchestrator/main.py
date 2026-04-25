@@ -163,6 +163,25 @@ async def health():
     return health_status
 
 
+@app.get("/docs/mesh", tags=["System"])
+async def get_mesh_docs():
+    """Aggregate links to all downstream microservice documentation."""
+    return {
+        "master": "/docs",
+        "services": {
+            "site_analysis": f"{settings.SITE_ANALYSIS_URL}/docs",
+            "aviation_height": f"{settings.HEIGHT_URL}/docs",
+            "ready_reckoner": f"{settings.READY_RECKONER_URL}/docs",
+            "report_generator": f"{settings.REPORT_URL}/docs",
+            "rag_service": f"{settings.RAG_URL}/docs",
+            "pr_card_scraper": f"{settings.PR_CARD_URL}/docs",
+            "mcgm_property_lookup": f"{settings.MCGM_PROPERTY_URL}/docs",
+            "dp_remarks_report": f"{settings.DP_REPORT_URL}/docs",
+        },
+        "topology": "Traefik Gateway (experimental) -> Port 80"
+    }
+
+
 # ─── Run ─────────────────────────────────────────────────────────────────────
 
 

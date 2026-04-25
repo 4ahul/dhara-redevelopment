@@ -12,6 +12,7 @@ from uuid import uuid4
 from fastapi import BackgroundTasks
 
 from dhara_shared.dhara_common.http import AsyncHTTPClient
+from dhara_shared.dhara_common.cache import redis_cache
 from services.orchestrator.core.config import settings
 from services.orchestrator.logic.cloudinary import upload_content
 from services.orchestrator.db import async_session_factory
@@ -245,6 +246,7 @@ class FeasibilityOrchestrator:
 
     # ─── Individual service calls ─────────────────────────────────────
 
+    @redis_cache(prefix="pr_card", ttl=86400)
     async def call_pr_card(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call PR Card Scraper service."""
         try:
@@ -264,6 +266,7 @@ class FeasibilityOrchestrator:
             logger.warning(f"PR Card call failed: {e}")
             return {"error": str(e)}
 
+    @redis_cache(prefix="mcgm", ttl=86400)
     async def call_mcgm(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call MCGM Property Lookup service."""
         try:

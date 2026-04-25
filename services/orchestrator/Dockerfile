@@ -1,4 +1,26 @@
-FROM python:3.11-slim
+# ─── BUILDER ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dhara_shared and install it
+COPY dhara_shared/ /build/dhara_shared/
+RUN uv pip install --system /build/dhara_shared
+
+# Install orchestrator dependencies
+COPY services/orchestrator/pyproject.toml /build/services/orchestrator/
+RUN uv pip install --system -r /build/services/orchestrator/pyproject.toml
+
+# ─── RUNTIME ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
@@ -6,24 +28,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dhara_shared first
-COPY dhara_shared/ /tmp/dhara_shared/
-RUN pip install /tmp/dhara_shared && rm -rf /tmp/dhara_shared
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Install service dependencies
-COPY services/orchestrator/pyproject.toml ./services/orchestrator/
-RUN pip install ./services/orchestrator
-
-# Copy entire service directory to preserve path for absolute imports
-COPY services/__init__.py ./services/
-COPY services/orchestrator/ ./services/orchestrator/
-
-# Fix Entrypoint path
+# Copy source code (monorepo layout)
+COPY services/__init__.py /app/services/
+COPY services/orchestrator/ /app/services/orchestrator/
 COPY services/orchestrator/entrypoint.sh /app/entrypoint.sh
+
 RUN chmod +x /app/entrypoint.sh
 
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-# Start using the standardized monorepo path
 CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
