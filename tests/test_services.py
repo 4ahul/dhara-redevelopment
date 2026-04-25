@@ -67,7 +67,7 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_commercial(self):
         """Test area type inference for commercial areas."""
-        from services.site_analysis.services.analyse import infer_area_type
+        from services.site_analysis.logic.analyse import infer_area_type
 
         nearby = [
             {"name": "Shopping Mall", "types": ["store"]},
@@ -79,7 +79,7 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_residential(self):
         """Test area type inference for residential areas."""
-        from services.site_analysis.services.analyse import infer_area_type
+        from services.site_analysis.logic.analyse import infer_area_type
 
         nearby = [{"name": "Apartment", "types": ["premise"]}, {"name": "Housing Society", "types": ["neighborhood"]}]
         result = infer_area_type(nearby)
@@ -87,7 +87,7 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_mixed(self):
         """Test area type inference for mixed areas."""
-        from services.site_analysis.services.analyse import infer_area_type
+        from services.site_analysis.logic.analyse import infer_area_type
 
         # Mixed needs > 5 on both
         nearby = [
@@ -113,7 +113,7 @@ class TestHeightService:
 
     def test_decimal_to_dms(self):
         """Test coordinate conversion logic."""
-        from services.aviation_height.services.height_service import height_service as aviation_height
+        from services.aviation_height.logic.height_service import height_service as aviation_height
         dd, mm, ss = aviation_height.decimal_to_dms(18.9967)
         assert dd == 18
         assert mm == 59
@@ -121,7 +121,7 @@ class TestHeightService:
 
     def test_no_mock_response(self):
         """Verify mock response is removed — service fails honestly."""
-        from services.aviation_height.services.height_service import HeightService
+        from services.aviation_height.logic.height_service import HeightService
         assert not hasattr(HeightService, "_mock_response")
 
 
@@ -176,7 +176,7 @@ class TestPremiumCheckerService:
     def test_additional_fsi_premium_calculation(self):
         """Test Additional FSI premium calculation."""
         from services.ready_reckoner.schemas import PremiumRequest
-        from services.ready_reckoner.services.premium_service import premium_service
+        from services.ready_reckoner.logic.premium_service import premium_service
 
         req = PremiumRequest(**SAMPLE_PREMIUM_REQUEST)
         result = premium_service.calculate_premiums(req)
@@ -197,7 +197,7 @@ class TestPremiumCheckerService:
     def test_total_premium_calculation(self):
         """Test total premium calculation."""
         from services.ready_reckoner.schemas import PremiumRequest
-        from services.ready_reckoner.services.premium_service import premium_service
+        from services.ready_reckoner.logic.premium_service import premium_service
 
         req = PremiumRequest(**SAMPLE_PREMIUM_REQUEST)
         result = premium_service.calculate_premiums(req)
@@ -208,7 +208,7 @@ class TestPremiumCheckerService:
     def test_scheme_comparison(self):
         """Test premium calculation for different schemes."""
         from services.ready_reckoner.schemas import PremiumRequest
-        from services.ready_reckoner.services.premium_service import premium_service
+        from services.ready_reckoner.logic.premium_service import premium_service
 
         schemes = ["33(7)(B)", "33(20)(B)", "33(11)", "33(12)(B)"]
         results = {}

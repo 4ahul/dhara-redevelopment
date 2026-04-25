@@ -125,7 +125,17 @@ class ToolExecutor:
             if "spreadsheetml" in ct:
                 return self._save_report(response, ext="xlsx")
 
-            return response.json()
+            raw = response.json()
+            # If the response is wrapped in InternalServiceResponse, unwrap it
+            if isinstance(raw, dict) and "status" in raw and "data" in raw:
+                # If it's a success, return just the data
+                if raw["status"] == "success":
+                    return raw["data"]
+                # If it's an error, return the error message
+                if raw["status"] == "error":
+                    return {"error": raw.get("error") or "Service returned error status"}
+            
+            return raw
 
         except httpx.TimeoutException:
             logger.error("Tool %s timed out at %s", tool_name, url)

@@ -7,9 +7,11 @@ import sys
 # Alias that namespace to this package so both styles resolve.
 sys.modules.setdefault("dhara_shared.dhara_shared", sys.modules[__name__])
 
-for _name in ("config", "dhara_common"):
+for _name in ("config", "dhara_common", "models"):
     try:
         _mod = importlib.import_module(f"{__name__}.{_name}")
         sys.modules.setdefault(f"dhara_shared.dhara_shared.{_name}", _mod)
+        if _name == "models":
+            sys.modules.setdefault("dhara_shared.models", _mod)
     except ModuleNotFoundError:
         pass

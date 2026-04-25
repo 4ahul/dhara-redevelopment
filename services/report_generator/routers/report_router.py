@@ -75,8 +75,6 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
 async def generate_report(req: ReportRequest):
     """
     Generate the feasibility report PDF.
-    Excel copy is produced from the hardcoded 33(20)(B) CLUBBING template
-    (testing mode — see template_service._FORCED_TEMPLATE_NAME).
     """
     report_id = str(uuid.uuid4())[:8].upper()
     safe_name = req.society_name.replace(" ", "_")
@@ -85,9 +83,8 @@ async def generate_report(req: ReportRequest):
     pdf_path = str(OUTPUT_DIR / pdf_filename)
     xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
-    # Testing mode: every /generate call uses the fixed 33(20)(B) CLUBBING template.
-    target_scheme = "33(20)(B)"
-    target_rd_type = "CLUBBING"
+    target_scheme = req.scheme or "33(7)(B)"
+    target_rd_type = req.redevelopment_type or "CLUBBING"
 
     all_data = {
         "society_name": req.society_name,
@@ -221,13 +218,13 @@ async def apply_template_values(req: TemplateApplyRequest):
 @router.post("/generate/template")
 async def generate_template_report(req: TemplateReportRequest):
     """
-    Generate feasibility report using Excel templates. (Hardcoded to 33(20)(B) CLUBBING for testing)
+    Generate feasibility report using Excel templates.
     """
     try:
         report_id = str(uuid.uuid4())[:8].upper()
         safe_name = req.society_name.replace(" ", "_")
         
-        target_scheme = "33(7)(B)"
+        target_scheme = req.scheme
         target_rd_type = req.redevelopment_type.value if hasattr(req.redevelopment_type, "value") else str(req.redevelopment_type)
 
         all_data = _build_all_data(req)
@@ -269,10 +266,8 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
         test_scheme = "33(20)(B)"
         test_rd_type = "CLUBBING"
 
-        # HARDCODED FOR TESTING: Force 33(20)(B)
-        # target_scheme = req.scheme
-        target_scheme = "33(20)(B)"
-        target_rd_type = req.redevelopment_type
+        target_scheme = req.scheme
+        target_rd_type = req.redevelopment_type.value if hasattr(req.redevelopment_type, "value") else str(req.redevelopment_type)
 
         all_data = _build_all_data(req)
 

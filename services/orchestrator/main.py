@@ -142,6 +142,9 @@ async def health():
         "ready_reckoner": settings.READY_RECKONER_URL,
         "report_generator": settings.REPORT_URL,
         "rag_service": settings.RAG_URL,
+        "pr_card_scraper": settings.PR_CARD_URL,
+        "mcgm_property_lookup": settings.MCGM_PROPERTY_URL,
+        "dp_remarks_report": settings.DP_REPORT_URL,
     }
 
     async with httpx.AsyncClient(timeout=2.0) as client:

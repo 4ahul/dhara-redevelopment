@@ -13,6 +13,9 @@ from fastapi import BackgroundTasks
 
 from dhara_shared.dhara_shared.dhara_common.http import AsyncHTTPClient
 from services.orchestrator.core.config import settings
+from services.orchestrator.db import async_session_factory
+from services.orchestrator.models import FeasibilityReport, ReportStatus
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -36,18 +39,29 @@ OCR_URL = settings.REPORT_URL  # OCR endpoint lives on the report_generator
 class FeasibilityOrchestrator:
     """Orchestrates all microservices for feasibility analysis."""
 
-    async def analyze(self, req: dict, background_tasks: BackgroundTasks | None = None) -> dict:
+    async def analyze(self, req: dict, background_tasks: BackgroundTasks | None = None, user_id: str | None = None, report_id: str | None = None) -> dict:
         """
-        Main orchestration method.
-        
-        0. Step 0: Resolve CTS/FP if missing or for validation
-        1. Round 1: Call all 4 services in parallel
-        2. Round 2: Call dependent services
-        3. Round 3: Generate report
-        4. Background: Check red field expiries
+        Main orchestration method. Now supports persistence via user_id and report_id.
         """
-        job_id = str(uuid4())
+        job_id = report_id or str(uuid4())
         logger.info(f"[{job_id}] Starting feasibility analysis")
+
+        # Step 0: Ensure a DB record exists if we have a user_id
+        if user_id and not report_id:
+            try:
+                async with async_session_factory() as db:
+                    new_report = FeasibilityReport(
+                        id=job_id,
+                        user_id=user_id,
+                        society_id=req.get("society_id"),
+                        title=req.get("title", f"Analysis: {req.get('society_name', 'Unnamed')}"),
+                        status=ReportStatus.PROCESSING,
+                        input_data=req
+                    )
+                    db.add(new_report)
+                    await db.commit()
+            except Exception as e:
+                logger.warning(f"[{job_id}] Could not create initial report record: {e}")
 
         # Step 0: Resolve CTS/FP
         cts_no = req.get("cts_no")
@@ -127,9 +141,28 @@ class FeasibilityOrchestrator:
             report_error = str(e)
             logger.error(f"[{job_id}] Round 3 (report generation) failed: {e}")
 
+        # Update DB with final results if we have a job_id record
+        try:
+            async with async_session_factory() as db:
+                report = await db.get(FeasibilityReport, job_id)
+                if report:
+                    report.status = ReportStatus.COMPLETED if not report_error else ReportStatus.FAILED
+                    report.report_path = report_path
+                    report.output_data = {
+                        "round1": round1_results,
+                        "round2": round2_results,
+                        "report_generated": report_path is not None,
+                        "report_error": report_error
+                    }
+                    if report_error:
+                        report.error_message = report_error
+                    await db.commit()
+        except Exception as e:
+            logger.warning(f"[{job_id}] Could not finalize report record: {e}")
+
         return {
             "job_id":          job_id,
-            "status":          "completed",
+            "status":          "completed" if not report_error else "failed",
             "round1_results":  round1_results,
             "round2_results":  round2_results,
             "report_generated": report_path is not None,
@@ -331,15 +364,19 @@ class FeasibilityOrchestrator:
             resp.raise_for_status()
             raw = resp.json()
 
+            # The response is wrapped in InternalServiceResponse {status, data, error}
+            data = raw.get("data") or {}
+            rr_rates = data.get("rr_rates", [])
+
             # Normalize: extract per-category rates from rr_rates[]
-            rates = {r["category"].lower(): r["value"] for r in raw.get("rr_rates", [])}
+            rates = {r["category"].lower(): r["value"] for r in rr_rates}
             rr_open  = rates.get("land") or rates.get("open land") or 0
             rr_res   = rates.get("residential") or rr_open
             rr_shop  = rates.get("shop") or rates.get("office") or rr_open * 1.5
 
             return {
-                # raw service response preserved under 'raw'
-                **raw,
+                # Preserve the extracted data block
+                "rr_data": data,
                 # Flat keys that template YAML reads via ready_reckoner.*
                 "rr_open_land_sqm":   rr_open,
                 "rr_residential_sqm": rr_res,

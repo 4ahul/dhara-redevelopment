@@ -405,15 +405,19 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         }))
 
         # Calculate Premiums
-        locality = (society_data.get("village") or "").strip().lower()
+        locality = (society_data.get("village") or "").strip().lower().replace(" ", "-").replace("/", "-")
         if not locality:
-            locality = (society_data.get("address") or "").strip().lower()
+            locality = "bhuleshwar" # fallback consistent with orchestrator
 
         rr_dist, rr_tal = _map_rr_location(society_data.get("ward", ""))
         rr_zone = (society_data.get("rr_zone") or "").strip()
-        premium_skip_error = None
+        
+        # Fallback: if rr_zone is missing, use DP remarks zone_code
+        if not rr_zone and dp_report.get("zone_code"):
+            rr_zone = dp_report["zone_code"]
+            logger.info("[%s] Using DP zone_code as RR zone: %s", request_id, rr_zone)
 
-        if rr_zone and locality:
+        if rr_zone:
             group3_calls.append(("calculate_premiums", {
                 "district": society_data.get("district") or rr_dist,
                 "taluka": society_data.get("taluka") or rr_tal,
@@ -431,7 +435,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             }))
         else:
             premium_skip_error = (
-                "Ready Reckoner lookup skipped: missing rr_zone or locality context."
+                "Ready Reckoner lookup skipped: missing rr_zone (and no DP zone fallback)."
             )
             logger.warning("[%s] %s", request_id, premium_skip_error)
 

@@ -109,7 +109,11 @@ async def analyze_feasibility(
     Round 3: Generate Excel report from template
     Returns job_id + all results. Use GET /analyze/download/{job_id} for the Excel.
     """
-    result = await feasibility_orchestrator.analyze(req.model_dump(), background_tasks=bg)
+    result = await feasibility_orchestrator.analyze(
+        req.model_dump(),
+        background_tasks=bg,
+        user_id=str(user.id)
+    )
     return FeasibilityAnalyzeResponse(**result)
 
 
@@ -129,6 +133,7 @@ async def analyze_feasibility_by_society(
 
     # Build request dict from society record
     req_data = {
+        "society_id":    society.id,
         "society_name":  society.name,
         "address":       society.address,
         "cts_no":        society.cts_no,
@@ -142,7 +147,11 @@ async def analyze_feasibility_by_society(
         "road_width_m":  society.road_width_m,
     }
 
-    result = await feasibility_orchestrator.analyze(req_data, background_tasks=bg)
+    result = await feasibility_orchestrator.analyze(
+        req_data,
+        background_tasks=bg,
+        user_id=str(user.id)
+    )
     return FeasibilityAnalyzeResponse(**result)
 
 
