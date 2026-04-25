@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from dhara_shared.dhara_shared.dhara_common.schemas import InternalServiceResponse
+from dhara_shared.dhara_common.schemas import InternalServiceResponse
 
 logger = logging.getLogger(__name__)
 

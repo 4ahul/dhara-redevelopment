@@ -9,7 +9,6 @@ import logging
 import math
 from uuid import UUID
 
-from services.orchestrator.agent import run_agent
 from services.orchestrator.db import async_session_factory
 from fastapi import BackgroundTasks
 from services.orchestrator.models.enums import ReportStatus
@@ -234,6 +233,7 @@ class FeasibilityService:
 
                 try:
                     # Trigger AI Agent Runner
+                    from services.orchestrator.agent.runner import run_agent
                     result = await run_agent(society_data, str(report_id))
 
                     # Finalize results

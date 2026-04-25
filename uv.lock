@@ -574,6 +574,7 @@ name = "dhara-shared"
 version = "0.1.0"
 source = { editable = "dhara_shared" }
 dependencies = [
+    { name = "cloudinary" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "tenacity" },
@@ -581,6 +582,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cloudinary", specifier = ">=1.40.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "tenacity", specifier = ">=8.5.0" },

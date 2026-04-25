@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from services.ready_reckoner.schemas import PremiumRequest, PremiumResponse
 from services.ready_reckoner.logic.premium_service import premium_service
-from dhara_shared.dhara_shared.dhara_common.schemas import InternalServiceResponse
+from dhara_shared.dhara_common.schemas import InternalServiceResponse
 
 router = APIRouter()
 

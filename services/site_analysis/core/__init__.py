@@ -1,4 +1,4 @@
-from dhara_shared.dhara_shared.config import BaseServiceSettings
+from dhara_shared.config import BaseServiceSettings
 
 
 class Settings(BaseServiceSettings):

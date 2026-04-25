@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from services.aviation_height.schemas import HeightRequest, HeightResponse
 from services.aviation_height.logic.height_service import height_service
 import logging
-from dhara_shared.dhara_shared.dhara_common.schemas import InternalServiceResponse
+from dhara_shared.dhara_common.schemas import InternalServiceResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Height"])

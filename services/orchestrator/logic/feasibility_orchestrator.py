@@ -11,8 +11,9 @@ from uuid import uuid4
 
 from fastapi import BackgroundTasks
 
-from dhara_shared.dhara_shared.dhara_common.http import AsyncHTTPClient
+from dhara_shared.dhara_common.http import AsyncHTTPClient
 from services.orchestrator.core.config import settings
+from services.orchestrator.logic.cloudinary import upload_content
 from services.orchestrator.db import async_session_factory
 from services.orchestrator.models import FeasibilityReport, ReportStatus
 from sqlalchemy import select
@@ -99,7 +100,7 @@ class FeasibilityOrchestrator:
                 logger.info(f"[{job_id}] CTS/FP resolved: {req.get('cts_no')} / {req.get('fp_no')}")
 
         # Round 1: parallel calls to 4 services
-        round1_results = await self._run_round1(req)
+        round1_results = await self.run_round1(req, job_id=job_id)
         logger.info(f"[{job_id}] Round 1 completed")
 
         # Extract dependencies for Round 2
@@ -117,23 +118,37 @@ class FeasibilityOrchestrator:
         logger.info(f"[{job_id}] Round 1 extracted: lat={lat}, lng={lng}, zone={zone}")
 
         # Round 2: dependent services — pass req for locality context
-        round2_results = await self._run_round2(lat, lng, zone, req)
+        round2_results = await self.run_round2(lat, lng, zone, req, job_id=job_id)
         logger.info(f"[{job_id}] Round 2 completed")
 
         # Round 3: forward aggregated data to report generator
-        report_path = None
+        report_url = None
         report_error = None
         try:
-            async with AsyncHTTPClient(timeout=300.0) as client:
-                report_bytes = await self._call_report_generator(
+            async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
+                report_bytes = await self.call_report_generator(
                     client, round1_results, round2_results, req
                 )
-            # Save to disk so client can download it
+            # 1. Save locally as fallback/cache
             report_filename = f"feasibility_{job_id}.xlsx"
             report_path = str(_REPORTS_DIR / report_filename)
             Path(report_path).write_bytes(report_bytes)
             _REPORT_STORE[job_id] = report_path
-            logger.info(f"[{job_id}] Round 3 done — saved {len(report_bytes)} bytes to {report_path}")
+            
+            # 2. Upload to Cloudinary for durability (Task 1)
+            try:
+                upload_res = await upload_content(
+                    content=report_bytes,
+                    filename=report_filename,
+                    folder="dhara/reports",
+                    resource_type="raw"
+                )
+                report_url = upload_res.get("secure_url")
+                logger.info(f"[{job_id}] Report uploaded to Cloudinary: {report_url}")
+            except Exception as ue:
+                logger.warning(f"[{job_id}] Cloudinary upload failed (falling back to local): {ue}")
+
+            logger.info(f"[{job_id}] Round 3 done — generated report for {job_id}")
 
             if background_tasks:
                 background_tasks.add_task(self._check_expiries, job_id, req)
@@ -148,10 +163,12 @@ class FeasibilityOrchestrator:
                 if report:
                     report.status = ReportStatus.COMPLETED if not report_error else ReportStatus.FAILED
                     report.report_path = report_path
+                    report.file_url = report_url # Cloudinary URL
                     report.output_data = {
                         "round1": round1_results,
                         "round2": round2_results,
                         "report_generated": report_path is not None,
+                        "report_url": report_url,
                         "report_error": report_error
                     }
                     if report_error:
@@ -166,18 +183,19 @@ class FeasibilityOrchestrator:
             "round1_results":  round1_results,
             "round2_results":  round2_results,
             "report_generated": report_path is not None,
+            "report_url":      report_url,
             "report_error":    report_error,
         }
 
-    async def _run_round1(self, req: dict) -> dict:
+    async def run_round1(self, req: dict, job_id: str | None = None) -> dict:
         """Call all 4 Round 1 services in parallel."""
 
-        async with AsyncHTTPClient(timeout=300.0) as client:
+        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
             tasks = [
-                self._call_pr_card(client, req),
-                self._call_mcgm(client, req),
-                self._call_site_analysis(client, req),
-                self._call_dp_remarks(client, req),
+                self.call_pr_card(client, req),
+                self.call_mcgm(client, req),
+                self.call_site_analysis(client, req),
+                self.call_dp_remarks(client, req),
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -189,21 +207,22 @@ class FeasibilityOrchestrator:
                 "dp_remarks": results[3] if not isinstance(results[3], Exception) else {"error": str(results[3])},
             }
 
-    async def _run_round2(
+    async def run_round2(
         self,
         lat: float | None,
         lng: float | None,
         zone: str | None,
         req: dict = None,
+        job_id: str | None = None,
     ) -> dict:
         """Call Round 2 dependent services."""
         req = req or {}
-        async with AsyncHTTPClient(timeout=300.0) as client:
+        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
             tasks = []
 
             # Aviation Height needs lat/lng
             if lat and lng:
-                tasks.append(self._call_aviation_height(client, lat, lng))
+                tasks.append(self.call_aviation_height(client, lat, lng))
             else:
                 async def no_lat_lng():
                     return {"error": "No lat/lng available"}
@@ -211,7 +230,7 @@ class FeasibilityOrchestrator:
 
             # Ready Reckoner needs zone + req context
             if zone:
-                tasks.append(self._call_ready_reckoner(client, zone, req))
+                tasks.append(self.call_ready_reckoner(client, zone, req))
             else:
                 async def no_zone():
                     return {"error": "No zone available"}
@@ -226,7 +245,7 @@ class FeasibilityOrchestrator:
 
     # ─── Individual service calls ─────────────────────────────────────
 
-    async def _call_pr_card(self, client: AsyncHTTPClient, req: dict) -> dict:
+    async def call_pr_card(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call PR Card Scraper service."""
         try:
             resp = await client.post(
@@ -245,7 +264,7 @@ class FeasibilityOrchestrator:
             logger.warning(f"PR Card call failed: {e}")
             return {"error": str(e)}
 
-    async def _call_mcgm(self, client: AsyncHTTPClient, req: dict) -> dict:
+    async def call_mcgm(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call MCGM Property Lookup service."""
         try:
             cts_no = req.get("cts_no") or req.get("fp_no", "")
@@ -265,7 +284,7 @@ class FeasibilityOrchestrator:
             logger.warning(f"MCGM call failed: {e}")
             return {"error": str(e)}
 
-    async def _call_site_analysis(self, client: AsyncHTTPClient, req: dict) -> dict:
+    async def call_site_analysis(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call Site Analysis service."""
         try:
             resp = await client.post(
@@ -281,7 +300,7 @@ class FeasibilityOrchestrator:
             logger.warning(f"Site Analysis call failed: {e}")
             return {"error": str(e)}
 
-    async def _call_dp_remarks(self, client: AsyncHTTPClient, req: dict) -> dict:
+    async def call_dp_remarks(self, client: AsyncHTTPClient, req: dict) -> dict:
         """Call DP Remarks service.
 
         Strategy:
@@ -323,7 +342,7 @@ class FeasibilityOrchestrator:
                 logger.warning(f"DP Remarks FP fallback also failed: {e_fp}")
                 return {"error": str(e_fp)}
 
-    async def _call_aviation_height(self, client: AsyncHTTPClient, lat: float, lng: float) -> dict:
+    async def call_aviation_height(self, client: AsyncHTTPClient, lat: float, lng: float) -> dict:
         """Call Aviation Height service."""
         try:
             resp = await client.post(
@@ -336,7 +355,7 @@ class FeasibilityOrchestrator:
             logger.warning(f"Aviation Height call failed: {e}")
             return {"error": str(e)}
 
-    async def _call_ready_reckoner(self, client: AsyncHTTPClient, zone: str, req: dict = None) -> dict:
+    async def call_ready_reckoner(self, client: AsyncHTTPClient, zone: str, req: dict = None) -> dict:
         """Call Ready Reckoner service with proper locality + zone + plot_area inputs.
         
         Returns normalized dict with rr_open_land_sqm and sale rates extracted
@@ -392,7 +411,7 @@ class FeasibilityOrchestrator:
             return {"error": str(e)}
 
 
-    async def _call_report_generator(
+    async def call_report_generator(
         self,
         client: AsyncHTTPClient,
         round1: dict,

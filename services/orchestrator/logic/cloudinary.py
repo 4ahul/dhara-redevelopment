@@ -88,7 +88,45 @@ async def upload_report(file: UploadFile) -> dict:
     return await upload_file(file, folder="dhara/reports", resource_type="raw", allowed_types=ALLOWED_DOCUMENT_TYPES)
 
 
+async def upload_content(
+    content: bytes,
+    filename: str,
+    folder: str = "dhara",
+    resource_type: str = "auto",
+    content_type: str | None = None,
+) -> dict:
+    """Upload raw bytes to Cloudinary."""
+    _ensure_init()
+    if len(content) > MAX_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail=f"File too large. Max: {settings.MAX_UPLOAD_SIZE_MB} MB")
+
+    opts = {
+        "folder": folder,
+        "resource_type": resource_type,
+        "overwrite": True,
+        "use_filename": True,
+        "unique_filename": True,
+        "original_filename": filename,
+    }
+
+    try:
+        result = cloudinary.uploader.upload(BytesIO(content), **opts)
+        logger.info("Uploaded content: %s (%s, %d bytes)", result["public_id"], result.get("format", "?"), result.get("bytes", 0))
+        return {
+            "url": result["url"],
+            "secure_url": result["secure_url"],
+            "public_id": result["public_id"],
+            "format": result.get("format", ""),
+            "bytes": result.get("bytes", 0),
+            "resource_type": result.get("resource_type", ""),
+        }
+    except Exception as e:
+        logger.error("Cloudinary content upload failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Upload failed: {e}")
+
+
 def delete_file(public_id: str, resource_type: str = "image") -> bool:
+    """Delete a file from Cloudinary."""
     _ensure_init()
     try:
         result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)

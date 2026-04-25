@@ -18,7 +18,8 @@ from services.orchestrator.agent.tools import TOOLS
 from services.orchestrator.db import async_session_factory
 from services.orchestrator.models import AuditLog
 
-from dhara_shared.dhara_shared.dhara_common.http import AsyncHTTPClient
+from services.orchestrator.logic.feasibility_orchestrator import feasibility_orchestrator
+from dhara_shared.dhara_common.http import AsyncHTTPClient
 
 logger = logging.getLogger(__name__)
 
@@ -253,110 +254,49 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         if progress_callback:
             await progress_callback({"type": "phase", "phase": "data_collection"})
 
-        # ── PR Card — fire-and-forget (runs in background, doesn't block) ──
-        # PR card takes 2-5 minutes (CAPTCHA solving). We start it now and
-        # collect the result at the end if it finishes in time.
-        pr_card_task = None
-        pr_card_args = None
-        if all(society_data.get(k) for k in ("district", "taluka", "village", "survey_no")):
-            pr_card_args = {
-                "district": society_data["district"],
-                "taluka": society_data["taluka"],
-                "village": society_data["village"],
-                "survey_no": society_data["survey_no"],
-                "record_of_right": "Property Card",
-            }
-            logger.info("[%s] Starting PR card in background (up to 5 min)", request_id)
-            pr_card_task = asyncio.create_task(
-                _call_tool("get_pr_card", pr_card_args, http, request_id, progress_callback)
-            )
+        # ── ROUND 1 (parallel): PR Card, MCGM, Site Analysis, DP Remarks ──
+        # We use the centralized orchestrator for consistency.
+        r1_results = await feasibility_orchestrator.run_round1(society_data, job_id=request_id)
+        
+        # Map back to agent's internal tool names for backward compatibility with prompts/tools
+        collected["get_pr_card"] = r1_results.get("pr_card")
+        collected["get_mcgm_property"] = r1_results.get("mcgm")
+        collected["analyse_site"] = r1_results.get("site_analysis")
+        collected["get_dp_remarks"] = r1_results.get("dp_remarks")
 
-        # ── GROUP 1 (parallel): MCGM Property + Site Analysis ──
+        for name, internal_name in [("pr_card", "get_pr_card"), ("mcgm", "get_mcgm_property"), 
+                                   ("site_analysis", "analyse_site"), ("dp_remarks", "get_dp_remarks")]:
+            res = r1_results.get(name)
+            tool_results_log.append({"tool": internal_name, "input": society_data, "result": res})
+            if progress_callback:
+                success = isinstance(res, dict) and "error" not in res
+                await progress_callback({"type": "tool_result", "tool": internal_name, "success": success})
 
-        group1_calls = []
-
-        # MCGM Property — needs ward, village, cts_no
-        if society_data.get("ward") and society_data.get("village") and society_data.get("cts_no") and "get_mcgm_property" not in collected:
-            # Ensure ward is mapped correctly (e.g. K/East -> K/E)
-
-            mapped_ward = _map_mcgm_ward(society_data["ward"])
-
-            # Scraper works best with a single CTS at a time
-            cts_no = society_data["cts_no"]
-            if "," in cts_no:
-                cts_no = cts_no.split(",")[0].strip()
-            elif " " in cts_no.strip():
-                cts_no = cts_no.strip().split(" ")[0].strip()
-
-            group1_calls.append(("get_mcgm_property", {
-                "ward": mapped_ward,
-                "village": society_data["village"],
-                "cts_no": cts_no,
-                "include_nearby": True,
-            }))
-
-        # Site Analysis — needs address
-        if society_data.get("address"):
-            group1_calls.append(("analyse_site", {
-                "address": society_data["address"],
-                "ward": society_data.get("ward", ""),
-                "plot_no": society_data.get("cts_no", ""),
-            }))
-
-        g1 = await _call_tools_parallel(group1_calls, http, request_id, progress_callback)
-        collected.update(g1)
-        for name in g1:
-            tool_results_log.append({"tool": name, "input": dict(next(a for n, a in group1_calls if n == name)), "result": g1[name]})
-
-        # Extract coordinates for Group 2
+        # Extract coordinates for Round 2
         mcgm = collected.get("get_mcgm_property", {})
         site = collected.get("analyse_site", {})
-        lat = mcgm.get("centroid_lat") or site.get("lat")
-        lng = mcgm.get("centroid_lng") or site.get("lng")
+        lat = mcgm.get("centroid_lat") or mcgm.get("lat") or site.get("lat")
+        lng = mcgm.get("centroid_lng") or mcgm.get("lng") or site.get("lng")
 
-        # ── GROUP 2 (parallel): DP Remarks + Max Height ──
-        group2_calls = []
-
-        # DP Remarks — needs ward, village, and CTS or FP number
-        # Use FP if cts_validated indicates DP 2034 scheme, otherwise use CTS
-        if society_data.get("ward") and society_data.get("village") and "get_dp_remarks" not in collected:
-            cts_no = society_data.get("cts_no") or society_data.get("fp_no")
-            fp_no = society_data.get("fp_no")
-
-            # Determine which number to use based on validation status
-            cts_validated = society_data.get("cts_validated", "")
-            use_fp = cts_validated in ("true", "false", "dp2034", "dp1991") and fp_no
-
-            search_number = fp_no if use_fp else cts_no
-
-            if search_number:
-                mapped_ward = _map_mcgm_ward(society_data["ward"])
-                dp_args = {
-                    "ward": mapped_ward,
-                    "village": society_data["village"],
-                    "cts_no": search_number,  # Can be CTS or FP depending on scheme
-                    "use_fp_scheme": use_fp,  # Tell DP service to search as FP
-                }
-                if lat and lng:
-                    dp_args["lat"] = lat
-                    dp_args["lng"] = lng
-                group2_calls.append(("get_dp_remarks", dp_args))
-
-        # Max Height — needs lat/lng
-        if lat and lng:
-            group2_calls.append(("get_max_height", {
-                "lat": lat,
-                "lng": lng,
-                "site_elevation": 0,
-            }))
-
-        g2 = await _call_tools_parallel(group2_calls, http, request_id, progress_callback)
-        collected.update(g2)
-        for name in g2:
-            tool_results_log.append({"tool": name, "input": dict(next(a for n, a in group2_calls if n == name)), "result": g2[name]})
-
-        # ── GROUP 3 (parallel): Regulations + Premiums ──
+        # DP Remarks may return zone_code or zone
         dp_report = collected.get("get_dp_remarks", {})
+        zone = dp_report.get("zone_code") or dp_report.get("zone")
+
+        # ── ROUND 2 (parallel): Max Height, Ready Reckoner ──
+        r2_results = await feasibility_orchestrator.run_round2(lat, lng, zone, society_data, job_id=request_id)
+        
+        collected["get_max_height"] = r2_results.get("aviation_height")
+        collected["calculate_premiums"] = r2_results.get("ready_reckoner")
+
+        for name, internal_name in [("aviation_height", "get_max_height"), ("ready_reckoner", "calculate_premiums")]:
+            res = r2_results.get(name)
+            tool_results_log.append({"tool": internal_name, "input": society_data, "result": res})
+            if progress_callback:
+                success = isinstance(res, dict) and "error" not in res
+                await progress_callback({"type": "tool_result", "tool": internal_name, "success": success})
+
+        # ── ROUND 3 (parallel): Regulations (RAG) ──
+        # RAG is unique to the agent flow so we keep it here.
         plot_sqm = mcgm.get("area_sqm") or society_data.get("plot_area_sqm") or 0
 
         # ── Fallback: Estimate plot area from carpet area if missing ──────────
