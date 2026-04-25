@@ -15,4 +15,10 @@ echo "Running Database Migrations..."
 alembic -c /app/services/orchestrator/alembic.ini upgrade head
 
 echo "Database is up-to-date. Launching application..."
+
+# Initialize and start Cron for background tasks
+chmod +x /app/services/orchestrator/scripts/setup_cron.sh
+/app/services/orchestrator/scripts/setup_cron.sh
+service cron start
+
 exec "$@"
