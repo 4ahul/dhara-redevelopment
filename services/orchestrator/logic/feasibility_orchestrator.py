@@ -15,6 +15,7 @@ from dhara_shared.dhara_common.http import AsyncHTTPClient
 from dhara_shared.dhara_common.cache import redis_cache
 from services.orchestrator.core.config import settings
 from services.orchestrator.logic.cloudinary import upload_content
+from services.orchestrator.logic.dossier_service import dossier_service
 from services.orchestrator.db import async_session_factory
 from services.orchestrator.models import FeasibilityReport, ReportStatus
 from sqlalchemy import select
@@ -102,7 +103,8 @@ class FeasibilityOrchestrator:
 
         # Round 1: parallel calls to 4 services
         round1_results = await self.run_round1(req, job_id=job_id)
-        logger.info(f"[{job_id}] Round 1 completed")
+        await dossier_service.update_dossier(job_id, "round1", round1_results)
+        logger.info(f"[{job_id}] Round 1 completed and saved to dossier")
 
         # Extract dependencies for Round 2
         # Try multiple sources for lat/lng (MCGM, site_analysis)
@@ -120,7 +122,8 @@ class FeasibilityOrchestrator:
 
         # Round 2: dependent services — pass req for locality context
         round2_results = await self.run_round2(lat, lng, zone, req, job_id=job_id)
-        logger.info(f"[{job_id}] Round 2 completed")
+        await dossier_service.update_dossier(job_id, "round2", round2_results)
+        logger.info(f"[{job_id}] Round 2 completed and saved to dossier")
 
         # Round 3: forward aggregated data to report generator
         report_url = None
@@ -156,6 +159,18 @@ class FeasibilityOrchestrator:
         except Exception as e:
             report_error = str(e)
             logger.error(f"[{job_id}] Round 3 (report generation) failed: {e}")
+
+        final_result = {
+            "job_id":          job_id,
+            "status":          "completed" if not report_error else "failed",
+            "round1_results":  round1_results,
+            "round2_results":  round2_results,
+            "report_generated": report_path is not None,
+            "report_url":      report_url,
+            "report_error":    report_error,
+        }
+        
+        await dossier_service.update_dossier(job_id, "final_result", final_result)
 
         # Update DB with final results if we have a job_id record
         try:

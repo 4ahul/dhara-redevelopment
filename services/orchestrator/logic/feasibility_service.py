@@ -167,9 +167,17 @@ class FeasibilityService:
             self.db, user_id, report_data
         )
 
-        # Queue the background task
-        bg.add_task(self._run_agent_task, report.id, input_data)
-        logger.info("Report %s queued for society %s", report.id, soc.name)
+        # ── Queue the background task via Arq (Task 1) ───────────────────────
+        from services.orchestrator.logic.redis import get_arq
+        arq = get_arq()
+        if arq:
+            await arq.enqueue_job("run_ai_agent", input_data, str(report.id))
+            logger.info("Report %s enqueued to Arq for society %s", report.id, soc.name)
+        else:
+            # Fallback to legacy in-memory task if Redis is down
+            bg.add_task(self._run_agent_task, report.id, input_data)
+            logger.warning("Arq pool not available, using fallback BackgroundTask for %s", report.id)
+
         return report
 
     async def update_report(

@@ -1,4 +1,5 @@
 from dhara_shared.dhara_common.banner import print_banner
+from dhara_shared.dhara_common.tracing import setup_tracing
 """
 DP Report Service
 FastAPI entry point - attempts to discover MCGM DP zone layer at startup.
@@ -50,6 +51,7 @@ app = FastAPI(
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+setup_tracing(app, settings.APP_NAME)
 
 @app.get("/health")
 async def health_check():

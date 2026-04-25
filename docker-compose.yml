@@ -21,6 +21,16 @@ services:
       - "traefik.enable=true"
     logging: *default-logging
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686" # UI
+      - "4318:4318"   # OTLP HTTP
+    networks:
+      - dhara_net
+    logging: *default-logging
+
   redis:
     image: redis:7-alpine
     networks:
@@ -75,11 +85,14 @@ services:
       - RAG_URL=http://rag_service:8006
       - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
       - DP_REPORT_URL=http://dp_remarks_report:8008
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      - dossiers_data:/app/dossiers
     networks:
       - dhara_net
     labels:
@@ -88,6 +101,39 @@ services:
       - "traefik.http.routers.orchestrator.entrypoints=web"
       - "traefik.http.middlewares.orchestrator-strip.stripprefix.prefixes=/orchestrator"
       - "traefik.http.routers.orchestrator.middlewares=orchestrator-strip"
+    logging: *default-logging
+    restart: unless-stopped
+
+  orchestrator_worker:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    image: redevelopment-ai/orchestrator:v1
+    command: ["arq", "services.orchestrator.logic.worker.WorkerSettings"]
+    env_file:
+      - .env
+      - ./services/orchestrator/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://redevelopment:redevelopment@postgres:5432/orchestrator_db
+      - REDIS_URL=redis://redis:6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - SITE_ANALYSIS_URL=http://site_analysis:8001
+      - HEIGHT_URL=http://aviation_height:8002
+      - PREMIUM_URL=http://ready_reckoner:8003
+      - REPORT_URL=http://report_generator:8004
+      - PR_CARD_URL=http://pr_card_scraper:8005
+      - RAG_URL=http://rag_service:8006
+      - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
+      - DP_REPORT_URL=http://dp_remarks_report:8008
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - dossiers_data:/app/dossiers
+    networks:
+      - dhara_net
     logging: *default-logging
     restart: unless-stopped
 
@@ -100,6 +146,8 @@ services:
       - "8001:8001"
     env_file:
       - ./services/site_analysis/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:
       - dhara_net
     labels:
@@ -125,6 +173,8 @@ services:
       - "8002:8002"
     env_file:
       - ./services/aviation_height/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:
       - dhara_net
     labels:
@@ -150,6 +200,8 @@ services:
       - "8003:8003"
     env_file:
       - ./services/ready_reckoner/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:
       - dhara_net
     labels:
@@ -177,6 +229,8 @@ services:
       - ./report_outputs:/tmp/reports
     env_file:
       - ./services/report_generator/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     networks:
       - dhara_net
     labels:
@@ -204,6 +258,7 @@ services:
       - ./services/pr_card_scraper/.env
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/pr_card_scraper_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       - postgres
     networks:
@@ -233,6 +288,7 @@ services:
       - ./services/mcgm_property_lookup/.env
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       - postgres
     networks:
@@ -262,6 +318,7 @@ services:
       - ./services/dp_remarks_report/.env
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/dp_remarks_report_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       - postgres
     networks:
@@ -293,6 +350,7 @@ services:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
@@ -383,4 +441,5 @@ volumes:
   upload_data:
   milvus_data:
   etcd_data:
+  dossiers_data:
 

@@ -6,29 +6,49 @@ Caches sessions and user profiles in Redis.
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 import redis
+from arq import create_pool
+from arq.connections import RedisSettings
 from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 redis_client: redis.Redis | None = None
+arq_pool: Any = None
 
 
 async def init_redis():
-    """Initialize Redis connection."""
-    global redis_client
+    """Initialize Redis connection and Arq pool."""
+    global redis_client, arq_pool
     try:
         redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
         redis_client.ping()
         logger.info("Redis connected")
+        
+        # Initialize Arq pool
+        arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+        logger.info("Arq task pool initialized")
     except Exception as e:
         logger.warning("Redis connection failed: %s — using in-memory fallback.", e)
         redis_client = None
+        arq_pool = None
+
+
+async def close_redis():
+    """Close connections."""
+    global arq_pool
+    if arq_pool:
+        await arq_pool.close()
+        logger.info("Arq task pool closed")
 
 
 def get_redis() -> redis.Redis | None:
     return redis_client
+
+def get_arq():
+    return arq_pool
 
 
 def save_session(session_id: str, user_id: str, data: dict) -> bool:

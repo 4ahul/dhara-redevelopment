@@ -16,6 +16,7 @@ from dhara_shared.dhara_common.banner import print_banner
 from services.orchestrator.core.config import settings
 from dhara_shared.dhara_common.logging import setup_logging
 from dhara_shared.dhara_common.exceptions import setup_exception_handlers
+from dhara_shared.dhara_common.tracing import setup_tracing
 from services.orchestrator.core.middleware import (
     request_id_middleware,
     logging_middleware,
@@ -55,7 +56,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     from services.orchestrator.db import close_db
+    from services.orchestrator.logic.redis import close_redis
     await close_db()
+    await close_redis()
     logger.info("Shutdown complete")
 
 
@@ -67,6 +70,7 @@ app = FastAPI(
     description="Dhara AI — Mumbai housing society redevelopment feasibility analysis",
     lifespan=lifespan,
 )
+setup_tracing(app, settings.APP_NAME)
 
 # --- Global Exception Handling (using shared lib) ---
 setup_exception_handlers(app)

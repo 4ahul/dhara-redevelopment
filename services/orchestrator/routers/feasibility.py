@@ -109,12 +109,29 @@ async def analyze_feasibility(
     Round 3: Generate Excel report from template
     Returns job_id + all results. Use GET /analyze/download/{job_id} for the Excel.
     """
-    result = await feasibility_orchestrator.analyze(
-        req.model_dump(),
-        background_tasks=bg,
-        user_id=str(user.id)
-    )
-    return FeasibilityAnalyzeResponse(**result)
+    from uuid import uuid4
+    from services.orchestrator.logic.redis import get_arq
+    
+    job_id = str(uuid4())
+    arq = get_arq()
+    
+    if arq:
+        # Enqueue the job (Task 1)
+        await arq.enqueue_job("run_feasibility_analysis", req.model_dump(), str(user.id), job_id)
+        return FeasibilityAnalyzeResponse(
+            job_id=job_id,
+            status="processing",
+            report_generated=False
+        )
+    else:
+        # Synchronous fallback if Arq is unavailable
+        result = await feasibility_orchestrator.analyze(
+            req.model_dump(),
+            background_tasks=bg,
+            user_id=str(user.id),
+            report_id=job_id
+        )
+        return FeasibilityAnalyzeResponse(**result)
 
 
 @router.post("/analyze/by-society/{society_id}", response_model=FeasibilityAnalyzeResponse)
@@ -125,6 +142,9 @@ async def analyze_feasibility_by_society(
     service: FeasibilityService = Depends(get_feasibility_service)
 ):
     """Trigger full feasibility analysis from an existing society and store results."""
+    from uuid import uuid4
+    from services.orchestrator.logic.redis import get_arq
+
     society = await society_repository.get_society_by_id(
         service.db, society_id, user.id
     )
@@ -147,12 +167,24 @@ async def analyze_feasibility_by_society(
         "road_width_m":  society.road_width_m,
     }
 
-    result = await feasibility_orchestrator.analyze(
-        req_data,
-        background_tasks=bg,
-        user_id=str(user.id)
-    )
-    return FeasibilityAnalyzeResponse(**result)
+    job_id = str(uuid4())
+    arq = get_arq()
+
+    if arq:
+        await arq.enqueue_job("run_feasibility_analysis", req_data, str(user.id), job_id)
+        return FeasibilityAnalyzeResponse(
+            job_id=job_id,
+            status="processing",
+            report_generated=False
+        )
+    else:
+        result = await feasibility_orchestrator.analyze(
+            req_data,
+            background_tasks=bg,
+            user_id=str(user.id),
+            report_id=job_id
+        )
+        return FeasibilityAnalyzeResponse(**result)
 
 
 @router.get("/analyze/download/{job_id}")

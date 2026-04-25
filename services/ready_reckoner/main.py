@@ -1,4 +1,5 @@
 from dhara_shared.dhara_common.banner import print_banner
+from dhara_shared.dhara_common.tracing import setup_tracing
 import logging
 from fastapi import FastAPI
 from services.ready_reckoner.core import settings
@@ -13,6 +14,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
+setup_tracing(app, settings.APP_NAME)
 
 setup_exception_handlers(app)
 
