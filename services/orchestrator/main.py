@@ -14,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from dhara_shared.dhara_common.banner import print_banner
 from services.orchestrator.core.config import settings
-from dhara_shared.dhara_common.logging import setup_logging
+from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
+from dhara_shared.dhara_common.metrics import setup_metrics
 from dhara_shared.dhara_common.exceptions import setup_exception_handlers
 from dhara_shared.dhara_common.tracing import setup_tracing
 from services.orchestrator.core.middleware import (
@@ -27,7 +28,6 @@ from services.orchestrator.core.middleware import (
 print_banner(settings.APP_NAME)
 
 setup_logging(loggers=["gateway", "agent", "services"])
-setup_sentry(settings.APP_NAME)
 logger = logging.getLogger("gateway")
 
 @asynccontextmanager
@@ -65,12 +65,33 @@ async def lifespan(app: FastAPI):
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
+settings.validate_critical_keys(['GEMINI_API_KEY', 'SENTRY_DSN', 'DATABASE_URL', 'REDIS_URL', 'CLOUDINARY_API_KEY'])
+
 app = FastAPI(
-    title="Dhara AI",
+    title="Dhara AI Master Gateway",
     version=settings.APP_VERSION,
-    description="Dhara AI — Mumbai housing society redevelopment feasibility analysis",
+    description="Unified API Gateway for Dhara AI Microservice Mesh",
     lifespan=lifespan,
+    # Configure the Master Swagger with dropdown for other services
+    openapi_url="/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    swagger_ui_parameters={
+        "urls": [
+            {"url": "/openapi.json", "name": "Orchestrator (Master)"},
+            {"url": "/site-analysis/openapi.json", "name": "Site Analysis"},
+            {"url": "/height/openapi.json", "name": "Aviation Height"},
+            {"url": "/ready-reckoner/openapi.json", "name": "Ready Reckoner"},
+            {"url": "/report/openapi.json", "name": "Report Generator"},
+            {"url": "/pr-card/openapi.json", "name": "PR Card Scraper"},
+            {"url": "/rag/openapi.json", "name": "RAG Service"},
+            {"url": "/mcgm/openapi.json", "name": "MCGM Lookup"},
+            {"url": "/dp-remarks/openapi.json", "name": "DP Remarks"},
+        ]
+    }
 )
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)
 
 # --- Global Exception Handling (using shared lib) ---

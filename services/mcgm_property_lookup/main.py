@@ -8,12 +8,12 @@ from services.mcgm_property_lookup.core import settings
 from services.mcgm_property_lookup.routers import router
 
 from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
+from dhara_shared.dhara_common.metrics import setup_metrics
 from dhara_shared.dhara_common.exceptions import setup_exception_handlers
 
 print_banner(settings.APP_NAME)
 
 setup_logging()
-setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
@@ -43,11 +43,15 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down MCGM Property Lookup Service...")
 
 
+settings.validate_critical_keys(['DATABASE_URL'])
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)
 setup_exception_handlers(app)
 
@@ -61,13 +65,3 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8007)
-
-
-
-
-
-
-
-
-
-

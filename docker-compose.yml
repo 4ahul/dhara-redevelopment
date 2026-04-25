@@ -31,6 +31,29 @@ services:
       - dhara_net
     logging: *default-logging
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - dhara_net
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - dhara_net
+    depends_on:
+      - prometheus
+    logging: *default-logging
+
   redis:
     image: redis:7-alpine
     networks:
@@ -86,6 +109,7 @@ services:
       - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
       - DP_REPORT_URL=http://dp_remarks_report:8008
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       redis:
         condition: service_healthy
@@ -125,6 +149,7 @@ services:
       - RAG_URL=http://rag_service:8006
       - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
       - DP_REPORT_URL=http://dp_remarks_report:8008
+      - ENABLE_METRICS=true
     depends_on:
       redis:
         condition: service_healthy
@@ -148,6 +173,7 @@ services:
       - ./services/site_analysis/.env
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
     labels:
@@ -175,6 +201,7 @@ services:
       - ./services/aviation_height/.env
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
     labels:
@@ -202,6 +229,7 @@ services:
       - ./services/ready_reckoner/.env
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
     labels:
@@ -231,6 +259,7 @@ services:
       - ./services/report_generator/.env
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
     labels:
@@ -259,6 +288,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/pr_card_scraper_db
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       - postgres
     networks:
@@ -289,6 +319,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       - postgres
     networks:
@@ -319,6 +350,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/dp_remarks_report_db
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       - postgres
     networks:
@@ -351,6 +383,7 @@ services:
       - MILVUS_HOST=milvus
       - MILVUS_PORT=19530
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       postgres:
         condition: service_healthy
@@ -442,4 +475,6 @@ volumes:
   milvus_data:
   etcd_data:
   dossiers_data:
+  prometheus_data:
+  grafana_data:
 

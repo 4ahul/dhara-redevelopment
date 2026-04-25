@@ -18,9 +18,9 @@ from services.rag_service.db.session import init_db, engine
 from services.rag_service.core.middleware import rate_limit_middleware, security_headers_middleware
 from services.rag_service.routers import chat_router, doc_router, query_router, auth_router
 from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
+from dhara_shared.dhara_common.metrics import setup_metrics
 
 setup_logging()
-setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)
@@ -33,12 +33,16 @@ async def lifespan(app: FastAPI):
     logger.info("[SHUTDOWN] Disposing database connection pool...")
     engine.dispose()
 
+settings.validate_critical_keys(['DATABASE_URL', 'GEMINI_API_KEY'])
+
 app = FastAPI(
     title=settings.APP_NAME,
     description="Backend API for Redevelopment Management System",
     version=settings.APP_VERSION,
     lifespan=lifespan
 )
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)
 
 # --- Middleware ---
@@ -87,8 +91,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8006))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-
-
-
-

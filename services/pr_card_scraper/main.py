@@ -1,6 +1,7 @@
 from dhara_shared.dhara_common.banner import print_banner
 from dhara_shared.dhara_common.tracing import setup_tracing
 from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
+from dhara_shared.dhara_common.metrics import setup_metrics
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -8,7 +9,6 @@ from services.pr_card_scraper.core import settings
 from services.pr_card_scraper.routers import router
 
 setup_logging()
-setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)
@@ -34,11 +34,12 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down PR Card Scraper Service...")
 
 
+settings.validate_critical_keys(['DATABASE_URL'])
+
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)
-
-print_banner(settings.APP_NAME)
-
 
 @app.get("/health")
 async def health_check():
@@ -49,9 +50,3 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8005)
-
-
-
-
-
-

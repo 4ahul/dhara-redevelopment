@@ -12,11 +12,28 @@ class BaseServiceSettings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     
-    # Common API Keys that might be needed by multiple services
+    # Common API Keys
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     SERP_API_KEY: str = ""
     GOOGLE_MAPS_API_KEY: str = ""
+    SENTRY_DSN: str = ""
+
+    def validate_critical_keys(self, keys: list[str]):
+        """
+        Verify that mandatory keys are present.
+        Used at startup to prevent silent failures.
+        """
+        missing = [k for k in keys if not getattr(self, k, None)]
+        if missing:
+            error_msg = (
+                f"\n[CRITICAL CONFIG ERROR] The following environment variables are missing "
+                f"for service '{self.APP_NAME}':\n"
+                + "\n".join([f" - {k}" for k in missing])
+                + "\n\nPlease check your .env file or Docker environment."
+            )
+            # We raise a RuntimeError so the container fails to start
+            raise RuntimeError(error_msg)
 
     class Config:
         case_sensitive = True
