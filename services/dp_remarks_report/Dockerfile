@@ -15,6 +15,7 @@ COPY services/dp_remarks_report/pyproject.toml ./services/dp_remarks_report/
 RUN pip install ./services/dp_remarks_report/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/dp_remarks_report/ ./services/dp_remarks_report/
 COPY services/dp_remarks_report/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

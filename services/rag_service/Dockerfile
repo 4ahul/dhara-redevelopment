@@ -15,6 +15,7 @@ COPY services/rag_service/pyproject.toml ./services/rag_service/
 RUN pip install ./services/rag_service/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/rag_service/ ./services/rag_service/
 COPY services/rag_service/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

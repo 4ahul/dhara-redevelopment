@@ -31,7 +31,7 @@ from selenium.common.exceptions import (
     NoAlertPresentException,
 )
 from PIL import Image
-from services.pr_card_scraper.services.captcha_solver import CaptchaSolver
+from services.pr_card_scraper.logic.captcha_solver import CaptchaSolver
 
 # Platform-aware Chrome binary path — only set if the path actually exists
 import platform as _platform
@@ -1226,4 +1226,5 @@ def create_browser_service(headless: bool = False) -> SeleniumBrowserService:
     service = SeleniumBrowserService(headless=headless)
     service.start()
     return service
+
 

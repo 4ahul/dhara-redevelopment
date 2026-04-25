@@ -1,22 +1,5 @@
 from dhara_shared.dhara_common.banner import print_banner
-import sys, os
-_dir = os.path.dirname(os.path.abspath(__file__))
-if _dir not in sys.path: sys.path.insert(0, _dir)
-_root = os.path.dirname(os.path.dirname(_dir))
-if _root not in sys.path: sys.path.append(_root)
-import sys
 import os
-from pathlib import Path
-
-# Fix pathing for standalone execution and internal service imports
-SERVICE_ROOT = str(Path(os.path.abspath(__file__)).resolve().parent)
-MONOREPO_ROOT = str(Path(SERVICE_ROOT).resolve().parent.parent)
-
-for p in [SERVICE_ROOT, MONOREPO_ROOT]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
-import os
-import sys
 import logging
 from contextlib import asynccontextmanager
 
@@ -40,6 +23,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+print_banner(settings.APP_NAME)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -99,13 +84,6 @@ app.include_router(doc_router.router)
 app.include_router(query_router.router)
 
 if __name__ == "__main__":
-    # Move heavy banner import here to keep main logic fast-starting
-    try:
-        from services.rag_service.core.banner import print_banner as _print_banner
-        
-    except ImportError:
-        print(f"\n--- Starting {settings.APP_NAME} ---")
-
     import uvicorn
     port = int(os.environ.get("PORT", 8006))
     uvicorn.run(app, host="0.0.0.0", port=port)

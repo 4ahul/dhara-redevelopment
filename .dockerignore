@@ -9,9 +9,14 @@ __pycache__
 code-review-graph
 graphify-out
 test_docs
-services/rag_service/data/docs/
+services/rag_service/data/
+services/rag_service/dhara-ui/node_modules/
 *.env
 *.bak
 *.csv
 *.xlsx
 *.pdf
+*.doc
+*.docx
+*.zip
+*.tar.gz

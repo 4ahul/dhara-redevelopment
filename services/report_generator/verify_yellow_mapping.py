@@ -15,7 +15,7 @@ BASE_DIR = os.path.dirname(__file__)
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from services.report_generator.services.cell_mapper import cell_mapper
+from services.report_generator.logic.cell_mapper import cell_mapper
 import openpyxl
 
 
@@ -140,4 +140,5 @@ if __name__ == "__main__":
     rd = sys.argv[2] if len(sys.argv) > 2 else "CLUBBING"
     mode = sys.argv[3] if len(sys.argv) > 3 else "summary"
     raise SystemExit(main(scheme, rd, mode))
+
 

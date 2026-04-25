@@ -17,6 +17,7 @@ COPY services/report_generator/pyproject.toml ./services/report_generator/
 RUN pip install ./services/report_generator/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/report_generator/ ./services/report_generator/
 COPY services/report_generator/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

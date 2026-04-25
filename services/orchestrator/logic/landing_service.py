@@ -17,7 +17,7 @@ from services.orchestrator.schemas.landing import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.services.email import (
+from services.orchestrator.logic.email import (
     send_admin_notification,
     send_contact_confirmation,
     send_get_started_confirmation,
@@ -86,6 +86,7 @@ class LandingService:
 
         logger.info("Contact Us Submission: %s <%s>", req.name, req.email)
         return FormSubmissionResponse(message="Thank you! We'll respond within 1-2 business days.", reference_id=ref)
+
 
 
 

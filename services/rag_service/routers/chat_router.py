@@ -25,7 +25,7 @@ def sanitize_session_title(message: str) -> str:
     return title or "New Chat"
 
 def get_rag_agent():
-    from services.rag_service.services.intelligent_rag import IntelligentRAG
+    from services.rag_service.logic.intelligent_rag import IntelligentRAG
     return IntelligentRAG()
 
 def _save_chat_messages(
@@ -478,4 +478,5 @@ async def add_feedback(
     message.feedback_at = datetime.now(timezone.utc)
     db.commit()
     return {"success": True}
+
 

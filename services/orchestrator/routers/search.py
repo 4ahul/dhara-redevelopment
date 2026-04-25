@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 from services.orchestrator.schemas.admin import RoleResponse
 from services.orchestrator.schemas.common import PaginatedResponse
 
-from services.orchestrator.services.search_service import SearchService
+from services.orchestrator.logic.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Search & Roles"])
@@ -28,6 +28,7 @@ async def global_search(
 @router.get("/roles", response_model=list[RoleResponse])
 async def get_roles(service: SearchService = Depends(get_search_service)):
     return await service.get_active_roles()
+
 
 
 

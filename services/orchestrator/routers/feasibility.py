@@ -15,10 +15,10 @@ from services.orchestrator.schemas.society import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.services.feasibility_orchestrator import (
+from services.orchestrator.logic.feasibility_orchestrator import (
     feasibility_orchestrator,
 )
-from services.orchestrator.services.feasibility_service import FeasibilityService
+from services.orchestrator.logic.feasibility_service import FeasibilityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/feasibility-reports", tags=["Feasibility Reports"])
@@ -152,7 +152,7 @@ async def download_feasibility_report(
     user=Depends(get_current_user),
 ):
     """Download the generated Excel feasibility report for a completed job."""
-    from services.orchestrator.services.feasibility_orchestrator import _REPORT_STORE
+    from services.orchestrator.logic.feasibility_orchestrator import _REPORT_STORE
     report_path = _REPORT_STORE.get(job_id)
     if not report_path:
         raise HTTPException(404, f"No report found for job_id={job_id}. Run /analyze first.")
@@ -164,6 +164,7 @@ async def download_feasibility_report(
         filename=f"Feasibility_Report_{job_id}.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 

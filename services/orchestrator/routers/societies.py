@@ -18,7 +18,7 @@ from services.orchestrator.schemas.society import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.services.society_service import SocietyService
+from services.orchestrator.logic.society_service import SocietyService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/societies", tags=["Societies"])
@@ -147,6 +147,7 @@ async def create_tender(
     if not t:
         raise HTTPException(404, "Society not found")
     return TenderResponse.model_validate(t)
+
 
 
 

@@ -15,6 +15,7 @@ COPY services/aviation_height/pyproject.toml ./services/aviation_height/
 RUN pip install ./services/aviation_height/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/aviation_height/ ./services/aviation_height/
 COPY services/aviation_height/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

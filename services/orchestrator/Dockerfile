@@ -15,6 +15,7 @@ COPY services/orchestrator/pyproject.toml ./services/orchestrator/
 RUN pip install ./services/orchestrator
 
 # Copy entire service directory to preserve path for absolute imports
+COPY services/__init__.py ./services/
 COPY services/orchestrator/ ./services/orchestrator/
 
 # Fix Entrypoint path

@@ -10,20 +10,10 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-try:
-    from services.orchestrator.core.config import settings
-    from services.orchestrator.db.base import Base
-    # IMPORTANT: Import ALL models so metadata is complete!
-    from services.orchestrator.models import *  # noqa: F401,F403
-except ModuleNotFoundError:
-    # Fallback for container/runtime contexts where orchestrator is executed
-    # as the working package root instead of services.orchestrator.
-    _service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    if _service_root not in sys.path:
-        sys.path.insert(0, _service_root)
-    from core.config import settings
-    from db.base import Base
-    from models import *  # noqa: F401,F403
+from services.orchestrator.core.config import settings
+from services.orchestrator.db.base import Base
+# IMPORTANT: Import ALL models so metadata is complete!
+from services.orchestrator.models import *  # noqa: F401,F403
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

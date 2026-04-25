@@ -53,7 +53,7 @@ class FeasibilityOrchestrator:
         cts_no = req.get("cts_no")
         fp_no = req.get("fp_no")
         if cts_no or fp_no:
-            from services.orchestrator.services.cts_fp_resolver import get_resolver
+            from services.orchestrator.logic.cts_fp_resolver import get_resolver
             resolver = get_resolver()
             res = await resolver.resolve(
                 cts_no=cts_no,
@@ -510,7 +510,7 @@ class FeasibilityOrchestrator:
         """Check for red cells in the generated report and send notifications if close to expiry."""
         try:
             import openpyxl
-            from services.orchestrator.services.email import send_email
+            from services.orchestrator.logic.email import send_email
 
             report_path = _REPORT_STORE.get(job_id)
             if not report_path or not os.path.exists(report_path):
@@ -559,6 +559,7 @@ class FeasibilityOrchestrator:
 
 # Singleton instance
 feasibility_orchestrator = FeasibilityOrchestrator()
+
 
 
 

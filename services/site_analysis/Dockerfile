@@ -15,6 +15,7 @@ COPY services/site_analysis/pyproject.toml ./services/site_analysis/
 RUN pip install ./services/site_analysis/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/site_analysis/ ./services/site_analysis/
 COPY services/site_analysis/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

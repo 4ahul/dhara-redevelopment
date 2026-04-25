@@ -1,47 +1,15 @@
 from dhara_shared.dhara_common.banner import print_banner
-import sys, os
-_dir = os.path.dirname(os.path.abspath(__file__))
-if _dir not in sys.path: sys.path.insert(0, _dir)
-_root = os.path.dirname(os.path.dirname(_dir))
-if _root not in sys.path: sys.path.append(_root)
-import sys
-import os
-from pathlib import Path
-
-# Fix pathing for standalone execution and internal service imports
-SERVICE_ROOT = str(Path(os.path.abspath(__file__)).resolve().parent)
-MONOREPO_ROOT = str(Path(SERVICE_ROOT).resolve().parent.parent)
-
-for p in [SERVICE_ROOT, MONOREPO_ROOT]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
-"""
-MCGM Property Lookup Service
-FastAPI entry point - ArcGIS layer URL is discovered at startup.
-"""
-
-import sys
-import os
 import logging
 from contextlib import asynccontextmanager
-
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir); sys.path.insert(0, os.path.join(service_dir, 'services'))
-
 from fastapi import FastAPI
 
 from services.mcgm_property_lookup.core import settings
 from services.mcgm_property_lookup.routers import router
 
-from dhara_shared.dhara_shared.dhara_common.logging import setup_logging
-from dhara_shared.dhara_shared.dhara_common.exceptions import setup_exception_handlers
+from dhara_shared.dhara_common.logging import setup_logging
+from dhara_shared.dhara_common.exceptions import setup_exception_handlers
 
-from services.mcgm_property_lookup.core.banner import print_banner as _print_banner
-
+print_banner(settings.APP_NAME)
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -53,7 +21,7 @@ async def lifespan(app: FastAPI):
     # Pre-discover the ArcGIS feature layer URL so the first request is fast.
     try:
         import httpx
-        from services.mcgm_property_lookup.services.arcgis_client import ArcGISClient
+        from services.mcgm_property_lookup.logic.arcgis_client import ArcGISClient
 
         async with httpx.AsyncClient() as http:
             client = ArcGISClient()
@@ -90,6 +58,7 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8007)
+
 
 
 

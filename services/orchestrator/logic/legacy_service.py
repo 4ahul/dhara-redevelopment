@@ -14,7 +14,7 @@ from services.orchestrator.schemas import (
     UserProfileUpdate,
 )
 
-from services.orchestrator.services.redis import (
+from services.orchestrator.logic.redis import (
     delete_session,
     get_session,
     get_user_profile,
@@ -112,6 +112,7 @@ class LegacyService:
             } for s in sessions if s.get("data", {}).get("report_path")
         ]
         return {"reports": reports, "count": len(reports)}
+
 
 
 

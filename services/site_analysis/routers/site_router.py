@@ -2,12 +2,12 @@ from fastapi import APIRouter, HTTPException
 
 try:
     from services.site_analysis.schemas import SiteAnalysisRequest, SiteAnalysisResponse
-    from services.site_analysis.services import site_analysis_service
-    from services.site_analysis.services.analyse import SiteAnalysisUnavailableError
+    from services.site_analysis.logic import site_analysis_service
+    from services.site_analysis.logic.analyse import SiteAnalysisUnavailableError
 except ImportError:
     from services.site_analysis.schemas import SiteAnalysisRequest, SiteAnalysisResponse
-    from services.site_analysis.services import site_analysis_service
-    from services.site_analysis.services.analyse import SiteAnalysisUnavailableError
+    from services.site_analysis.logic import site_analysis_service
+    from services.site_analysis.logic.analyse import SiteAnalysisUnavailableError
 
 router = APIRouter()
 
@@ -36,4 +36,5 @@ async def analyse_site(req: SiteAnalysisRequest):
 @router.get("/health")
 def health():
     return {"status": "ok", "service": "site_analysis"}
+
 

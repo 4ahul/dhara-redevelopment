@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from services.orchestrator.schemas.admin import EnquiryResponse, EnquiryUpdate, RoleResponse
 from services.orchestrator.schemas.common import PaginatedResponse
 
-from services.orchestrator.services.admin_service import AdminService
+from services.orchestrator.logic.admin_service import AdminService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin Portal"])
@@ -61,6 +61,7 @@ async def patch_enquiry(enquiry_id: UUID, req: EnquiryUpdate, service: AdminServ
 async def admin_roles(service: AdminService = Depends(get_admin_service)):
     roles = await service.get_roles()
     return [RoleResponse.model_validate(r) for r in roles]
+
 
 
 

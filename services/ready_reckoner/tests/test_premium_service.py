@@ -44,10 +44,10 @@ SAMPLE_PREMIUM_REQUEST = {
 class TestPremiumService:
     """Test suite for PremiumService"""
 
-    @patch('services.ready_reckoner.services.premium_service.rr_repository')
+    @patch('services.ready_reckoner.logic.premium_service.rr_repository')
     def test_calculate_premiums_basic(self, mock_rr_repo):
         """Test basic premium calculation with mocked repository"""
-        from services.ready_reckoner.services.premium_service import PremiumService, premium_service
+        from services.ready_reckoner.logic.premium_service import PremiumService, premium_service
         
         # Mock the repository response
         mock_record = {
@@ -101,10 +101,10 @@ class TestPremiumService:
         assert "Additional FSI Premium" in line_item_descriptions
         assert "Development Charges (MCGM)" in line_item_descriptions
 
-    @patch('services.ready_reckoner.services.premium_service.rr_repository')
+    @patch('services.ready_reckoner.logic.premium_service.rr_repository')
     def test_calculate_premiums_open_land(self, mock_rr_repo):
         """Test premium calculation for open land property type"""
-        from services.ready_reckoner.services.premium_service import PremiumService
+        from services.ready_reckoner.logic.premium_service import PremiumService
         
         # Mock the repository response
         mock_record = {
@@ -158,10 +158,10 @@ class TestPremiumService:
         base_value_items = [item for item in result.line_items if "Property Base Value" in item.description]
         assert len(base_value_items) > 0
 
-    @patch('services.ready_reckoner.services.premium_service.rr_repository')
+    @patch('services.ready_reckoner.logic.premium_service.rr_repository')
     def test_calculate_premiums_commercial(self, mock_rr_repo):
         """Test premium calculation for commercial property type"""
-        from services.ready_reckoner.services.premium_service import PremiumService
+        from services.ready_reckoner.logic.premium_service import PremiumService
         
         # Mock the repository response
         mock_record = {
@@ -210,10 +210,10 @@ class TestPremiumService:
         assert result.total_property_value > 0
         assert result.grand_total > 0
 
-    @patch('services.ready_reckoner.services.premium_service.rr_repository')
+    @patch('services.ready_reckoner.logic.premium_service.rr_repository')
     def test_calculate_premiums_with_zero_values(self, mock_rr_repo):
         """Test premium calculation with zero values for optional fields"""
-        from services.ready_reckoner.services.premium_service import PremiumService
+        from services.ready_reckoner.logic.premium_service import PremiumService
         
         # Mock the repository response
         mock_record = {
@@ -275,7 +275,7 @@ class TestPremiumService:
 
     def test_helper_functions(self):
         """Test helper functions in isolation"""
-        from services.ready_reckoner.services.premium_service import (
+        from services.ready_reckoner.logic.premium_service import (
             _extract_rates, _build_location, _build_administrative, 
             _build_applicability, _build_rr_rates
         )
@@ -364,4 +364,5 @@ class TestPremiumService:
         assert rr_rates[0].previous_year_rate == 45000.0
         assert rr_rates[0].increase_amount == 5000.0
         assert rr_rates[0].increase_or_decrease_percent == 11.11
+
 

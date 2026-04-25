@@ -17,7 +17,7 @@ from services.orchestrator.schemas.common import PaginatedResponse
 from services.orchestrator.schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.services.email import send_team_invite
+from services.orchestrator.logic.email import send_team_invite
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ class TeamService:
         await self.db.delete(member)
         await self.db.flush()
         return {"status": "success", "message": f"{member.email} removed"}
+
 
 
 

@@ -15,6 +15,7 @@ COPY services/ready_reckoner/pyproject.toml ./services/ready_reckoner/
 RUN pip install ./services/ready_reckoner/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/ready_reckoner/ ./services/ready_reckoner/
 COPY services/ready_reckoner/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

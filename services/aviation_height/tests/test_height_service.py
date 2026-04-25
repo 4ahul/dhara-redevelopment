@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from utils import setup_path
 setup_path("height_service")
 
-from services.aviation_height.services.height_service.services.height_service import HeightService, NOCASUnavailableError
+from services.aviation_height.logic.height_service.services.height_service import HeightService, NOCASUnavailableError
 
 async def test_height_service_flow():
     print("Testing Height Service Flow...")
@@ -37,4 +37,5 @@ async def test_height_service_flow():
 
 if __name__ == "__main__":
     asyncio.run(test_height_service_flow())
+
 

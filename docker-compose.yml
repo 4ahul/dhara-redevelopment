@@ -1,3 +1,9 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   traefik:
@@ -163,6 +169,8 @@ services:
       - "8005:8005"
     env_file:
       - ./services/pr_card_scraper/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/pr_card_scraper_db
     depends_on:
       - postgres
     networks:
@@ -184,6 +192,8 @@ services:
       - "8007:8007"
     env_file:
       - ./services/mcgm_property_lookup/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db
     depends_on:
       - postgres
     networks:
@@ -205,6 +215,8 @@ services:
       - "8008:8008"
     env_file:
       - ./services/dp_remarks_report/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/dp_remarks_report_db
     depends_on:
       - postgres
     networks:
@@ -315,13 +327,6 @@ services:
 networks:
   dhara_net:
     driver: bridge
-
-# Global Logging Strategy
-x-logging: &default-logging
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
 
 volumes:
   redis_data:

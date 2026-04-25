@@ -70,7 +70,7 @@ async def upload_document(
 
     try:
         # Note: assuming scripts/index_docs_with_ocr.py exists or similar
-        from services.rag_service.services.ocr_api import index_document 
+        from services.rag_service.logic.ocr_api import index_document 
         # Wait, the original code imported from scripts.index_docs_with_ocr
         # I'll check where index_document is defined. 
         # In api.py it was: from scripts.index_docs_with_ocr import index_document
@@ -94,4 +94,5 @@ async def upload_document(
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
 

@@ -15,6 +15,7 @@ COPY services/mcgm_property_lookup/pyproject.toml ./services/mcgm_property_looku
 RUN pip install ./services/mcgm_property_lookup/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/mcgm_property_lookup/ ./services/mcgm_property_lookup/
 COPY services/mcgm_property_lookup/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

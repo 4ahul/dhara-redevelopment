@@ -19,6 +19,7 @@ COPY services/pr_card_scraper/pyproject.toml ./services/pr_card_scraper/
 RUN pip install ./services/pr_card_scraper/
 
 # Copy packages preserving path
+COPY services/__init__.py ./services/
 COPY services/pr_card_scraper/ ./services/pr_card_scraper/
 COPY services/pr_card_scraper/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

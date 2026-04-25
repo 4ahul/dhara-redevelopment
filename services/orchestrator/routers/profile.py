@@ -6,7 +6,7 @@ from services.orchestrator.core.dependencies import get_current_user, get_profil
 from fastapi import APIRouter, Depends, File, UploadFile
 from services.orchestrator.schemas.profile import PortfolioUploadResponse, ProfileResponse, ProfileUpdate
 
-from services.orchestrator.services.profile_service import ProfileService
+from services.orchestrator.logic.profile_service import ProfileService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["Profile"])
@@ -42,6 +42,7 @@ async def upload_avatar_image(
     service: ProfileService = Depends(get_profile_service)
 ):
     return await service.handle_avatar_upload(user, file)
+
 
 
 

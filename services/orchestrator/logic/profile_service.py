@@ -11,7 +11,7 @@ from services.orchestrator.models.user import User
 from services.orchestrator.schemas.profile import PortfolioUploadResponse, ProfileResponse, ProfileUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.services.cloudinary import upload_avatar, upload_portfolio
+from services.orchestrator.logic.cloudinary import upload_avatar, upload_portfolio
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,7 @@ class ProfileService:
             "avatar_url": result["secure_url"],
             "public_id": result["public_id"]
         }
+
 
 
 

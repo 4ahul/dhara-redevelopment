@@ -22,10 +22,10 @@ from services.report_generator.schemas.report import (
     TemplateApplyRequest,
     TemplateReportRequest,
 )
-from services.report_generator.services.data_normalizer import normalize_report_data
-from services.report_generator.services.pdf_builder import build_feasibility_pdf
-from services.report_generator.services.template_service import template_service
-from services.report_generator.services.excel_to_pdf import generate_report_with_pdf
+from services.report_generator.logic.data_normalizer import normalize_report_data
+from services.report_generator.logic.pdf_builder import build_feasibility_pdf
+from services.report_generator.logic.template_service import template_service
+from services.report_generator.logic.excel_to_pdf import generate_report_with_pdf
 from services.report_generator.core.config import OUTPUT_DIR, settings, resolve_scheme_key
 from feasibility.dispatcher import generate as feasibility_generate
 from feasibility import calcs as _feasibility_calcs  # noqa: F401 — registers @register decorators
@@ -346,4 +346,5 @@ async def get_feasibility_dossier(scheme: str = Query("33(7)(B)")):
             return _json.load(f)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Dossier not generated yet")
+
 

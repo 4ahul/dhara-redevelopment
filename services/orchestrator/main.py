@@ -1,9 +1,3 @@
-import sys, os
-_dir = os.path.dirname(os.path.abspath(__file__))
-if _dir not in sys.path: sys.path.insert(0, _dir)
-_root = os.path.dirname(os.path.dirname(_dir))
-if _root not in sys.path: sys.path.append(_root)
-
 """
 Dhara AI — Orchestrator Service
 Entry point: thin FastAPI app with lifespan, CORS, and router registration.
@@ -43,7 +37,7 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     # 2. Redis
-    from services.orchestrator.services.redis import init_redis
+    from services.orchestrator.logic.redis import init_redis
     await init_redis()
 
     # 3. LLM Client → inject into agent runner
@@ -106,7 +100,7 @@ app.include_router(ws_router)
 @app.get("/health")
 async def health():
     """Deep Health Check verifying connectivity to critical dependencies and microservices."""
-    from services.orchestrator.services.redis import get_redis
+    from services.orchestrator.logic.redis import get_redis
     import httpx
     
     health_status = {
@@ -172,3 +166,4 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

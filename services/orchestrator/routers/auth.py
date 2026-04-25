@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Header
 from services.orchestrator.models import UserRole
 from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
 
-from services.orchestrator.services.auth_service import AuthService
+from services.orchestrator.logic.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -87,6 +87,7 @@ async def pmc_signup(req: SignupRequest, service: AuthService = Depends(get_auth
 async def pmc_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
     """PMC user login with email/password."""
     return await service.pmc_login(req)
+
 
 
 

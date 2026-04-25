@@ -11,7 +11,7 @@ from services.orchestrator.schemas.landing import (
     LandingPageResponse,
 )
 
-from services.orchestrator.services.landing_service import LandingService
+from services.orchestrator.logic.landing_service import LandingService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Landing Page"])
@@ -39,6 +39,7 @@ async def contact_us(
     service: LandingService = Depends(get_landing_service)
 ):
     return await service.submit_contact(req, bg)
+
 
 
 

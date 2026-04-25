@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api", tags=["Query"])
 logger = logging.getLogger(__name__)
 
 def get_rag_agent():
-    from services.rag_service.services.intelligent_rag import IntelligentRAG
+    from services.rag_service.logic.intelligent_rag import IntelligentRAG
     return IntelligentRAG()
 
 @router.post("/rag-query")
@@ -54,4 +54,5 @@ async def query_legacy(
         "clauses": answer_data.get("clauses", []),
         "confidence": answer_data.get("confidence", 0),
     }
+
 

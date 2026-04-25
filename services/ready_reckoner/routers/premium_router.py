@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from services.ready_reckoner.schemas import PremiumRequest, PremiumResponse
-from services.ready_reckoner.services.premium_service import premium_service
+from services.ready_reckoner.logic.premium_service import premium_service
 from dhara_shared.dhara_shared.dhara_common.schemas import InternalServiceResponse
 
 router = APIRouter()
@@ -12,4 +12,5 @@ async def get_premium_calculation(req: PremiumRequest):
         return InternalServiceResponse(status="success", data=result)
     except Exception as e:
         return InternalServiceResponse(status="error", error=str(e))
+
 

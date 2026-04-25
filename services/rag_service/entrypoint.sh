@@ -12,7 +12,7 @@ done
 echo "PostgreSQL is UP!"
 
 echo "Running Database Migrations..."
-alembic upgrade head
+alembic -c /app/services/rag_service/alembic.ini upgrade head
 
 echo "Database is up-to-date. Launching application..."
 exec "$@"

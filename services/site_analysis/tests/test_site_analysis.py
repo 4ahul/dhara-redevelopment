@@ -2,7 +2,7 @@ import asyncio
 from utils import setup_path
 setup_path("site_analysis")
 
-from services.site_analysis.services.analyse import site_analysis_service, infer_area_type
+from services.site_analysis.logic.analyse import site_analysis_service, infer_area_type
 
 async def test_site_analysis_flow():
     print("Testing Site Analysis Service Flow...")
@@ -19,4 +19,5 @@ async def test_site_analysis_flow():
 
 if __name__ == "__main__":
     asyncio.run(test_site_analysis_flow())
+
 

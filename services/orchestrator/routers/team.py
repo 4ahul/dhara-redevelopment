@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from services.orchestrator.schemas.common import PaginatedResponse
 from services.orchestrator.schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
 
-from services.orchestrator.services.team_service import TeamService
+from services.orchestrator.logic.team_service import TeamService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/team", tags=["Team Management"])
@@ -52,6 +52,7 @@ async def remove_member(
     service: TeamService = Depends(get_team_service)
 ):
     return await service.remove_member(member_id, user.organization)
+
 
 
 

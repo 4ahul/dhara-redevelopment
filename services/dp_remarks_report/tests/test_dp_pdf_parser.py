@@ -3,7 +3,7 @@
 import os
 import unittest
 
-from services.dp_remarks_report.services.dp_pdf_parser import parse_dp_pdf
+from services.dp_remarks_report.logic.dp_pdf_parser import parse_dp_pdf
 
 TEST_DOCS = os.path.join(os.path.dirname(__file__), "..", "..", "..", "test_docs")
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "sample")
@@ -239,4 +239,5 @@ class TestFormatDetection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

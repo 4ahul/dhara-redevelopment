@@ -70,7 +70,7 @@ class FeasibilityService:
 
         updates = {}
         if req_cts_no or req_fp_no:
-            from services.orchestrator.services.cts_fp_resolver import get_resolver
+            from services.orchestrator.logic.cts_fp_resolver import get_resolver
             resolver = get_resolver()
 
             res = await resolver.resolve(
@@ -257,6 +257,7 @@ class FeasibilityService:
             logger.error(
                 "Feasibility background task CRITICAL ERROR for %s: %s", report_id, e
             )
+
 
 
 

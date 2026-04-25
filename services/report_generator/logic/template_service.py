@@ -20,7 +20,7 @@ if service_dir not in sys.path:
     sys.path.insert(0, service_dir)
 
 from services.report_generator.core.config import settings, resolve_scheme_key
-from services.report_generator.services.cell_mapper import cell_mapper
+from services.report_generator.logic.cell_mapper import cell_mapper
 
 # Testing override: all report generation must use this single template file.
 # Remove to restore per-scheme template selection from SCHEME_TEMPLATE_MAP.
@@ -344,4 +344,5 @@ class TemplateService:
 
 
 template_service = TemplateService()
+
 

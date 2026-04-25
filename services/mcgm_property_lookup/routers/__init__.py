@@ -26,9 +26,9 @@ from services.mcgm_property_lookup.schemas import (
     PropertyLookupResponse,
     PropertyLookupStatus,
 )
-from services.mcgm_property_lookup.services import ArcGISClient, MCGMBrowserScraper
-from services.mcgm_property_lookup.services.storage import AsyncStorageService as StorageService
-from services.mcgm_property_lookup.services.geometry import (
+from services.mcgm_property_lookup.logic import ArcGISClient, MCGMBrowserScraper
+from services.mcgm_property_lookup.logic.storage import AsyncStorageService as StorageService
+from services.mcgm_property_lookup.logic.geometry import (
     polygon_area_sqm,
     polygon_centroid_mercator,
     rings_to_wgs84,
@@ -430,6 +430,7 @@ def health():
         "service": "mcgm_property_lookup",
         "arcgis_layer_cached": ArcGISClient._layer_url is not None,
     }
+
 
 
 

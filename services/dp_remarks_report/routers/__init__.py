@@ -28,9 +28,9 @@ from pathlib import Path
 
 from services.dp_remarks_report.core import settings
 from services.dp_remarks_report.schemas import DPReportRequest, DPReportResponse, DPReportStatus
-from services.dp_remarks_report.services import DPArcGISClient, DPBrowserScraper
-from services.dp_remarks_report.services.dp_arcgis_client import parse_dp_attributes
-from services.dp_remarks_report.services.storage import AsyncStorageService as StorageService
+from services.dp_remarks_report.logic import DPArcGISClient, DPBrowserScraper
+from services.dp_remarks_report.logic.dp_arcgis_client import parse_dp_attributes
+from services.dp_remarks_report.logic.storage import AsyncStorageService as StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +194,7 @@ def health():
         "service": "dp_report_service",
         "arcgis_layer_cached": DPArcGISClient._zone_layer_url is not None,
     }
+
 
 
 

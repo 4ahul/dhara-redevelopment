@@ -30,7 +30,7 @@ def generate_report_with_pdf(
     redevelopment_type: str = "CLUBBING",
 ) -> Tuple[str, Optional[str]]:
     """Generate both Excel and PDF reports with comprehensive data."""
-    from services.report_generator.services.template_service import template_service
+    from services.report_generator.logic.template_service import template_service
 
     safe_name = society_name.replace(" ", "_")
     excel_filename = f"Feasibility_{scheme}_{redevelopment_type}_{safe_name}.xlsx"
@@ -47,7 +47,7 @@ def generate_report_with_pdf(
     pdf_path = str(output_dir / pdf_filename)
 
     try:
-        from services.report_generator.services.pdf_builder import build_feasibility_pdf
+        from services.report_generator.logic.pdf_builder import build_feasibility_pdf
 
         pdf_data = normalize_template_data_for_pdf(all_data)
         build_feasibility_pdf(pdf_data, pdf_path)
@@ -454,4 +454,5 @@ REGULATORY NOTES:
 
 NOTE: This feasibility is based on data provided by society. Actual costs subject to MCGM approval.""",
     }
+
 

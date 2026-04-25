@@ -51,7 +51,7 @@ class ToolExecutor:
 
     async def _get_cached(self, key: str):
         try:
-            from services.orchestrator.services.redis import get_redis
+            from services.orchestrator.logic.redis import get_redis
             r = get_redis()
             if r:
                 data = r.get(key)
@@ -63,7 +63,7 @@ class ToolExecutor:
 
     async def _set_cached(self, key: str, result: dict):
         try:
-            from services.orchestrator.services.redis import get_redis
+            from services.orchestrator.logic.redis import get_redis
             r = get_redis()
             if r and "error" not in result:
                 r.setex(key, self._CACHE_TTL, json.dumps(result, default=str))
@@ -367,6 +367,7 @@ class ToolExecutor:
 
 
 tool_executor = ToolExecutor()
+
 
 
 

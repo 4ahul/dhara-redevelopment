@@ -9,7 +9,7 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_success_with_mocked_geocode(self):
         """Test successful site analysis with mocked geocoding"""
-        from services.site_analysis.services.analyse import SiteAnalysisService
+        from services.site_analysis.logic.analyse import SiteAnalysisService
 
         svc = SiteAnalysisService()
 
@@ -41,7 +41,7 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_fails_when_geocoding_fails(self):
         """Test that SiteAnalysisUnavailableError is raised when geocoding fails"""
-        from services.site_analysis.services.analyse import (
+        from services.site_analysis.logic.analyse import (
             SiteAnalysisService, SiteAnalysisUnavailableError,
         )
 
@@ -54,7 +54,7 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_returns_none_zone_when_mcgm_unavailable(self):
         """Test that zone_inference is None when MCGM queries fail"""
-        from services.site_analysis.services.analyse import SiteAnalysisService
+        from services.site_analysis.logic.analyse import SiteAnalysisService
 
         svc = SiteAnalysisService()
 
@@ -78,7 +78,7 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_function(self):
         """Test the infer_area_type helper function"""
-        from services.site_analysis.services.analyse import infer_area_type
+        from services.site_analysis.logic.analyse import infer_area_type
 
         # Test commercial area
         commercial_places = [
@@ -109,13 +109,13 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_empty_input(self):
         """Test infer_area_type with empty input"""
-        from services.site_analysis.services.analyse import infer_area_type
+        from services.site_analysis.logic.analyse import infer_area_type
 
         assert infer_area_type([]) == "Predominantly Residential"  # Default fallback
 
     def test_site_analysis_unavailable_error(self):
         """Test SiteAnalysisUnavailableError can be raised and caught"""
-        from services.site_analysis.services.analyse import SiteAnalysisUnavailableError
+        from services.site_analysis.logic.analyse import SiteAnalysisUnavailableError
 
         with pytest.raises(SiteAnalysisUnavailableError):
             raise SiteAnalysisUnavailableError("Test error")
@@ -124,4 +124,5 @@ class TestSiteAnalysisService:
             raise SiteAnalysisUnavailableError("Test error")
         except SiteAnalysisUnavailableError as e:
             assert str(e) == "Test error"
+
 
