@@ -51,6 +51,7 @@ class FeasibilityReport(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_feasibility_user", "user_id"),
         Index("ix_feasibility_society", "society_id"),
+        Index("ix_feasibility_created_at", "created_at"),
     )
 
 

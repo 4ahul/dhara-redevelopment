@@ -8,14 +8,17 @@ services:
 
   traefik:
     image: traefik:v3
+    container_name: traefik
     ports:
-      - "80:80"
-      - "8080:8080"
+      - "80:80"       # Web entrypoint
+      - "8080:8080"   # Dashboard
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
     logging: *default-logging
 
   redis:
@@ -79,6 +82,12 @@ services:
         condition: service_healthy
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orchestrator.rule=PathPrefix(`/orchestrator`)"
+      - "traefik.http.routers.orchestrator.entrypoints=web"
+      - "traefik.http.middlewares.orchestrator-strip.stripprefix.prefixes=/orchestrator"
+      - "traefik.http.routers.orchestrator.middlewares=orchestrator-strip"
     logging: *default-logging
     restart: unless-stopped
 
@@ -93,6 +102,12 @@ services:
       - ./services/site_analysis/.env
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.site-analysis.rule=PathPrefix(`/site-analysis`)"
+      - "traefik.http.routers.site-analysis.entrypoints=web"
+      - "traefik.http.middlewares.site-analysis-strip.stripprefix.prefixes=/site-analysis"
+      - "traefik.http.routers.site-analysis.middlewares=site-analysis-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
@@ -112,6 +127,12 @@ services:
       - ./services/aviation_height/.env
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.height.rule=PathPrefix(`/height`)"
+      - "traefik.http.routers.height.entrypoints=web"
+      - "traefik.http.middlewares.height-strip.stripprefix.prefixes=/height"
+      - "traefik.http.routers.height.middlewares=height-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8002/health" ]
@@ -131,6 +152,12 @@ services:
       - ./services/ready_reckoner/.env
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ready-reckoner.rule=PathPrefix(`/ready-reckoner`)"
+      - "traefik.http.routers.ready-reckoner.entrypoints=web"
+      - "traefik.http.middlewares.ready-reckoner-strip.stripprefix.prefixes=/ready-reckoner"
+      - "traefik.http.routers.ready-reckoner.middlewares=ready-reckoner-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8003/health" ]
@@ -152,6 +179,12 @@ services:
       - ./services/report_generator/.env
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.report.rule=PathPrefix(`/report`)"
+      - "traefik.http.routers.report.entrypoints=web"
+      - "traefik.http.middlewares.report-strip.stripprefix.prefixes=/report"
+      - "traefik.http.routers.report.middlewares=report-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
@@ -175,6 +208,12 @@ services:
       - postgres
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pr-card.rule=PathPrefix(`/pr-card`)"
+      - "traefik.http.routers.pr-card.entrypoints=web"
+      - "traefik.http.middlewares.pr-card-strip.stripprefix.prefixes=/pr-card"
+      - "traefik.http.routers.pr-card.middlewares=pr-card-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8005/health" ]
@@ -198,6 +237,12 @@ services:
       - postgres
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcgm.rule=PathPrefix(`/mcgm`)"
+      - "traefik.http.routers.mcgm.entrypoints=web"
+      - "traefik.http.middlewares.mcgm-strip.stripprefix.prefixes=/mcgm"
+      - "traefik.http.routers.mcgm.middlewares=mcgm-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8007/health" ]
@@ -221,6 +266,12 @@ services:
       - postgres
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dp-remarks.rule=PathPrefix(`/dp-remarks`)"
+      - "traefik.http.routers.dp-remarks.entrypoints=web"
+      - "traefik.http.middlewares.dp-remarks-strip.stripprefix.prefixes=/dp-remarks"
+      - "traefik.http.routers.dp-remarks.middlewares=dp-remarks-strip"
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8008/health" ]
@@ -247,14 +298,12 @@ services:
         condition: service_healthy
     networks:
       - dhara_net
-    logging: *default-logging
-    restart: on-failure:5
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8006/api/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rag.rule=PathPrefix(`/rag`)"
+      - "traefik.http.routers.rag.entrypoints=web"
+      - "traefik.http.middlewares.rag-strip.stripprefix.prefixes=/rag"
+      - "traefik.http.routers.rag.middlewares=rag-strip"
 
   milvus:
     image: milvusdb/milvus:v2.4.0
