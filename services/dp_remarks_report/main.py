@@ -1,5 +1,6 @@
 from dhara_shared.dhara_common.banner import print_banner
 from dhara_shared.dhara_common.tracing import setup_tracing
+from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
 """
 DP Report Service
 FastAPI entry point - attempts to discover MCGM DP zone layer at startup.
@@ -11,10 +12,8 @@ from fastapi import FastAPI
 from services.dp_remarks_report.core import settings
 from services.dp_remarks_report.routers import router
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+setup_logging()
+setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)

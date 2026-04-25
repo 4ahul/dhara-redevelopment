@@ -187,6 +187,19 @@ async def analyze_feasibility_by_society(
         return FeasibilityAnalyzeResponse(**result)
 
 
+@router.get("/analyze/status/{job_id}")
+async def get_analyze_status(
+    job_id: str,
+    user=Depends(get_current_user),
+):
+    """Poll for progress of a feasibility analysis job."""
+    from services.orchestrator.logic.dossier_service import dossier_service
+    status = await dossier_service.get_dossier_status(job_id)
+    if not status:
+        raise HTTPException(404, f"Job {job_id} not found.")
+    return status
+
+
 @router.get("/analyze/download/{job_id}")
 async def download_feasibility_report(
     job_id: str,

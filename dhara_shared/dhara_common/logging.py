@@ -19,6 +19,27 @@ class JsonFormatter(logging.Formatter):
             log_record["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_record)
 
+def setup_sentry(service_name: str, dsn: Optional[str] = None):
+    """Initializes Sentry for error tracking."""
+    import sentry_sdk
+    import os
+    from sentry_sdk.integrations.fastapi import FastAPIIntegration
+    
+    sentry_dsn = dsn or os.getenv("SENTRY_DSN")
+    if not sentry_dsn:
+        return
+        
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[FastAPIIntegration()],
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+        environment=os.getenv("ENV", "development"),
+        release=f"{service_name}@{os.getenv('APP_VERSION', '1.0.0')}",
+    )
+    logging.info(f"Sentry Error Tracking enabled for {service_name}")
+
+
 def setup_logging(level=logging.INFO, loggers: Optional[list] = None):
     """Sets up root logging with JSON formatter."""
     handler = logging.StreamHandler()

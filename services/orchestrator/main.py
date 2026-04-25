@@ -27,6 +27,7 @@ from services.orchestrator.core.middleware import (
 print_banner(settings.APP_NAME)
 
 setup_logging(loggers=["gateway", "agent", "services"])
+setup_sentry(settings.APP_NAME)
 logger = logging.getLogger("gateway")
 
 @asynccontextmanager

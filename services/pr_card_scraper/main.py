@@ -1,14 +1,14 @@
 from dhara_shared.dhara_common.banner import print_banner
 from dhara_shared.dhara_common.tracing import setup_tracing
+from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from services.pr_card_scraper.core import settings
 from services.pr_card_scraper.routers import router
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
+setup_logging()
+setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)

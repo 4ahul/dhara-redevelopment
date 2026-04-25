@@ -17,12 +17,10 @@ from services.rag_service.core.config import settings
 from services.rag_service.db.session import init_db, engine
 from services.rag_service.core.middleware import rate_limit_middleware, security_headers_middleware
 from services.rag_service.routers import chat_router, doc_router, query_router, auth_router
+from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+setup_logging()
+setup_sentry(settings.APP_NAME)
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)

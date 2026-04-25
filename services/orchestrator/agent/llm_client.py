@@ -442,21 +442,27 @@ def get_llm_client() -> LLMClient:
     3. OLLAMA_BASE_URL  → OllamaClient
     4. OPENAI_BASE_URL  → OpenAICompatibleClient
     """
-    from services.orchestrator.core.config import settings
+    # Use os.getenv directly so tests can clear environment variables effectively
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    ollama_url = os.getenv("OLLAMA_BASE_URL")
+    ollama_model = os.getenv("OLLAMA_MODEL")
+    openai_url = os.getenv("OPENAI_BASE_URL")
+    openai_model = os.getenv("OPENAI_MODEL")
 
-    if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your_"):
-        logger.info("Using GeminiClient (model: %s)", settings.GEMINI_MODEL or "gemini-3.1-pro-preview")
-        return GeminiClient(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+    if gemini_key and not gemini_key.startswith("your_"):
+        logger.info("Using GeminiClient")
+        return GeminiClient(api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview"))
 
-    if settings.ANTHROPIC_API_KEY and not settings.ANTHROPIC_API_KEY.startswith("sk-ant-your-"):
+    if anthropic_key and not anthropic_key.startswith("sk-ant-your-"):
         logger.info("Using AnthropicClient")
-        return AnthropicClient(api_key=settings.ANTHROPIC_API_KEY)
+        return AnthropicClient(api_key=anthropic_key)
 
-    if os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_MODEL"):
+    if ollama_url or ollama_model:
         logger.info("Using OllamaClient")
         return OllamaClient()
 
-    if os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_MODEL"):
+    if openai_url or openai_model:
         logger.info("Using OpenAICompatibleClient")
         return OpenAICompatibleClient()
 

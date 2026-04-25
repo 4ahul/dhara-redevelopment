@@ -60,6 +60,27 @@ class DossierService:
             logger.error(f"Failed to read dossier {report_id}: {e}")
             return None
 
+    async def get_dossier_status(self, report_id: str) -> Optional[dict]:
+        """Retrieve dossier and calculate progress percentage."""
+        dossier = await self.get_dossier(report_id)
+        if not dossier:
+            return None
+        
+        # Calculate progress based on stages
+        stages = ["round1", "round2", "final_result"]
+        completed = [s for s in stages if s in dossier.get("data", {})]
+        
+        progress = (len(completed) / len(stages)) * 100
+        
+        return {
+            "job_id": report_id,
+            "status": dossier.get("status", "processing"),
+            "progress": round(progress, 2),
+            "current_stage": completed[-1] if completed else "initialized",
+            "updated_at": dossier.get("updated_at"),
+            "file_url": dossier.get("data", {}).get("final_result", {}).get("report_url")
+        }
+
     async def _save_to_disk(self, report_id: str, dossier: dict):
         path = self.storage_dir / f"{report_id}.json"
         try:

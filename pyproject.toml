@@ -10,6 +10,8 @@ dependencies = [
     "python-dotenv",
     "pydantic-settings",
     "dhara_shared",
+    "typer>=0.24.2",
+    "rich>=15.0.0",
 ]
 
 [tool.uv.workspace]
