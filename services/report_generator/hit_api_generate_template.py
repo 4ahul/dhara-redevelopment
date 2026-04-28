@@ -1,7 +1,7 @@
 import os
 import sys
-import time
 from datetime import datetime
+
 import httpx
 
 
@@ -15,13 +15,8 @@ def main():
         "society_name": "Testing template details",
         "num_flats": 37,
         "num_commercial": 0,
-        "ready_reckoner": {
-            "rr_open_land_sqm": 1228870
-        },
-        "financial": {
-            "sale_rate_residential": 50000,
-            "parking_price_per_unit": 1200000
-        },
+        "ready_reckoner": {"rr_open_land_sqm": 1228870},
+        "financial": {"sale_rate_residential": 50000, "parking_price_per_unit": 1200000},
         "manual_inputs": {
             # Direct cell overrides based on the template positions
             "Details!B19": 37,
@@ -29,20 +24,16 @@ def main():
             "Details!G39": 1.2,
             "Details!J45": 0,
             "Details!J54": 1228870,
-
             "Construction Cost!D8": 3800,
             "Construction Cost!D12": 3800,
             "Construction Cost!D15": 1700,
             "Construction Cost!H21": 2200,
-
             "SUMMARY 1!I27": 55000,
             "SUMMARY 1!I98": 1110000,
             "SUMMARY 1!I103": 200000,
-
             "Profit & Loss Statement!D28": 50000,
             "Profit & Loss Statement!C30": 75,
             "Profit & Loss Statement!D30": 1200000,
-
             "MCGM PAYMENTS!B277": 20,
         },
     }
@@ -63,4 +54,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -4,14 +4,13 @@ Handles PDF (text + scanned), DOCX, DOC, XLSX, TIF/TIFF, JPEG, PPTX
 with multilingual OCR (English + Marathi + Hindi).
 """
 
+import hashlib
 import os
 import sys
 import time
-import hashlib
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from pathlib import Path
 
 # Add parent to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -37,11 +36,11 @@ class ExtractedDocument:
     relative_path: str
     file_hash: str
     file_size: int
-    pages: List[ExtractedPage] = field(default_factory=list)
+    pages: list[ExtractedPage] = field(default_factory=list)
     doc_type: str = "other"
     total_chars: int = 0
     extraction_method: str = ""
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
     @property
     def full_text(self) -> str:
@@ -64,9 +63,7 @@ def _get_easyocr_reader():
             import easyocr
 
             print("  [OCR] Initializing EasyOCR (en, mr, hi)...")
-            _EASYOCR_READER = easyocr.Reader(
-                ["en", "mr", "hi"], gpu=False, verbose=False
-            )
+            _EASYOCR_READER = easyocr.Reader(["en", "mr", "hi"], gpu=False, verbose=False)
             print("  [OCR] EasyOCR ready")
         except Exception as e:
             print(f"  [OCR] EasyOCR not available: {e}")
@@ -87,7 +84,7 @@ def _check_tesseract():
     return _TESSERACT_AVAILABLE
 
 
-def ocr_image_easyocr(image_path: str) -> Optional[str]:
+def ocr_image_easyocr(image_path: str) -> str | None:
     """Run EasyOCR on a single image."""
     reader = _get_easyocr_reader()
     if reader is None:
@@ -99,7 +96,7 @@ def ocr_image_easyocr(image_path: str) -> Optional[str]:
         return None
 
 
-def ocr_image_tesseract(image_path: str) -> Optional[str]:
+def ocr_image_tesseract(image_path: str) -> str | None:
     """Run Tesseract on a single image with Devanagari support."""
     if not _check_tesseract():
         return None
@@ -115,7 +112,7 @@ def ocr_image_tesseract(image_path: str) -> Optional[str]:
         return None
 
 
-def ocr_pil_image_easyocr(img) -> Optional[str]:
+def ocr_pil_image_easyocr(img) -> str | None:
     """Run EasyOCR on a PIL Image object."""
     reader = _get_easyocr_reader()
     if reader is None:
@@ -135,7 +132,7 @@ def ocr_pil_image_easyocr(img) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_pdf_text(filepath: Path) -> List[ExtractedPage]:
+def extract_pdf_text(filepath: Path) -> list[ExtractedPage]:
     """Extract text from PDF using pypdf (text-based PDFs)."""
     pages = []
     try:
@@ -153,12 +150,12 @@ def extract_pdf_text(filepath: Path) -> List[ExtractedPage]:
                         method="pypdf",
                     )
                 )
-    except Exception as e:
+    except Exception:
         pass
     return pages
 
 
-def extract_pdf_ocr(filepath: Path) -> List[ExtractedPage]:
+def extract_pdf_ocr(filepath: Path) -> list[ExtractedPage]:
     """Extract text from scanned PDF using OCR (pdf2image + EasyOCR/Tesseract)."""
     pages = []
 
@@ -202,7 +199,7 @@ def extract_pdf_ocr(filepath: Path) -> List[ExtractedPage]:
     return pages
 
 
-def extract_pdf(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_pdf(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract PDF - try text first, fall back to OCR."""
     pages = extract_pdf_text(filepath)
     if pages and sum(len(p.text) for p in pages) > 200:
@@ -222,7 +219,7 @@ def extract_pdf(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_image(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_image(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract text from image files using OCR."""
     text = ocr_image_easyocr(str(filepath))
     method = "ocr_easyocr"
@@ -243,7 +240,7 @@ def extract_image(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_docx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_docx(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract text from DOCX files."""
     try:
         import docx
@@ -256,9 +253,7 @@ def extract_docx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
         table_text = []
         for table in doc.tables:
             for row in table.rows:
-                row_text = " | ".join(
-                    cell.text.strip() for cell in row.cells if cell.text.strip()
-                )
+                row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
                 if row_text:
                     table_text.append(row_text)
 
@@ -267,7 +262,7 @@ def extract_docx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 
         if text.strip():
             return [ExtractedPage(text=text.strip(), page_num=1, method="docx")], "docx"
-    except Exception as e:
+    except Exception:
         pass
     return [], "none"
 
@@ -277,7 +272,7 @@ def extract_docx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_doc(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_doc(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract text from legacy .doc files."""
     # Try python-docx2txt or antiword
     try:
@@ -311,7 +306,7 @@ def extract_doc(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_xlsx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_xlsx(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract text from XLSX files."""
     try:
         import openpyxl
@@ -344,7 +339,7 @@ def extract_xlsx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
 # ---------------------------------------------------------------------------
 
 
-def extract_pptx(filepath: Path) -> Tuple[List[ExtractedPage], str]:
+def extract_pptx(filepath: Path) -> tuple[list[ExtractedPage], str]:
     """Extract text from PPTX files."""
     try:
         from pptx import Presentation
@@ -462,7 +457,7 @@ def extract_document(filepath: Path, docs_root: Path) -> ExtractedDocument:
     return doc
 
 
-def find_all_documents(docs_dir: Path) -> List[Path]:
+def find_all_documents(docs_dir: Path) -> list[Path]:
     """Find all supported documents recursively."""
     files = []
     for root, dirs, filenames in os.walk(docs_dir):
@@ -481,7 +476,7 @@ def extract_all_documents(
     docs_dir: str = "data/docs",
     max_workers: int = 4,
     verbose: bool = True,
-) -> List[ExtractedDocument]:
+) -> list[ExtractedDocument]:
     """
     Extract all documents from a directory.
     Returns list of ExtractedDocument with text content.
@@ -533,4 +528,3 @@ def extract_all_documents(
 if __name__ == "__main__":
     docs_dir = sys.argv[1] if len(sys.argv) > 1 else "data/docs"
     results = extract_all_documents(docs_dir)
-

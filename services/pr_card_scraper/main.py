@@ -1,26 +1,42 @@
-from dhara_shared.dhara_common.banner import print_banner
-from dhara_shared.dhara_common.tracing import setup_tracing
-from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
-from dhara_shared.dhara_common.metrics import setup_metrics
 import logging
-from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from services.pr_card_scraper.core import settings
-from services.pr_card_scraper.routers import router
+
+from dhara_shared.core.banner import print_banner
+from dhara_shared.core.config import validate_config
+from dhara_shared.core.logging import setup_logging, setup_sentry
+from dhara_shared.core.metrics import setup_metrics
+from dhara_shared.core.tracing import setup_tracing
+
+from .core import settings
+from .routers import router
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)
 
+
 async def lifespan(app: FastAPI):
     """Pre-warm expensive resources at startup to reduce first-request latency."""
-    logger.info("Initializing PR Card Scraper Model...")
+    import asyncio
+
+    logger.info("Initializing PR Card Scraper...")
+
+    # Ensure DB tables exist before any request arrives
+    try:
+        from .services.storage import StorageService
+
+        storage = StorageService(settings.DATABASE_URL)
+        await asyncio.to_thread(storage._init_db)
+        logger.info("PR Card DB tables initialized")
+    except Exception as e:
+        logger.warning(f"DB init failed (will retry on first request): {e}")
 
     # Pre-load the ddddocr model so the first CAPTCHA solve is fast
     try:
-        import asyncio
-        from services.pr_card_scraper.logic.captcha_solver import CaptchaSolver
+        from .services.captcha_solver import CaptchaSolver
+
         solver = CaptchaSolver()
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, solver._reader_instance)
@@ -34,19 +50,22 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down PR Card Scraper Service...")
 
 
-settings.validate_critical_keys(['DATABASE_URL'])
+validate_config(settings, ["DATABASE_URL"])
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
 setup_sentry(settings.APP_NAME)
 setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "pr_card_scraper"}
+
 
 app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8005)

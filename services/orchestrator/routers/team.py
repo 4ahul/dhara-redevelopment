@@ -3,12 +3,17 @@
 import logging
 from uuid import UUID
 
-from services.orchestrator.core.dependencies import get_current_user, get_team_service
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
-from services.orchestrator.schemas.common import PaginatedResponse
-from services.orchestrator.schemas.team import InviteRequest, InviteResponse, TeamMemberResponse, TeamMemberUpdate
 
-from services.orchestrator.logic.team_service import TeamService
+from ..core.dependencies import get_current_user, get_team_service
+from ..schemas.common import PaginatedResponse
+from ..schemas.team import (
+    InviteRequest,
+    InviteResponse,
+    TeamMemberResponse,
+    TeamMemberUpdate,
+)
+from ..services.team_service import TeamService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/team", tags=["Team Management"])
@@ -20,7 +25,7 @@ async def list_team(
     page_size: int = Query(20, ge=1, le=100),
     status: str = Query(None),
     user=Depends(get_current_user),
-    service: TeamService = Depends(get_team_service)
+    service: TeamService = Depends(get_team_service),
 ):
     return await service.list_members(user.organization, page, page_size, status)
 
@@ -30,7 +35,7 @@ async def invite_member(
     req: InviteRequest,
     bg: BackgroundTasks,
     user=Depends(get_current_user),
-    service: TeamService = Depends(get_team_service)
+    service: TeamService = Depends(get_team_service),
 ):
     return await service.invite_member(req, user.name, user.email, user.organization, user.id, bg)
 
@@ -40,7 +45,7 @@ async def patch_member(
     member_id: UUID,
     req: TeamMemberUpdate,
     user=Depends(get_current_user),
-    service: TeamService = Depends(get_team_service)
+    service: TeamService = Depends(get_team_service),
 ):
     return await service.update_member(member_id, user.organization, req)
 
@@ -49,11 +54,6 @@ async def patch_member(
 async def remove_member(
     member_id: UUID,
     user=Depends(get_current_user),
-    service: TeamService = Depends(get_team_service)
+    service: TeamService = Depends(get_team_service),
 ):
     return await service.remove_member(member_id, user.organization)
-
-
-
-
-

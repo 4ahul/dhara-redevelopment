@@ -4,8 +4,6 @@ Process Uploaded Documents
 Run: Every 15 minutes
 """
 
-import sys
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -64,4 +62,3 @@ def process_pending_uploads():
 
 if __name__ == "__main__":
     process_pending_uploads()
-

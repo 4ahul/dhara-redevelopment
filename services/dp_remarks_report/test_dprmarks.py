@@ -4,6 +4,7 @@ Test script for DPRMarks portal workflow
 
 import asyncio
 import logging
+import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 async def test_dprmarks():
-    from services.dp_remarks_report.logic.dp_scraper import DPBrowserScraper, DPREMARKS_URL
-    from services.dp_remarks_report.core import settings
     from playwright.async_api import async_playwright
+
+    from services.dp_remarks_report.core import settings
+    from services.dp_remarks_report.services.dp_scraper import DPREMARKS_URL, DPBrowserScraper
 
     # Set credentials
     settings.DPRMARKS_USERNAME = "Jigar001"
@@ -93,5 +95,3 @@ async def test_dprmarks():
 if __name__ == "__main__":
     result = asyncio.run(test_dprmarks())
     print("Result:", result)
-
-

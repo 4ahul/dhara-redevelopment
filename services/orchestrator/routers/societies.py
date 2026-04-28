@@ -3,10 +3,12 @@
 import logging
 from uuid import UUID
 
-from services.orchestrator.core.dependencies import get_current_user, get_db
 from fastapi import APIRouter, Depends, HTTPException, Query
-from services.orchestrator.schemas.common import PaginatedResponse
-from services.orchestrator.schemas.society import (
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..core.dependencies import get_current_user, get_db
+from ..schemas.common import PaginatedResponse
+from ..schemas.society import (
     ReportCreate,
     ReportResponse,
     SocietyCreate,
@@ -16,9 +18,7 @@ from services.orchestrator.schemas.society import (
     TenderCreate,
     TenderResponse,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from services.orchestrator.logic.society_service import SocietyService
+from ..services.society_service import SocietyService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/societies", tags=["Societies"])
@@ -36,7 +36,7 @@ async def list_societies(
     ward: str = Query(None),
     search: str = Query(None, max_length=200),
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     result = await service.list_societies(user.id, page, page_size, status, ward, search)
     return PaginatedResponse(
@@ -44,7 +44,7 @@ async def list_societies(
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
-        total_pages=result["total_pages"]
+        total_pages=result["total_pages"],
     )
 
 
@@ -52,7 +52,7 @@ async def list_societies(
 async def create_society(
     req: SocietyCreate,
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     soc = await service.create_society(user.id, req)
     return SocietyResponse.model_validate(soc)
@@ -62,7 +62,7 @@ async def create_society(
 async def get_society(
     society_id: UUID,
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     soc = await service.get_society(user.id, society_id)
     if not soc:
@@ -75,7 +75,7 @@ async def patch_society(
     society_id: UUID,
     req: SocietyUpdate,
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     soc = await service.update_society(user.id, society_id, req)
     if not soc:
@@ -89,7 +89,7 @@ async def list_reports(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     result = await service.list_reports(user.id, society_id, page, page_size)
     if result is None:
@@ -99,7 +99,7 @@ async def list_reports(
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
-        total_pages=result["total_pages"]
+        total_pages=result["total_pages"],
     )
 
 
@@ -108,7 +108,7 @@ async def create_report(
     society_id: UUID,
     req: ReportCreate,
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     rpt = await service.create_report(user.id, society_id, req)
     if not rpt:
@@ -122,7 +122,7 @@ async def list_tenders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     result = await service.list_tenders(user.id, society_id, page, page_size)
     if result is None:
@@ -132,7 +132,7 @@ async def list_tenders(
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
-        total_pages=result["total_pages"]
+        total_pages=result["total_pages"],
     )
 
 
@@ -141,13 +141,9 @@ async def create_tender(
     society_id: UUID,
     req: TenderCreate,
     user=Depends(get_current_user),
-    service: SocietyService = Depends(get_society_service)
+    service: SocietyService = Depends(get_society_service),
 ):
     t = await service.create_tender(user.id, society_id, req)
     if not t:
         raise HTTPException(404, "Society not found")
     return TenderResponse.model_validate(t)
-
-
-
-

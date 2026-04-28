@@ -1,5 +1,4 @@
-from feasibility.calcs import noc_flags  # registers
-from feasibility.calc_registry import get
+from services.report_generator.feasibility.calc_registry import get
 
 
 def test_noc_required():
@@ -14,4 +13,3 @@ def test_noc_missing_field_returns_zero():
     fn = get("noc_flag_from_dp")
     ctx = {"request": {}, "resolved": {}}
     assert fn(ctx, noc_type="highway") == 0
-

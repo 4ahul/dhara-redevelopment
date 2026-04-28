@@ -48,3 +48,37 @@ The API will be available at `http://localhost:8000`.
 - **Repository Pattern:** Logic for database queries is decoupled from business services to allow easier testing and DB optimization.
 - **Background Tasks:** Heavy AI Agent runs are enqueued via FastAPI `BackgroundTasks` to keep the API responsive.
 - **Deep Health:** The `/health` check verifies the reachability of every spoke microservice.
+
+## ✅ PMC Verification APIs
+
+PMC-only routes for verifying Licensed Surveyor (LS) and Architect registrations. These endpoints first delegate registration-number extraction to the OCR service, then perform verification upstream.
+
+- Base path: `/api/verify`
+- Auth: PMC or admin role required
+- Upload types: `application/pdf`, `image/jpeg`, `image/jpg`, `image/png`, `image/webp`
+- Max upload size: 15 MB
+
+Endpoints:
+
+1. POST `/api/verify/license-surveyor`
+   - Form: `file` (PDF or image)
+   - Response: `{ valid, expired, consultant, total, extractedRegistrationNumber, usedOcr }`
+
+2. POST `/api/verify/architect`
+   - Form: `file` (PDF or image)
+   - Response: `{ valid, details, extractedRegistrationNumber, usedOcr }`
+
+Example (PowerShell):
+
+```powershell
+$TOKEN = "<PMC_OR_ADMIN_JWT>"
+Invoke-WebRequest -UseBasicParsing -Method Post \
+  -Headers @{ Authorization = "Bearer $TOKEN" } \
+  -ContentType "multipart/form-data" \
+  -InFile "C:\path\to\certificate.pdf" \
+  -Uri http://localhost:8000/api/verify/architect
+```
+
+Notes:
+- OCR strategy defaults to auto: extract PDF text-layer first, then OCR fallback.
+- Timeouts for upstream scraping/verification honor `SCRAPE_TIMEOUT_MS` (default 45000 ms).

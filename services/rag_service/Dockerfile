@@ -11,11 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dhara_shared and install it
+# Copy workspace root for uv and workspace member
+COPY pyproject.toml /build/pyproject.toml
+COPY uv.lock /build/uv.lock
 COPY dhara_shared/ /build/dhara_shared/
+# Install dhara_shared as a non-editable package to avoid editable .pth
 RUN uv pip install --system /build/dhara_shared
 
-# Install service dependencies
+# Install service dependencies via uv workspace mapping
 COPY services/rag_service/pyproject.toml /build/services/rag_service/
 RUN uv pip install --system -r /build/services/rag_service/pyproject.toml
 

@@ -1,8 +1,9 @@
-import os
 from pathlib import Path
-from pydantic_settings import BaseSettings
 
-class Settings(BaseSettings):
+from dhara_shared.core.config import BaseServiceSettings
+
+
+class Settings(BaseServiceSettings):
     # --- App ---
     APP_NAME: str = "rag_service"
     APP_VERSION: str = "2.0.0"
@@ -23,13 +24,9 @@ class Settings(BaseSettings):
     MILVUS_TOKEN: str = ""
 
     # --- LLM ---
-    OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o-mini"
-    GEMINI_API_KEY: str = ""
     HF_TOKEN: str = ""
-    SERP_API_KEY: str = ""
-    GOOGLE_MAPS_API_KEY: str = ""
 
     # --- Auth ---
     CLERK_JWT_KEY: str = ""
@@ -40,9 +37,8 @@ class Settings(BaseSettings):
     DATA_DIR: Path = BASE_DIR / "data"
     LOGS_DIR: Path = BASE_DIR / "logs"
 
-    class Config:
-        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
-        extra = "ignore"
+    class Config(BaseServiceSettings.Config):
+        env_file = BaseServiceSettings.get_env_file(__file__)
+
 
 settings = Settings()
-

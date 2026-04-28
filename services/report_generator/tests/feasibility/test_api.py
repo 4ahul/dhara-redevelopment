@@ -14,7 +14,9 @@ def test_generate_feasibility_report_returns_xlsx(monkeypatch):
     }
     r = client.post("/generate/feasibility-report", json=body)
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    assert r.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     assert int(r.headers.get("X-Report-Missing-Fields", "0")) >= 0
     assert int(r.headers.get("X-Report-Calc-Errors", "0")) == 0
     assert len(r.content) > 1000
@@ -28,4 +30,3 @@ def test_dossier_endpoint():
     assert data["scheme"] == "33(7)(B)"
     assert isinstance(data["cells"], list)
     assert len(data["cells"]) > 0
-

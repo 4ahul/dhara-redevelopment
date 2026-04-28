@@ -8,6 +8,7 @@ from .profile import router as profile_router
 from .search import router as search_router
 from .societies import router as societies_router
 from .team import router as team_router
+from .verification import router as verification_router
 from .websocket import router as ws_router_module
 
 api_router = APIRouter()
@@ -22,6 +23,7 @@ app_router.include_router(profile_router)
 app_router.include_router(search_router)
 app_router.include_router(societies_router)
 app_router.include_router(team_router)
+app_router.include_router(verification_router)
 
 # Add to main API router
 api_router.include_router(app_router)
@@ -30,7 +32,3 @@ api_router.include_router(app_router)
 ws_router = ws_router_module
 
 __all__ = ["api_router", "ws_router"]
-
-
-
-

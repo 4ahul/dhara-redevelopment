@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.unit
@@ -9,7 +10,7 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_success_with_mocked_geocode(self):
         """Test successful site analysis with mocked geocoding"""
-        from services.site_analysis.logic.analyse import SiteAnalysisService
+        from services.site_analysis.services.analyse import SiteAnalysisService
 
         svc = SiteAnalysisService()
 
@@ -18,14 +19,19 @@ class TestSiteAnalysisService:
             "lng": 72.8246606,
             "formatted_address": "Sanjay Society, Swatantryaveer Savarkar Rd, Century Bazaar, Prabhadevi, Mumbai, Maharashtra 400025, India",
             "area_type": "Predominantly Commercial",
-            "nearby_landmarks": ["SyndicateBank Mumbai Prabhadevi Branch", "Marshalls Wallcoverings"],
+            "nearby_landmarks": [
+                "SyndicateBank Mumbai Prabhadevi Branch",
+                "Marshalls Wallcoverings",
+            ],
             "place_id": "ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
             "maps_url": "https://www.google.com/maps/search/?api=1&query=19.0133378,72.8246606&query_place_id=ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
         }
         mock_zone = {"ward": "G/S", "zone": "R"}
 
-        with patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode), \
-             patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=mock_zone):
+        with (
+            patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode),
+            patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=mock_zone),
+        ):
             result = await svc.analyse("Sanjay CHS, Prabhadevi, Mumbai")
 
         assert result["lat"] == 19.0133378
@@ -41,8 +47,9 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_fails_when_geocoding_fails(self):
         """Test that SiteAnalysisUnavailableError is raised when geocoding fails"""
-        from services.site_analysis.logic.analyse import (
-            SiteAnalysisService, SiteAnalysisUnavailableError,
+        from services.site_analysis.services.analyse import (
+            SiteAnalysisService,
+            SiteAnalysisUnavailableError,
         )
 
         svc = SiteAnalysisService()
@@ -54,7 +61,7 @@ class TestSiteAnalysisService:
     @pytest.mark.asyncio
     async def test_analyse_returns_none_zone_when_mcgm_unavailable(self):
         """Test that zone_inference is None when MCGM queries fail"""
-        from services.site_analysis.logic.analyse import SiteAnalysisService
+        from services.site_analysis.services.analyse import SiteAnalysisService
 
         svc = SiteAnalysisService()
 
@@ -63,13 +70,18 @@ class TestSiteAnalysisService:
             "lng": 72.8246606,
             "formatted_address": "Sanjay Society, Swatantryaveer Savarkar Rd, Century Bazaar, Prabhadevi, Mumbai, Maharashtra 400025, India",
             "area_type": "Predominantly Commercial",
-            "nearby_landmarks": ["SyndicateBank Mumbai Prabhadevi Branch", "Marshalls Wallcoverings"],
+            "nearby_landmarks": [
+                "SyndicateBank Mumbai Prabhadevi Branch",
+                "Marshalls Wallcoverings",
+            ],
             "place_id": "ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
             "maps_url": "https://www.google.com/maps/search/?api=1&query=19.0133378,72.8246606&query_place_id=ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
         }
 
-        with patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode), \
-             patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=None):
+        with (
+            patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode),
+            patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=None),
+        ):
             result = await svc.analyse("Sanjay CHS, Prabhadevi, Mumbai")
 
         assert result["zone_inference"] is None
@@ -78,7 +90,7 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_function(self):
         """Test the infer_area_type helper function"""
-        from services.site_analysis.logic.analyse import infer_area_type
+        from services.site_analysis.services.analyse import infer_area_type
 
         # Test commercial area
         commercial_places = [
@@ -109,13 +121,13 @@ class TestSiteAnalysisService:
 
     def test_infer_area_type_empty_input(self):
         """Test infer_area_type with empty input"""
-        from services.site_analysis.logic.analyse import infer_area_type
+        from services.site_analysis.services.analyse import infer_area_type
 
         assert infer_area_type([]) == "Predominantly Residential"  # Default fallback
 
     def test_site_analysis_unavailable_error(self):
         """Test SiteAnalysisUnavailableError can be raised and caught"""
-        from services.site_analysis.logic.analyse import SiteAnalysisUnavailableError
+        from services.site_analysis.services.analyse import SiteAnalysisUnavailableError
 
         with pytest.raises(SiteAnalysisUnavailableError):
             raise SiteAnalysisUnavailableError("Test error")
@@ -124,5 +136,3 @@ class TestSiteAnalysisService:
             raise SiteAnalysisUnavailableError("Test error")
         except SiteAnalysisUnavailableError as e:
             assert str(e) == "Test error"
-
-

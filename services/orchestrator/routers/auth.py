@@ -2,21 +2,15 @@
 
 POST /auth/sync          — provision/refresh DB user from a Clerk session token
 GET  /auth/me            — return current authenticated user's profile
-POST /auth/admin/login   — password login for ADMIN service accounts only
-POST /auth/admin/logout  — admin logout (session invalidation is Clerk-side)
-POST /auth/login         — PMC user login with email/password
-POST /auth/logout        — PMC logout (session invalidation is client-side)
-POST /auth/signup        — PMC user signup with email/password
 """
 
 import logging
 
-from services.orchestrator.core.dependencies import get_auth_service, get_current_user
 from fastapi import APIRouter, Depends, Header
-from services.orchestrator.models import UserRole
-from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
 
-from services.orchestrator.logic.auth_service import AuthService
+from ..core.dependencies import get_auth_service, get_current_user
+from ..schemas.auth import AuthResponse, MeResponse
+from ..services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -33,6 +27,7 @@ async def sync_clerk_user(
     requests use the standard Bearer token flow — no repeated sync needed.
     """
     from fastapi import HTTPException
+
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization header required")
     token = authorization.removeprefix("Bearer ").strip()
@@ -52,42 +47,3 @@ async def me(user=Depends(get_current_user)):
         avatar_url=user.avatar_url,
         phone=user.phone,
     )
-
-
-@router.post("/admin/login", response_model=AuthResponse)
-async def admin_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
-    """Password-based login for ADMIN service accounts only."""
-    return await service.admin_login(req)
-
-
-@router.post("/admin/logout", response_model=LogoutResponse)
-async def admin_logout(user=Depends(get_current_user)):
-    """Admin logout — revoke server-side session if needed."""
-    from fastapi import HTTPException
-    if user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    logger.info("Admin logout: %s", user.email)
-    return LogoutResponse()
-
-
-@router.post("/logout", response_model=LogoutResponse)
-async def pmc_logout(user=Depends(get_current_user)):
-    """PMC logout — revoke server-side session if needed."""
-    logger.info("PMC logout: %s", user.email)
-    return LogoutResponse()
-
-
-@router.post("/signup", response_model=AuthResponse)
-async def pmc_signup(req: SignupRequest, service: AuthService = Depends(get_auth_service)):
-    """PMC user signup with email/password."""
-    return await service.pmc_signup(req)
-
-
-@router.post("/login", response_model=AuthResponse)
-async def pmc_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
-    """PMC user login with email/password."""
-    return await service.pmc_login(req)
-
-
-
-

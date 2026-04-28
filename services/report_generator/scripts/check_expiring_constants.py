@@ -4,14 +4,13 @@ It reads from mappings YAML files and sends an email alert when constants are cl
 so the admin can update the templates and reset the expiry date.
 """
 
-import json
 import logging
 import os
 import smtplib
-import glob
+from datetime import UTC, datetime
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
 import yaml
 
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 HERE = Path(__file__).resolve().parent
 MAPPINGS_DIR = HERE.parent / "mappings"
+
 
 def send_alert_email(admin_email: str, alerts: list):
     """Send an email alert to the admin."""
@@ -58,17 +58,17 @@ def send_alert_email(admin_email: str, alerts: list):
 
 def main():
     admin_email = os.environ.get("SMTP_FROM_EMAIL", "admin@dharaai.com")
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     alerts = []
 
     for yaml_file in MAPPINGS_DIR.glob("*.yaml"):
         try:
-            with open(yaml_file, "r", encoding="utf-8") as f:
+            with open(yaml_file, encoding="utf-8") as f:
                 mapping = yaml.safe_load(f)
-            
+
             filename = mapping.get("template", yaml_file.name)
             cells = mapping.get("cells", [])
-            
+
             for const in cells:
                 if const.get("kind") == "red" and "expires_on" in const:
                     try:
@@ -76,20 +76,24 @@ def main():
                         # Handle potential datetime objects parsed by yaml
                         if isinstance(exp_date_str, datetime):
                             exp_date = exp_date_str.date()
-                        elif hasattr(exp_date_str, "date"): # handles datetime.date
+                        elif hasattr(exp_date_str, "date"):  # handles datetime.date
                             exp_date = exp_date_str
                         else:
                             exp_date = datetime.strptime(str(exp_date_str), "%Y-%m-%d").date()
-                        
+
                         alert_days = const.get("alert_days_before", 60)
                         diff = (exp_date - today).days
 
                         if diff <= alert_days:
                             status = "EXPIRED" if diff < 0 else f"Expires in {diff} days"
-                            desc = const.get('description', 'Unknown constant')
-                            alerts.append(f"{filename} -> {const['cell']} ({desc}): {status} on {exp_date_str}")
+                            desc = const.get("description", "Unknown constant")
+                            alerts.append(
+                                f"{filename} -> {const['cell']} ({desc}): {status} on {exp_date_str}"
+                            )
                     except Exception as e:
-                        logger.error(f"Invalid expiry date format for {filename} {const.get('cell')}: {e}")
+                        logger.error(
+                            f"Invalid expiry date format for {filename} {const.get('cell')}: {e}"
+                        )
         except Exception as e:
             logger.error(f"Failed to process {yaml_file}: {e}")
 
@@ -101,4 +105,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

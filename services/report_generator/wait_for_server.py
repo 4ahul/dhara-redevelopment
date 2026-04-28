@@ -1,5 +1,6 @@
-import time
 import sys
+import time
+
 import httpx
 
 
@@ -21,4 +22,3 @@ def wait(url="http://127.0.0.1:8085/health", timeout_s=30):
 
 if __name__ == "__main__":
     sys.exit(wait())
-

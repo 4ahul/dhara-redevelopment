@@ -7,10 +7,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from services.orchestrator.core.config import settings
 from jose import JWTError, jwt
 
+from .config import settings
+
 logger = logging.getLogger(__name__)
+
 
 def hash_password(password: str) -> str:
     # Ensure password is within bcrypt limit (unlikely here but safe)
@@ -23,8 +25,8 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-
 # ─── JWT ─────────────────────────────────────────────────────────────────────
+
 
 def create_access_token(
     user_id: str,
@@ -57,12 +59,17 @@ def decode_token(token: str) -> dict:
     # 1. Try Local Symmetric Token (PMC/Admin)
     try:
         return jwt.decode(
-            token, settings.SECRET_KEY, algorithms=["HS256"],
+            token,
+            settings.SECRET_KEY,
+            algorithms=["HS256"],
             issuer="dhara-ai",
             options={"verify_exp": True, "require": ["sub", "iss"]},
         )
-    except jwt.ExpiredSignatureError:
-        raise
+    except jwt.ExpiredSignatureError as e:
+        from fastapi import HTTPException
+
+        logger.warning("JWT expired")
+        raise HTTPException(status_code=401, detail="Token expired") from e
     except JWTError:
         pass
 
@@ -74,12 +81,10 @@ def decode_token(token: str) -> dict:
             settings.CLERK_JWT_KEY,
             algorithms=["RS256"],
             issuer=settings.CLERK_JWT_ISSUER,
-            options={"verify_aud": False} # Permissive mode since audience is not in .env
+            options={"verify_aud": False},  # Permissive mode since audience is not in .env
         )
     except JWTError as e:
         from fastapi import HTTPException
+
         logger.warning(f"JWT Validation failed: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
-
-
-

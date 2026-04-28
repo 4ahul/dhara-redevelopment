@@ -1,7 +1,10 @@
 import asyncio
+
 import httpx
 from utils import setup_path
+
 setup_path("rag_service")
+
 
 async def test_rag_health():
     print("Testing RAG Service Health...")
@@ -15,6 +18,6 @@ async def test_rag_health():
         except Exception:
             print("  Service not running on port 8007")
 
+
 if __name__ == "__main__":
     asyncio.run(test_rag_health())
-

@@ -3,12 +3,12 @@ Dhara AI — Landing Page Schemas
 Request/Response models for landing page endpoints.
 """
 
-
 from pydantic import BaseModel, EmailStr, Field
 
 
 class GetStartedRequestSchema(BaseModel):
     """'Get Started' form submission from landing page."""
+
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     phone: str | None = Field(default=None, max_length=20)
@@ -19,6 +19,7 @@ class GetStartedRequestSchema(BaseModel):
 
 class ContactRequestSchema(BaseModel):
     """'Talk to Us' form submission from landing page."""
+
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     phone: str | None = Field(default=None, max_length=20)
@@ -28,6 +29,7 @@ class ContactRequestSchema(BaseModel):
 
 class LandingPageSection(BaseModel):
     """A single content section on the landing page."""
+
     section: str
     title: str
     subtitle: str | None = None
@@ -40,14 +42,13 @@ class LandingPageSection(BaseModel):
 
 class LandingPageResponse(BaseModel):
     """Full landing page content response."""
+
     sections: list[LandingPageSection] = []
 
 
 class FormSubmissionResponse(BaseModel):
     """Generic response after submitting a landing page form."""
+
     status: str = "success"
     message: str
     reference_id: str
-
-
-

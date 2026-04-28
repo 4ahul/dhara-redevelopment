@@ -1,13 +1,13 @@
-import time as _time
 import logging
-from typing import Dict
+import time as _time
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 # --- Rate limiting (in-memory, per-IP) ---
-_rate_store: Dict[str, list] = {}
+_rate_store: dict[str, list] = {}
 _RATE_WINDOW = 60  # seconds
 _RATE_LIMITS = {
     "/api/auth/login": 10,
@@ -15,6 +15,7 @@ _RATE_LIMITS = {
     "/api/chat": 30,
     "/api/chat/stream": 30,
 }
+
 
 async def rate_limit_middleware(request: Request, call_next):
     path = request.url.path
@@ -34,6 +35,7 @@ async def rate_limit_middleware(request: Request, call_next):
         _rate_store[key] = hits
     return await call_next(request)
 
+
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -41,4 +43,3 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
-

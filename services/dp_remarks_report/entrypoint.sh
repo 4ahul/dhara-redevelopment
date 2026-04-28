@@ -11,8 +11,5 @@ done
 
 echo "PostgreSQL is UP!"
 
-echo "Running Database Migrations..."
-alembic -c /app/services/dp_remarks_report/alembic.ini upgrade head
-
-echo "Database is up-to-date. Launching application..."
+echo "Launching application..."
 exec "$@"

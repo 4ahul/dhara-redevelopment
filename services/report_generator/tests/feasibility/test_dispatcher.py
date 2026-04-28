@@ -1,4 +1,6 @@
-from feasibility.dispatcher import apply_transform
+from services.report_generator.feasibility.dispatcher import apply_transform
+
+# noqa: E402
 
 
 def test_transform_float():
@@ -32,11 +34,15 @@ def test_transform_none_type_passthrough():
     assert apply_transform("abc", None) == "abc"
 
 
-import pytest
-from feasibility.mapping_loader import MappingEntry
-from feasibility.exceptions import MissingData
-from feasibility.dispatcher import resolve_entry
-from feasibility.calc_registry import register, _clear_for_tests
+import pytest  # noqa: E402
+
+from services.report_generator.feasibility.calc_registry import (  # noqa: E402
+    _clear_for_tests,
+    register,
+)
+from services.report_generator.feasibility.dispatcher import resolve_entry  # noqa: E402
+from services.report_generator.feasibility.exceptions import MissingData  # noqa: E402
+from services.report_generator.feasibility.mapping_loader import MappingEntry  # noqa: E402
 
 
 def setup_function():
@@ -70,6 +76,7 @@ def test_resolve_calc():
     @register("times2")
     def times2(ctx, x: float):
         return float(x) * 2
+
     e = MappingEntry("Details!A1", "black", "a", calc="times2", calc_args={"x": 5}, fallback=0)
     assert resolve_entry(e, {"request": {}, "resolved": {}}) == 10.0
 
@@ -111,16 +118,20 @@ cells:
     mf_path.write_text(mapping_yaml)
 
     # Register the calc
-    from feasibility.calc_registry import register, _clear_for_tests
+    from services.report_generator.feasibility.calc_registry import _clear_for_tests, register
+
     _clear_for_tests()
 
     @register("times2_for_dispatcher")
     def times2(ctx, x):
         return x * 2
 
-    from feasibility.dispatcher import generate
+    from services.report_generator.feasibility.dispatcher import generate
+
     req = {"dp_report": {"road_width_m": 18.3}}
-    resp = generate(request=req, mapping_path=str(mf_path), template_path=str(tpl), output_path=str(tpl))
+    resp = generate(
+        request=req, mapping_path=str(mf_path), template_path=str(tpl), output_path=str(tpl)
+    )
     assert resp.cells_written == 2
     assert resp.missing_fields == []
 
@@ -128,4 +139,3 @@ cells:
     wb2 = openpyxl.load_workbook(tpl, data_only=False)
     assert wb2["Details"]["A1"].value == 18.3
     assert wb2["Details"]["B1"].value == 20.0
-

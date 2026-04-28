@@ -4,9 +4,8 @@ Check WhatsApp Compliance Updates
 Run: Every hour
 """
 
-import sys
-import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -75,4 +74,3 @@ def send_alert(updates):
 if __name__ == "__main__":
     count = check_whatsapp_compliance()
     sys.exit(0 if count == 0 else 1)
-

@@ -1,7 +1,7 @@
 import pytest
-from feasibility.calcs import financial_derivations  # registers
-from feasibility.calc_registry import get
-from feasibility.exceptions import MissingData
+
+from services.report_generator.feasibility.calc_registry import get
+from services.report_generator.feasibility.exceptions import MissingData
 
 
 def test_bank_guarantee_15pct():
@@ -26,4 +26,3 @@ def test_sum_resolved():
     fn = get("sum_resolved")
     ctx = {"request": {}, "resolved": {"a": 1, "b": 2, "c": 3}}
     assert fn(ctx, names=["a", "b", "c"]) == 6
-

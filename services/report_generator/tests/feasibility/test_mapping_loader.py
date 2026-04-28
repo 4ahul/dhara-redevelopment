@@ -1,4 +1,6 @@
-from feasibility.mapping_loader import MappingEntry, MappingFile
+from services.report_generator.feasibility.mapping_loader import MappingEntry, MappingFile
+
+# noqa: E402
 
 
 def test_mapping_entry_roundtrip():
@@ -22,7 +24,8 @@ def test_mapping_file_container():
 
 
 def test_load_valid_yaml(tmp_path):
-    from feasibility.mapping_loader import load_mapping
+    from services.report_generator.feasibility.mapping_loader import load_mapping
+
     y = """
 template: t.xlsx
 scheme: "33(7)(B)"
@@ -43,8 +46,9 @@ cells:
     assert m.cells[0].fallback == 18.3
 
 
-import pytest
-from feasibility.exceptions import MappingError
+import pytest  # noqa: E402
+
+from services.report_generator.feasibility.exceptions import MappingError  # noqa: E402
 
 
 def _base_raw():
@@ -57,7 +61,8 @@ def _base_raw():
 
 
 def test_validate_exactly_one_value_source():
-    from feasibility.mapping_loader import validate_entry_shape
+    from services.report_generator.feasibility.mapping_loader import validate_entry_shape
+
     raw = _base_raw()
     raw["calc"] = "something"
     with pytest.raises(MappingError, match="exactly one"):
@@ -65,7 +70,8 @@ def test_validate_exactly_one_value_source():
 
 
 def test_validate_none_value_source():
-    from feasibility.mapping_loader import validate_entry_shape
+    from services.report_generator.feasibility.mapping_loader import validate_entry_shape
+
     raw = _base_raw()
     raw.pop("from")
     with pytest.raises(MappingError, match="exactly one"):
@@ -73,7 +79,8 @@ def test_validate_none_value_source():
 
 
 def test_validate_kind_value():
-    from feasibility.mapping_loader import validate_entry_shape
+    from services.report_generator.feasibility.mapping_loader import validate_entry_shape
+
     raw = _base_raw()
     raw["kind"] = "red"
     with pytest.raises(MappingError, match="kind"):
@@ -81,7 +88,8 @@ def test_validate_kind_value():
 
 
 def test_validate_duplicate_cells(tmp_path):
-    from feasibility.mapping_loader import load_mapping
+    from services.report_generator.feasibility.mapping_loader import load_mapping
+
     y = """
 template: t.xlsx
 scheme: x
@@ -96,7 +104,8 @@ cells:
 
 
 def test_validate_duplicate_semantic_names(tmp_path):
-    from feasibility.mapping_loader import load_mapping
+    from services.report_generator.feasibility.mapping_loader import load_mapping
+
     y = """
 template: t.xlsx
 scheme: x
@@ -111,9 +120,12 @@ cells:
 
 
 def test_topological_sort_yellows_first():
-    from feasibility.mapping_loader import topological_sort, MappingEntry
+    from services.report_generator.feasibility.mapping_loader import MappingEntry, topological_sort
+
     entries = [
-        MappingEntry("Details!A2", "black", "b", calc="c1", calc_args={"based_on": "a"}, fallback=0),
+        MappingEntry(
+            "Details!A2", "black", "b", calc="c1", calc_args={"based_on": "a"}, fallback=0
+        ),
         MappingEntry("Details!A1", "yellow", "a", from_="x.y", fallback=0),
     ]
     sorted_ = topological_sort(entries)
@@ -122,7 +134,8 @@ def test_topological_sort_yellows_first():
 
 
 def test_topological_sort_detects_cycle():
-    from feasibility.mapping_loader import topological_sort, MappingEntry
+    from services.report_generator.feasibility.mapping_loader import MappingEntry, topological_sort
+
     entries = [
         MappingEntry("Details!A1", "black", "a", calc="c", calc_args={"based_on": "b"}, fallback=0),
         MappingEntry("Details!A2", "black", "b", calc="c", calc_args={"based_on": "a"}, fallback=0),
@@ -132,18 +145,26 @@ def test_topological_sort_detects_cycle():
 
 
 def test_topological_sort_unknown_dep():
-    from feasibility.mapping_loader import topological_sort, MappingEntry
+    from services.report_generator.feasibility.mapping_loader import MappingEntry, topological_sort
+
     entries = [
-        MappingEntry("Details!A1", "black", "a", calc="c", calc_args={"based_on": "missing"}, fallback=0),
+        MappingEntry(
+            "Details!A1", "black", "a", calc="c", calc_args={"based_on": "missing"}, fallback=0
+        ),
     ]
     with pytest.raises(MappingError, match="unknown semantic_name"):
         topological_sort(entries)
 
 
 def test_validate_against_workbook_missing_cell(tmp_path):
-    from feasibility.mapping_loader import validate_against_workbook, MappingFile, MappingEntry
     import openpyxl
     from openpyxl.styles import PatternFill
+
+    from services.report_generator.feasibility.mapping_loader import (
+        MappingEntry,
+        MappingFile,
+        validate_against_workbook,
+    )
 
     wb = openpyxl.Workbook()
     wb.active.title = "Details"
@@ -151,27 +172,39 @@ def test_validate_against_workbook_missing_cell(tmp_path):
     ws["A1"].value = "x"
     ws["A1"].fill = PatternFill("solid", fgColor="FFFFFF00")
 
-    mf = MappingFile(template="x", scheme="s", cells=[
-        MappingEntry("Details!A1", "yellow", "a", from_="x.y", fallback=0),
-        MappingEntry("Details!B2", "yellow", "b", from_="x.y", fallback=0),  # missing cell
-    ])
+    mf = MappingFile(
+        template="x",
+        scheme="s",
+        cells=[
+            MappingEntry("Details!A1", "yellow", "a", from_="x.y", fallback=0),
+            MappingEntry("Details!B2", "yellow", "b", from_="x.y", fallback=0),  # missing cell
+        ],
+    )
     with pytest.raises(MappingError, match="Details!B2"):
         validate_against_workbook(mf, wb)
 
 
 def test_validate_against_workbook_kind_mismatch(tmp_path):
-    from feasibility.mapping_loader import validate_against_workbook, MappingFile, MappingEntry
     import openpyxl
     from openpyxl.styles import PatternFill
+
+    from services.report_generator.feasibility.mapping_loader import (
+        MappingEntry,
+        MappingFile,
+        validate_against_workbook,
+    )
 
     wb = openpyxl.Workbook()
     wb.active.title = "Details"
     ws = wb["Details"]
     ws["A1"].fill = PatternFill("solid", fgColor="FF000000")  # actually black
 
-    mf = MappingFile(template="x", scheme="s", cells=[
-        MappingEntry("Details!A1", "yellow", "a", from_="x.y", fallback=0),
-    ])
+    mf = MappingFile(
+        template="x",
+        scheme="s",
+        cells=[
+            MappingEntry("Details!A1", "yellow", "a", from_="x.y", fallback=0),
+        ],
+    )
     with pytest.raises(MappingError, match="kind mismatch"):
         validate_against_workbook(mf, wb)
-

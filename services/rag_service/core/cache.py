@@ -1,7 +1,7 @@
-import os
 import json
 import logging
-from typing import Optional, Any
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +11,7 @@ class RedisCache:
         self.redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
         try:
             import redis
+
             self.client = redis.from_url(self.redis_url, decode_responses=True)
             self.client.ping()
             self.available = True
@@ -23,7 +24,7 @@ class RedisCache:
             self.client = None
             self.available = False
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         if not self.available:
             return None
         try:
@@ -65,4 +66,3 @@ class RedisCache:
 
 # Global cache instance
 cache = RedisCache()
-

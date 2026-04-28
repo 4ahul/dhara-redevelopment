@@ -3,7 +3,9 @@ Full Agent Flow Simulation — End-to-End Test
 Simulates Steps 0-7, hits the live report_generator service,
 and verifies the output Excel report.
 """
+
 import json
+
 import httpx
 import openpyxl
 
@@ -108,9 +110,17 @@ def run_test():
     # Log each step
     steps = [
         ("Step 0: get_mcgm_property", step0, f"area_sqm={step0['area_sqm']}"),
-        ("Step 2: get_dp_remarks", step2, f"road={step2['road_width_m']}m, zone={step2['zone_code']}"),
+        (
+            "Step 2: get_dp_remarks",
+            step2,
+            f"road={step2['road_width_m']}m, zone={step2['zone_code']}",
+        ),
         ("Step 3: analyse_site", step3, f"addr={step3['formatted_address'][:40]}"),
-        ("Step 4: get_max_height", step4, f"height={step4['max_height_m']}m/{step4['max_floors']}fl"),
+        (
+            "Step 4: get_max_height",
+            step4,
+            f"height={step4['max_height_m']}m/{step4['max_floors']}fl",
+        ),
         ("Step 5: query_regulations", step5, f"sources={len(step5['sources'])}"),
         ("Step 6: calculate_premiums", step6, f"total={step6['grand_total_crore']} Cr"),
     ]
@@ -154,13 +164,15 @@ def run_test():
         "llm_analysis": "Project viable under 33(7)(B). 9660.7 sqm plot with 18.3m road.",
     }
 
-    print(f"Step 7: generate_feasibility_report -> POST /generate/template")
+    print("Step 7: generate_feasibility_report -> POST /generate/template")
     print(f"  Payload: {len(json.dumps(tool_args)):,} chars")
     print()
 
     # ── Hit the service ───────────────────────────────────────────────────────
     resp = httpx.post(f"{REPORT_URL}/generate/template", json=tool_args, timeout=30)
-    print(f"  HTTP {resp.status_code} | {len(resp.content):,} bytes | {resp.headers.get('content-type', '')}")
+    print(
+        f"  HTTP {resp.status_code} | {len(resp.content):,} bytes | {resp.headers.get('content-type', '')}"
+    )
 
     if resp.status_code != 200:
         print(f"  ERROR: {resp.text[:500]}")
@@ -250,7 +262,9 @@ def run_test():
     print(f"  Formulas intact: {formula_ok}/{len(formula_checks)}")
     print()
     print("=" * 60)
-    print(f"  RESULT: {passed}/{len(checks)} value checks passed, {formula_ok}/{len(formula_checks)} formulas OK")
+    print(
+        f"  RESULT: {passed}/{len(checks)} value checks passed, {formula_ok}/{len(formula_checks)} formulas OK"
+    )
     if failed == 0 and formula_ok == len(formula_checks):
         print("  ★ ALL CHECKS PASSED — Report generation is accurate ★")
     else:

@@ -1,8 +1,6 @@
 import asyncio
-import os
 
 # ── Imports for Model Discovery ───────────────────
-import sys
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,10 +8,15 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from services.orchestrator.core.config import settings
-from services.orchestrator.db.base import Base
 # IMPORTANT: Import ALL models so metadata is complete!
-from services.orchestrator.models import *  # noqa: F401,F403
+# Import models so Alembic can autogenerate migrations
+from services.orchestrator import models as _models
+
+from ..core.config import settings
+from ..db.base import Base
+
+# Reference to ensure import side-effects are preserved
+_ = getattr(_models, "__all__", None)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -62,7 +65,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -96,6 +103,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-
-

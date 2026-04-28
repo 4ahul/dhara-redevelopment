@@ -4,13 +4,13 @@ RERA Integration Module
 Real API Integration for MahaRERA
 """
 
-import requests
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import Optional, List, Dict
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class RERAIntegration:
         self.cache_dir = Path("data/rera_cache")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def search_project_by_reg_no(self, reg_no: str) -> Optional[Dict]:
+    def search_project_by_reg_no(self, reg_no: str) -> dict | None:
         """
         Search project by RERA registration number
         Example: P51800045641
@@ -87,7 +87,7 @@ class RERAIntegration:
         except Exception as e:
             return {"error": str(e)}
 
-    def search_promoter(self, promoter_name: str) -> List[Dict]:
+    def search_promoter(self, promoter_name: str) -> list[dict]:
         """Search promoter/builder by name"""
         try:
             url = f"{BASE_URL}/Promoter/Search"
@@ -104,7 +104,7 @@ class RERAIntegration:
             logger.error(f"Error: {e}", exc_info=True)
             return []
 
-    def get_project_details(self, project_id: str) -> Optional[Dict]:
+    def get_project_details(self, project_id: str) -> dict | None:
         """Get detailed project information"""
         try:
             url = f"{BASE_URL}/ProjectDetails/{project_id}"
@@ -120,7 +120,7 @@ class RERAIntegration:
             logger.error(f"Error: {e}", exc_info=True)
             return None
 
-    def _parse_project(self, data: Dict) -> Dict:
+    def _parse_project(self, data: dict) -> dict:
         """Parse API response"""
         return {
             "registration_no": data.get("registrationNo", ""),
@@ -132,7 +132,7 @@ class RERAIntegration:
             "status": data.get("status", ""),
         }
 
-    def check_builder_credibility(self, builder_name: str) -> Dict:
+    def check_builder_credibility(self, builder_name: str) -> dict:
         """
         Check builder credibility by searching multiple sources
         """
@@ -163,13 +163,11 @@ class RERAIntegration:
                 )
 
             if not project.get("gantt_chart"):
-                results["warnings"].append(
-                    f"Project '{project.get('name')}' missing Gantt chart"
-                )
+                results["warnings"].append(f"Project '{project.get('name')}' missing Gantt chart")
 
         return results
 
-    def verify_registration(self, reg_no: str) -> Dict:
+    def verify_registration(self, reg_no: str) -> dict:
         """
         Verify if RERA registration is valid
         """
@@ -207,9 +205,7 @@ def main():
     promoter_parser.add_argument("name", help="Promoter/Builder name")
 
     # Check credibility
-    credible_parser = subparsers.add_parser(
-        "credibility", help="Check builder credibility"
-    )
+    credible_parser = subparsers.add_parser("credibility", help="Check builder credibility")
     credible_parser.add_argument("name", help="Builder name")
 
     # Verify
@@ -248,4 +244,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

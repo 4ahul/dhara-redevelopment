@@ -1,6 +1,7 @@
 import openpyxl
-from openpyxl.styles import PatternFill, Font
-from feasibility.writer import Writer
+from openpyxl.styles import Font, PatternFill
+
+from services.report_generator.feasibility.writer import Writer
 
 
 def test_writes_non_formula_cells(tmp_path):
@@ -38,4 +39,3 @@ def test_preserves_style():
     w.flush(wb)
     assert ws["A1"].fill.fgColor.rgb == "FFFFFF00"
     assert ws["A1"].font.bold is True
-

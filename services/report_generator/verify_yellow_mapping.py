@@ -6,18 +6,18 @@ Run:
 
 Defaults: scheme=33(7)(B), redevelopment_type=CLUBBING
 """
+# noqa: E402
 
 import os
 import sys
-from typing import Tuple
 
 BASE_DIR = os.path.dirname(__file__)
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from services.report_generator.logic.cell_mapper import cell_mapper
-import openpyxl
+import openpyxl  # noqa: E402
 
+from services.report_generator.services.cell_mapper import cell_mapper  # noqa: E402
 
 FORCED_TEMPLATE_NAME = "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
 
@@ -45,10 +45,13 @@ def _label_for(ws, row: int, col: int) -> str:
             return str(above.value).strip()[:60]
     # Fallback to coordinate
     from openpyxl.utils import get_column_letter
+
     return f"{get_column_letter(col)}{row}"
 
 
-def main(scheme: str = "33(7)(B)", redevelopment_type: str = "CLUBBING", mode: str = "summary") -> int:
+def main(
+    scheme: str = "33(7)(B)", redevelopment_type: str = "CLUBBING", mode: str = "summary"
+) -> int:
     # Load yellow cells directly from the forced template
     template_path = os.path.join(BASE_DIR, "templates", FORCED_TEMPLATE_NAME)
     wb = openpyxl.load_workbook(template_path, data_only=False)
@@ -77,9 +80,11 @@ def main(scheme: str = "33(7)(B)", redevelopment_type: str = "CLUBBING", mode: s
     # Build mapping set from cell_mapper for the requested scheme
     maps = cell_mapper.get_mappings_for_scheme(scheme)
     mapped = {f"{m.sheet}!{m.cell}": m for m in maps if not m.is_formula}
+
     # Group mapping data paths by root key to validate orchestrator payload shape
     def root_of(path: str):
         return path.split(".")[0] if path else ""
+
     roots = {}
     for m in maps:
         r = root_of(m.data_path)
@@ -106,7 +111,7 @@ def main(scheme: str = "33(7)(B)", redevelopment_type: str = "CLUBBING", mode: s
         for sh in wanted:
             print(f"\n-- Yellow in {sh} --")
             cnt = 0
-            for key in sorted(k for k in yellow.keys() if k.startswith(sh+"!")):
+            for key in sorted(k for k in yellow.keys() if k.startswith(sh + "!")):
                 f = yellow[key]
                 print(f"  {key}: label='{f['label']}' current='{f['current_value']}'")
                 cnt += 1
@@ -119,14 +124,16 @@ def main(scheme: str = "33(7)(B)", redevelopment_type: str = "CLUBBING", mode: s
             f = yellow[c]
             print(f"  M{i:02d}: {c}  label='{f['label']}'  current='{f['current_value']}'")
         if len(missing) > 100:
-            print(f"  ... and {len(missing)-100} more")
+            print(f"  ... and {len(missing) - 100} more")
 
         print(f"Extra mappings (not yellow in template): {len(extra)}")
         for i, c in enumerate(extra[:50], 1):
             m = mapped[c]
-            print(f"  E{i:02d}: {c}  data_path='{m.data_path}' transform='{m.transform}' default='{m.default}'")
+            print(
+                f"  E{i:02d}: {c}  data_path='{m.data_path}' transform='{m.transform}' default='{m.default}'"
+            )
         if len(extra) > 50:
-            print(f"  ... and {len(extra)-50} more")
+            print(f"  ... and {len(extra) - 50} more")
 
         print("\nMapping sources by root key:")
         for k in sorted(roots.keys()):
@@ -140,5 +147,3 @@ if __name__ == "__main__":
     rd = sys.argv[2] if len(sys.argv) > 2 else "CLUBBING"
     mode = sys.argv[3] if len(sys.argv) > 3 else "summary"
     raise SystemExit(main(scheme, rd, mode))
-
-

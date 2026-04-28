@@ -1,6 +1,4 @@
-import sys, os
-_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _dir not in sys.path: sys.path.insert(0, _dir)
+
 """
 MCGM Property Lookup — FastAPI Router
 Endpoints:
@@ -10,37 +8,35 @@ Endpoints:
   GET  /health
 """
 
-import asyncio
 import base64
 import logging
 from datetime import datetime
-from typing import Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 
-from services.mcgm_property_lookup.core import settings
-from services.mcgm_property_lookup.schemas import (
+from ..core import settings
+from ..schemas import (
     NearbyProperty,
     PropertyLookupRequest,
     PropertyLookupResponse,
     PropertyLookupStatus,
 )
-from services.mcgm_property_lookup.logic import ArcGISClient, MCGMBrowserScraper
-from services.mcgm_property_lookup.logic.storage import AsyncStorageService as StorageService
-from services.mcgm_property_lookup.logic.geometry import (
+from ..services import ArcGISClient, MCGMBrowserScraper
+from ..services.geometry import (
     polygon_area_sqm,
     polygon_centroid_mercator,
     rings_to_wgs84,
     web_mercator_to_wgs84,
 )
+from ..services.storage import AsyncStorageService as StorageService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def get_storage() -> Optional[StorageService]:
+def get_storage() -> StorageService | None:
     try:
         return StorageService(settings.DATABASE_URL)
     except Exception as e:
@@ -52,14 +48,14 @@ def get_storage() -> Optional[StorageService]:
 
 
 async def _do_lookup(
-    lookup_id: Optional[str],
+    lookup_id: str | None,
     ward: str,
     village: str,
     cts_no: str,
     tps_name: str = None,
     use_fp: bool = False,
     include_nearby: bool = True,
-    storage: Optional[StorageService] = None,
+    storage: StorageService | None = None,
 ) -> dict:
     """Full lookup flow. Persists to DB if storage is available.
 
@@ -70,8 +66,8 @@ async def _do_lookup(
       4. If include_nearby: call ArcGISClient.query_nearby()
       5. Save to DB if storage available, always return result
     """
-    feature: Optional[dict] = None
-    screenshot_b64: Optional[str] = None
+    feature: dict | None = None
+    screenshot_b64: str | None = None
     _storage = storage  # May be None if DB unavailable
 
     # ── Step 1: Direct REST API ───────────────────────────────────────────
@@ -88,15 +84,22 @@ async def _do_lookup(
     # ── Step 2: Only run browser scraper if API failed ────────────────────────
     if feature is None:
         logger.info("API returned no result, falling back to browser scraper...")
-        scraper_attempts = []
         errors_to_log = []
 
+        # Build village name variants to try (max 3 attempts)
+        v_upper = village.upper().strip()
+        village_variants = [v_upper, v_upper + " (W)", v_upper.replace(" ", "")]
+
         for attempt in range(3):
-            headless_mode = settings.BROWSER_HEADLESS if attempt == 0 else (attempt == 1)
+            village_attempt = (
+                village_variants[attempt] if attempt < len(village_variants) else v_upper
+            )
             try:
-                scraper = MCGMBrowserScraper(headless=headless_mode)
-                result = await scraper.scrape(ward, village, cts_no, tps_name=tps_name, use_fp=use_fp)
-                
+                scraper = MCGMBrowserScraper(headless=True)
+                result = await scraper.scrape(
+                    ward, village_attempt, cts_no, tps_name=tps_name, use_fp=use_fp
+                )
+
                 # Get building data from scraper
                 scraped_building = result.get("building_data", {})
                 if scraped_building:
@@ -156,10 +159,10 @@ async def _do_lookup(
     geometry = feature.get("geometry", {})
     rings = geometry.get("rings", [])
 
-    geometry_wgs84: Optional[list] = None
-    centroid_lat: Optional[float] = None
-    centroid_lng: Optional[float] = None
-    area_sqm_val: Optional[float] = None
+    geometry_wgs84: list | None = None
+    centroid_lat: float | None = None
+    centroid_lng: float | None = None
+    area_sqm_val: float | None = None
 
     if rings:
         # Check if coordinates are in WGS84 (small numbers) or Web Mercator (large numbers)
@@ -219,7 +222,7 @@ async def _do_lookup(
             logger.warning("Nearby query failed: %s", e)
 
     # ── Step 5: Persist ───────────────────────────────────────────────────
-    screenshot_bytes: Optional[bytes] = None
+    screenshot_bytes: bytes | None = None
     if screenshot_b64:
         try:
             screenshot_bytes = base64.b64decode(screenshot_b64)
@@ -341,10 +344,14 @@ async def lookup_property_sync(req: PropertyLookupRequest, request: Request):
         status = PropertyLookupStatus(result.get("status", "failed"))
     except Exception as e:
         logger.error("Lookup sync failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lookup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lookup failed: {str(e)}") from e
     nearby = [NearbyProperty(**n) for n in (result.get("nearby_properties") or [])]
 
-    download_url = f"{str(request.base_url).rstrip('/')}/download/{lookup_id}/screenshot" if lookup_id else None
+    download_url = (
+        f"{str(request.base_url).rstrip('/')}/download/{lookup_id}/screenshot"
+        if lookup_id
+        else None
+    )
 
     return PropertyLookupResponse(
         id=lookup_id,
@@ -381,6 +388,7 @@ async def get_lookup_status(lookup_id: str, request: Request):
         np_data = row["nearby_properties"]
         if isinstance(np_data, str):
             import json as _json
+
             np_data = _json.loads(np_data)
         nearby = [NearbyProperty(**n) for n in np_data]
 
@@ -430,8 +438,3 @@ def health():
         "service": "mcgm_property_lookup",
         "arcgis_layer_cached": ArcGISClient._layer_url is not None,
     }
-
-
-
-
-

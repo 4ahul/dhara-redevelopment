@@ -1,18 +1,22 @@
-from dhara_shared.dhara_common.banner import print_banner
-from dhara_shared.dhara_common.tracing import setup_tracing
-from dhara_shared.dhara_common.logging import setup_logging, setup_sentry
-from dhara_shared.dhara_common.metrics import setup_metrics
 import logging
+
 from fastapi import FastAPI
-from services.aviation_height.core import settings
-from services.aviation_height.routers.height_router import router
+
+from dhara_shared.core.banner import print_banner
+from dhara_shared.core.config import validate_config
+from dhara_shared.core.logging import setup_logging, setup_sentry
+from dhara_shared.core.metrics import setup_metrics
+from dhara_shared.core.tracing import setup_tracing
+
+from .core import settings
+from .routers.height_router import router
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 print_banner(settings.APP_NAME)
 
-settings.validate_critical_keys(['SENTRY_DSN'])
+validate_config(settings, [])
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 setup_sentry(settings.APP_NAME)
@@ -29,9 +33,3 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)
-
-
-
-
-
-

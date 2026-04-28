@@ -6,9 +6,10 @@ import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
-from services.orchestrator.logic.redis import get_redis
+from services.orchestrator.services.redis import get_redis
 
 logger = logging.getLogger("gateway")
+
 
 async def request_id_middleware(request: Request, call_next):
     """Assigns a unique ID to every request for cross-service tracking."""
@@ -18,6 +19,7 @@ async def request_id_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
     return response
+
 
 async def logging_middleware(request: Request, call_next):
     """Logs request details, duration, and status codes."""
@@ -30,15 +32,17 @@ async def logging_middleware(request: Request, call_next):
 
     logger.info(
         f"{request.method} {request.url.path} | Status: {response.status_code} | Duration: {duration:.4f}s",
-        extra={"request_id": request_id}
+        extra={"request_id": request_id},
     )
 
     return response
 
+
 # --- Redis-Powered Rate Limiting & Caching ---
-_RATE_WINDOW = 60 # seconds
-_DEFAULT_LIMIT = 100 # requests per window
-_CACHE_TTL = 300 # 5 minutes
+_RATE_WINDOW = 60  # seconds
+_DEFAULT_LIMIT = 100  # requests per window
+_CACHE_TTL = 300  # 5 minutes
+
 
 async def rate_limit_middleware(request: Request, call_next):
     """Prevents abuse by limiting requests per IP using Redis."""
@@ -62,13 +66,17 @@ async def rate_limit_middleware(request: Request, call_next):
             logger.warning(f"RID: {request_id} | Rate limit exceeded for IP: {client_ip}")
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Too many requests. Please try again later.", "request_id": request_id}
+                content={
+                    "detail": "Too many requests. Please try again later.",
+                    "request_id": request_id,
+                },
             )
     except Exception as e:
         logger.error(f"Rate limiter error: {e}")
         # Fallback to allow request if Redis fails
 
     return await call_next(request)
+
 
 async def response_cache_middleware(request: Request, call_next):
     """Caches idempotent GET requests in the Gateway for high performance."""
@@ -77,9 +85,9 @@ async def response_cache_middleware(request: Request, call_next):
     cacheable_paths = ["/api/v1/ready-reckoner", "/api/v1/premium"]
 
     is_cacheable = (
-        request.method == "GET" and
-        any(request.url.path.startswith(p) for p in cacheable_paths) and
-        redis is not None
+        request.method == "GET"
+        and any(request.url.path.startswith(p) for p in cacheable_paths)
+        and redis is not None
     )
 
     if not is_cacheable:
@@ -98,7 +106,7 @@ async def response_cache_middleware(request: Request, call_next):
                 content=data["content"],
                 status_code=data["status"],
                 media_type=data["media_type"],
-                headers={"X-Cache": "HIT", "X-Request-ID": request_id}
+                headers={"X-Cache": "HIT", "X-Request-ID": request_id},
             )
     except Exception as e:
         logger.error(f"Cache retrieval error: {e}")
@@ -117,7 +125,7 @@ async def response_cache_middleware(request: Request, call_next):
             cache_data = {
                 "content": body.decode("utf-8") if isinstance(body, bytes) else body,
                 "status": response.status_code,
-                "media_type": response.media_type
+                "media_type": response.media_type,
             }
             redis.setex(cache_key, _CACHE_TTL, json.dumps(cache_data))
 
@@ -126,13 +134,9 @@ async def response_cache_middleware(request: Request, call_next):
                 content=body,
                 status_code=response.status_code,
                 headers=dict(response.headers),
-                media_type=response.media_type
+                media_type=response.media_type,
             )
         except Exception as e:
             logger.error(f"Cache storage error: {e}")
 
     return response
-
-
-
-

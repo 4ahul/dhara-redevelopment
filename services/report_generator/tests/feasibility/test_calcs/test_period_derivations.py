@@ -1,7 +1,7 @@
 import pytest
-from feasibility.calcs import period_derivations  # registers
-from feasibility.calc_registry import get
-from feasibility.exceptions import MissingData
+
+from services.report_generator.feasibility.calc_registry import get
+from services.report_generator.feasibility.exceptions import MissingData
 
 
 def test_completion_months_from_area_rate():
@@ -20,4 +20,3 @@ def test_completion_missing_raises():
     fn = get("completion_months_from_area")
     with pytest.raises(MissingData):
         fn({"request": {}, "resolved": {}}, area_name="bua_sqft", rate_sqft_per_month=5000)
-

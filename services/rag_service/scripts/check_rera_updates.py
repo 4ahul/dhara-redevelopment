@@ -4,9 +4,9 @@ Daily Cron Job - Fetch RERA Updates
 Run: Every day at 9:00 AM
 """
 
-import sys
 import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -66,9 +66,7 @@ def check_rera_updates():
 
         output_file.write_text(json.dumps(existing, indent=2))
 
-        logger.info(
-            f"RERA check complete. Found {len(new_registrations)} valid registrations."
-        )
+        logger.info(f"RERA check complete. Found {len(new_registrations)} valid registrations.")
 
     except Exception as e:
         logger.error(f"RERA update check failed: {e}")
@@ -87,4 +85,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Script failed: {e}")
         sys.exit(1)
-

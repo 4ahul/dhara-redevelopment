@@ -1,26 +1,26 @@
-import os
 import logging
-from typing import Optional
-from fastapi import Header, Query, HTTPException, Depends
+
+from fastapi import Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
-from services.rag_service.db.session import get_db, User
-from services.rag_service.core.auth import decode_token
-from services.rag_service.core.config import settings
+
+from ..db.session import User, get_db
+from .auth import decode_token
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
-def get_token(
-    authorization: str = Header(None), token: Optional[str] = Query(None)
-) -> Optional[str]:
+
+def get_token(authorization: str = Header(None), token: str | None = Query(None)) -> str | None:
     """Extracts bearer token from header or query string."""
     if authorization and authorization.startswith("Bearer "):
         return authorization.replace("Bearer ", "")
     return token
 
+
 def require_auth(
-    authorization: str = Header(None), 
-    token: Optional[str] = Query(None), 
-    db: Session = Depends(get_db)
+    authorization: str = Header(None),
+    token: str | None = Query(None),
+    db: Session = Depends(get_db),
 ):
     """
     Production-ready auth dependency.
@@ -67,8 +67,8 @@ def require_auth(
     # Clerk specific claims
     # sub is the Clerk User ID
     user_id = payload.get("sub")
-    email = payload.get("email") or payload.get("upn") # Some JWTs use upn for email
-    
+    email = payload.get("email") or payload.get("upn")  # Some JWTs use upn for email
+
     if not user_id:
         raise HTTPException(status_code=401, detail="Token missing user identification")
 
@@ -89,6 +89,5 @@ def require_auth(
             db.rollback()
             logger.error(f"Failed to sync user from JWT: {e}")
             # We still allow the request if we have the ID
-    
-    return payload
 
+    return payload

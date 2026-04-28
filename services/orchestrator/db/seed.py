@@ -6,9 +6,10 @@ Seeds default admin user and roles on first run.
 import logging
 import os
 
+from sqlalchemy import func, select
+
 from services.orchestrator.core.security import hash_password
 from services.orchestrator.db import async_session_factory
-from sqlalchemy import func, select
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,6 @@ async def seed_defaults():
     """Create default admin user and roles if tables are empty."""
     from services.orchestrator.models import Role, Society, User
     from services.orchestrator.models.enums import UserRole
-
 
     async with async_session_factory() as db:
         # ── Seed admin user ──────────────────────────────
@@ -38,10 +38,30 @@ async def seed_defaults():
         if role_count == 0:
             defaults = [
                 ("admin", "Administrator", "Full system access", {"all": True}),
-                ("pmc", "PMC Consultant", "Report generation and team management", {"societies": True, "reports": True, "team": True}),
-                ("society", "Society Member", "Housing society representative", {"view_reports": True}),
-                ("builder", "Builder", "Construction company representative", {"view_tenders": True, "bid": True}),
-                ("lawyer", "Lawyer", "Legal consultant for redevelopment", {"view_reports": True, "legal_review": True}),
+                (
+                    "pmc",
+                    "PMC Consultant",
+                    "Report generation and team management",
+                    {"societies": True, "reports": True, "team": True},
+                ),
+                (
+                    "society",
+                    "Society Member",
+                    "Housing society representative",
+                    {"view_reports": True},
+                ),
+                (
+                    "builder",
+                    "Builder",
+                    "Construction company representative",
+                    {"view_tenders": True, "bid": True},
+                ),
+                (
+                    "lawyer",
+                    "Lawyer",
+                    "Legal consultant for redevelopment",
+                    {"view_reports": True, "legal_review": True},
+                ),
                 ("viewer", "Viewer", "Read-only access", {"view": True}),
             ]
             for name, display, desc, perms in defaults:
@@ -53,7 +73,9 @@ async def seed_defaults():
         exists = (await db.execute(select(Society).filter(Society.name == name))).scalar()
 
         if not exists:
-            admin = (await db.execute(select(User).filter(User.email == "admin@dharaai.com"))).scalar()
+            admin = (
+                await db.execute(select(User).filter(User.email == "admin@dharaai.com"))
+            ).scalar()
             if admin:
                 prabhadevi = Society(
                     name=name,
@@ -62,14 +84,9 @@ async def seed_defaults():
                     cts_no="1/1128",
                     plot_area_sqm=1540.50,
                     sale_rate=55000.0,
-                    created_by=admin.id
+                    created_by=admin.id,
                 )
                 db.add(prabhadevi)
                 logger.info(f"Sample society seeded: {name}")
 
         await db.commit()
-
-
-
-
-

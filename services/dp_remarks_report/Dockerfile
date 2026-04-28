@@ -11,11 +11,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dhara_shared and install it
+# Copy workspace root for uv and workspace member
+COPY pyproject.toml /build/pyproject.toml
+COPY uv.lock /build/uv.lock
 COPY dhara_shared/ /build/dhara_shared/
+# Install dhara_shared as a non-editable package to avoid editable .pth
 RUN uv pip install --system /build/dhara_shared
 
-# Install service dependencies
+# Install service dependencies via uv workspace mapping
 COPY services/dp_remarks_report/pyproject.toml /build/services/dp_remarks_report/
 RUN uv pip install --system -r /build/services/dp_remarks_report/pyproject.toml
 
@@ -26,6 +29,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    # Chromium/Playwright system deps
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
+    libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
+    libpango-1.0-0 libcairo2 libxshmfence1 libx11-6 libxext6 libxcb1 \
+    fonts-liberation wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
@@ -38,6 +46,9 @@ COPY services/dp_remarks_report/ /app/services/dp_remarks_report/
 COPY services/dp_remarks_report/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
+
+# Install Playwright browsers
+RUN playwright install chromium
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

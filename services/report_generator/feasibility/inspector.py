@@ -11,9 +11,11 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 import openpyxl
 from openpyxl.workbook import Workbook
+
 YELLOW_RGB = "FFFFFF00"
 BLACK_RGB = "FF000000"
 
@@ -27,9 +29,9 @@ def _fill_rgb(cell) -> str | None:
     return str(rgb).upper() if rgb else None
 
 
-def enumerate_fillable_cells(wb: Workbook) -> List[Dict[str, Any]]:
+def enumerate_fillable_cells(wb: Workbook) -> list[dict[str, Any]]:
     """Return one record per yellow- or black-filled cell across every sheet."""
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         for row in ws.iter_rows():
@@ -55,7 +57,7 @@ def enumerate_fillable_cells(wb: Workbook) -> List[Dict[str, Any]]:
     return out
 
 
-def _text(cell) -> Optional[str]:
+def _text(cell) -> str | None:
     v = cell.value
     if isinstance(v, str):
         s = v.strip()
@@ -63,7 +65,7 @@ def _text(cell) -> Optional[str]:
     return None
 
 
-def _scan_left(ws, row: int, col: int) -> Optional[str]:
+def _scan_left(ws, row: int, col: int) -> str | None:
     for c in range(col - 1, 0, -1):
         t = _text(ws.cell(row=row, column=c))
         if t:
@@ -71,7 +73,7 @@ def _scan_left(ws, row: int, col: int) -> Optional[str]:
     return None
 
 
-def _scan_up(ws, row: int, col: int, require_bold: bool = False) -> Optional[str]:
+def _scan_up(ws, row: int, col: int, require_bold: bool = False) -> str | None:
     for r in range(row - 1, 0, -1):
         cell = ws.cell(row=r, column=col)
         if require_bold and not (cell.font and cell.font.bold):
@@ -82,7 +84,7 @@ def _scan_up(ws, row: int, col: int, require_bold: bool = False) -> Optional[str
     return None
 
 
-def _merged_master(ws, cell) -> Optional[str]:
+def _merged_master(ws, cell) -> str | None:
     for rng in ws.merged_cells.ranges:
         if cell.coordinate in rng:
             master = ws.cell(row=rng.min_row, column=rng.min_col)
@@ -106,7 +108,7 @@ def _neighbor_3x3(ws, row: int, col: int) -> list:
     return grid
 
 
-def extract_signals(ws, cell) -> Dict[str, Any]:
+def extract_signals(ws, cell) -> dict[str, Any]:
     """Return the six context signals for a single cell."""
     return {
         "placeholder_text": _text(cell),
@@ -123,7 +125,7 @@ def _slug(text: str) -> str:
     return t or "unknown"
 
 
-def suggest_mapping(kind: str, signals: Dict[str, Any]) -> Dict[str, Any]:
+def suggest_mapping(kind: str, signals: dict[str, Any]) -> dict[str, Any]:
     """Return {suggested_semantic_name, suggested_source, review_required}.
 
     Heuristic hints only — human review is authoritative.
@@ -134,8 +136,16 @@ def suggest_mapping(kind: str, signals: Dict[str, Any]) -> Dict[str, Any]:
     header = signals.get("column_header") or ""
 
     # Review required if all 5 primary signals are empty.
-    primaries = [signals.get(k) for k in
-                 ("placeholder_text", "row_label", "section_header", "column_header", "merged_master")]
+    primaries = [
+        signals.get(k)
+        for k in (
+            "placeholder_text",
+            "row_label",
+            "section_header",
+            "column_header",
+            "merged_master",
+        )
+    ]
     review = not any(primaries)
 
     # Build a semantic name guess from the most specific available label.
@@ -172,10 +182,10 @@ def suggest_mapping(kind: str, signals: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def build_dossier(template_path: str, scheme: str, out_path: str | None = None) -> Dict[str, Any]:
+def build_dossier(template_path: str, scheme: str, out_path: str | None = None) -> dict[str, Any]:
     wb = openpyxl.load_workbook(template_path, data_only=False)
     cells_raw = enumerate_fillable_cells(wb)
-    cells_out: List[Dict[str, Any]] = []
+    cells_out: list[dict[str, Any]] = []
     for rec in cells_raw:
         ws = wb[rec["sheet"]]
         cell = ws[rec["coord"]]
@@ -223,4 +233,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

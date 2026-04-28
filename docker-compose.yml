@@ -33,6 +33,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -40,18 +41,34 @@ services:
       - prometheus_data:/prometheus
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
     logging: *default-logging
 
   grafana:
     image: grafana/grafana:latest
+    container_name: grafana
     ports:
       - "3001:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/monitoring/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     networks:
       - dhara_net
     depends_on:
       - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/monitoring`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/monitoring"
+      - "traefik.http.routers.grafana.middlewares=grafana-strip"
+    volumes:
+      - grafana_data:/var/lib/grafana
     logging: *default-logging
 
   redis:
@@ -133,7 +150,7 @@ services:
       context: .
       dockerfile: services/orchestrator/Dockerfile
     image: redevelopment-ai/orchestrator:v1
-    command: ["arq", "services.orchestrator.logic.worker.WorkerSettings"]
+    command: ["arq", "services.orchestrator.services.worker.WorkerSettings"]
     env_file:
       - .env
       - ./services/orchestrator/.env
@@ -255,6 +272,7 @@ services:
       - "8004:8004"
     volumes:
       - ./report_outputs:/tmp/reports
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/report_generator/.env
     environment:
@@ -368,6 +386,34 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  ocr_service:
+    build:
+      context: .
+      dockerfile: services/ocr_service/Dockerfile
+    image: redevelopment-ai/ocr_service:v1
+    ports:
+      - "8009:8009"
+    env_file:
+      - ./services/ocr_service/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ocr.rule=PathPrefix(`/ocr`)"
+      - "traefik.http.routers.ocr.entrypoints=web"
+      - "traefik.http.middlewares.ocr-strip.stripprefix.prefixes=/ocr"
+      - "traefik.http.routers.ocr.middlewares=ocr-strip"
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8009/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   rag_service:
     build:

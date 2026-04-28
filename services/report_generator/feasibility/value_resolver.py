@@ -32,4 +32,3 @@ def lookup(data: Any, path: str) -> Any:
         if cur is None:
             return None
     return cur
-

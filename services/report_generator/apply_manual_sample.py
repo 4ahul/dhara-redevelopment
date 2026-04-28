@@ -4,10 +4,10 @@ Apply a sample set of manual inputs to the 33(7)(B) template and save output.
 Run:
   python -m services.report_generator.apply_manual_sample
 """
+# noqa: E402
 
 import os
 import sys
-from io import BytesIO
 
 # Ensure local package imports resolve ('core', 'services')
 BASE_DIR = os.path.dirname(__file__)
@@ -19,9 +19,8 @@ PROJ_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 if PROJ_ROOT not in sys.path:
     sys.path.insert(0, PROJ_ROOT)
 
-from services.report_generator.logic.template_service import template_service
-from services.report_generator.logic.cell_mapper import cell_mapper  # ensure package resolves
-from services.report_generator.core.config import OUTPUT_DIR
+from services.report_generator.core.config import OUTPUT_DIR  # noqa: E402
+from services.report_generator.services.template_service import template_service  # noqa: E402
 
 
 def main():
@@ -47,20 +46,16 @@ def main():
             "Details!G39": 1.2,
             "Details!J45": 0,
             "Details!J54": 1228870,
-
             "Construction Cost!D8": 3800,
             "Construction Cost!D12": 3800,
             "Construction Cost!D15": 1700,
             "Construction Cost!H21": 2200,
-
             "SUMMARY 1!I27": 55000,
             "SUMMARY 1!I98": 1110000,
             "SUMMARY 1!I103": 200000,
-
             "Profit & Loss Statement!D28": 50000,
             "Profit & Loss Statement!C30": 75,
             "Profit & Loss Statement!D30": 1200000,
-
             "MCGM PAYMENTS!B277": 20,
         },
     }
@@ -77,5 +72,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

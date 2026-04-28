@@ -1,6 +1,6 @@
-
 from ..calc_registry import register
 from ..value_resolver import lookup
+
 
 @register("report_header")
 def report_header(ctx, **kwargs):
@@ -12,11 +12,13 @@ def report_header(ctx, **kwargs):
     scheme = lookup(ctx["request"], "scheme") or "33(7)(B)"
     fp_no = lookup(ctx["request"], "fp_no") or lookup(ctx["request"], "mcgm_property.fp_no")
     cts_no = lookup(ctx["request"], "cts_no") or lookup(ctx["request"], "mcgm_property.cts_no")
-    tps_name = lookup(ctx["request"], "tps_name") or lookup(ctx["request"], "mcgm_property.tps_name")
+    tps_name = lookup(ctx["request"], "tps_name") or lookup(
+        ctx["request"], "mcgm_property.tps_name"
+    )
     village = lookup(ctx["request"], "village") or lookup(ctx["request"], "mcgm_property.village")
-    
+
     parts = [f"{society_name} /{scheme}"]
-    
+
     if fp_no:
         fp_part = f"F.P no {fp_no}"
         if tps_name:
@@ -29,8 +31,9 @@ def report_header(ctx, **kwargs):
         if village:
             cts_part += f" {village}"
         parts.append(cts_part)
-        
+
     return "  ".join(parts)
+
 
 @register("label_with_value")
 def label_with_value(ctx, label: str, path: str, fallback: str = ""):
@@ -39,4 +42,3 @@ def label_with_value(ctx, label: str, path: str, fallback: str = ""):
     if val is None:
         return f"{label} {fallback}"
     return f"{label} {val}"
-

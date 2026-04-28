@@ -1,6 +1,5 @@
-import sys, os
-_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _dir not in sys.path: sys.path.insert(0, _dir)
-from . import chat_router, doc_router, query_router, auth_router
 
-
+from . import auth_router as auth_router
+from . import chat_router as chat_router
+from . import doc_router as doc_router
+from . import query_router as query_router

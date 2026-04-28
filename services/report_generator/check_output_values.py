@@ -1,6 +1,8 @@
 import os
 import sys
+
 import openpyxl
+
 
 def main(path: str):
     wb = openpyxl.load_workbook(path, data_only=False)
@@ -32,9 +34,12 @@ def main(path: str):
 
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.sep, "tmp", "reports", "Feasibility_33_7B_maptest.xlsx")
+    path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(os.sep, "tmp", "reports", "Feasibility_33_7B_maptest.xlsx")
+    )
     if not os.path.exists(path):
         print(f"Not found: {path}")
         sys.exit(1)
     main(path)
-

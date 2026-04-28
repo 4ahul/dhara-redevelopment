@@ -11,13 +11,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dhara_shared and install it
-COPY dhara_shared/ /build/dhara_shared/
-RUN uv pip install --system /build/dhara_shared
-
-# Install service dependencies
-COPY services/report_generator/pyproject.toml /build/services/report_generator/
-RUN uv pip install --system -r /build/services/report_generator/pyproject.toml
+# Install service dependencies (dhara_shared is copied as source, not installed)
+RUN uv pip install --system \
+    "fastapi>=0.115.0" "uvicorn>=0.30.0" "httpx>=0.27.0" "openpyxl>=3.1.0" \
+    "pydantic>=2.9.0" "pydantic-settings>=2.7.0" "reportlab>=4.0.0" \
+    "PyYAML>=6.0" "python-multipart>=0.0.12" \
+    "prometheus-fastapi-instrumentator>=7.0.0" "sentry-sdk[fastapi]>=2.58.0" \
+    "opentelemetry-api>=1.41.1" "opentelemetry-sdk>=1.41.1" \
+    "opentelemetry-instrumentation-fastapi>=0.62b1" \
+    "opentelemetry-instrumentation-httpx>=0.62b1" \
+    "opentelemetry-exporter-otlp>=1.41.1" \
+    "tenacity>=8.5.0" "cloudinary>=1.40.0" "redis>=5.0.0"
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -38,6 +42,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY services/__init__.py /app/services/
 COPY services/report_generator/ /app/services/report_generator/
 COPY services/report_generator/entrypoint.sh /app/entrypoint.sh
+# Copy dhara_shared package source directly so PYTHONPATH=/app resolves the import
+COPY dhara_shared/src/dhara_shared/ /app/dhara_shared/
 
 RUN chmod +x /app/entrypoint.sh
 

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 class ProfileResponse(BaseModel):
     """Full user profile response."""
+
     id: UUID
     email: str
     name: str
@@ -29,6 +30,7 @@ class ProfileResponse(BaseModel):
 
 class ProfileUpdate(BaseModel):
     """Partial update for user profile."""
+
     name: str | None = Field(default=None, min_length=2, max_length=255)
     phone: str | None = Field(default=None, max_length=20, pattern=r"^\+?[\d\s\-]{7,20}$")
     organization: str | None = Field(default=None, max_length=255)
@@ -37,11 +39,9 @@ class ProfileUpdate(BaseModel):
 
 class PortfolioUploadResponse(BaseModel):
     """Response after uploading a portfolio file."""
+
     status: str = "success"
     portfolio_url: str
     public_id: str
     format: str
     size_bytes: int
-
-
-

@@ -5,10 +5,10 @@ Not part of runtime. Run manually if inputs change.
 
 from __future__ import annotations
 
-import json
-import re
 import ast
 import datetime
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -27,7 +27,13 @@ def parse_cell_mapper() -> dict:
     )
     out = {}
     for m in pattern.finditer(text):
-        sheet, cell, path, transform, default = m.group(1), m.group(2), m.group(3), m.group(4) or "direct", (m.group(5) or "").strip()
+        sheet, cell, path, transform, default = (
+            m.group(1),
+            m.group(2),
+            m.group(3),
+            m.group(4) or "direct",
+            (m.group(5) or "").strip(),
+        )
         key = f"{sheet}!{cell}"
         if key not in out:
             out[key] = {"path": path, "transform": transform, "default": default}
@@ -55,46 +61,46 @@ def name_from_path(path: str) -> str:
 
 
 EXPLICIT = {
-    "Details!A1": dict(
-        name="society_header_title",
-        kind="black",
-        from_="society_name",
-        fb="",
-        tr="str",
-        comment="Society name header at top of Details sheet",
-    ),
-    "Details!M1": dict(
-        name="cts_fp_no_label",
-        kind="black",
-        from_="manual_inputs.cts_fp_no_label",
-        fb="Cts No. /FP No.:-",
-        tr="str",
-        comment="Literal label prefix; real CTS/FP number lives in a yellow cell elsewhere",
-    ),
-    "Details!M2": dict(
-        name="village_name",
-        kind="black",
-        sources=["mcgm_property.village", "manual_inputs.village"],
-        fb="",
-        tr="str",
-        comment="Village label/value",
-    ),
-    "Details!O47": dict(
-        name="details_o47",
-        kind="yellow",
-        from_="manual_inputs.details_o47",
-        fb=0,
-        tr="float",
-        comment="No cell_mapper.py entry — review in template",
-    ),
-    "MCGM PAYMENTS!B327": dict(
-        name="nalla_note",
-        kind="black",
-        from_="manual_inputs.nalla_note",
-        fb="",
-        tr="str",
-        comment="Conditional note re: nalla (stormwater drain) — typically blank",
-    ),
+    "Details!A1": {
+        "name": "society_header_title",
+        "kind": "black",
+        "from_": "society_name",
+        "fb": "",
+        "tr": "str",
+        "comment": "Society name header at top of Details sheet",
+    },
+    "Details!M1": {
+        "name": "cts_fp_no_label",
+        "kind": "black",
+        "from_": "manual_inputs.cts_fp_no_label",
+        "fb": "Cts No. /FP No.:-",
+        "tr": "str",
+        "comment": "Literal label prefix; real CTS/FP number lives in a yellow cell elsewhere",
+    },
+    "Details!M2": {
+        "name": "village_name",
+        "kind": "black",
+        "sources": ["mcgm_property.village", "manual_inputs.village"],
+        "fb": "",
+        "tr": "str",
+        "comment": "Village label/value",
+    },
+    "Details!O47": {
+        "name": "details_o47",
+        "kind": "yellow",
+        "from_": "manual_inputs.details_o47",
+        "fb": 0,
+        "tr": "float",
+        "comment": "No cell_mapper.py entry — review in template",
+    },
+    "MCGM PAYMENTS!B327": {
+        "name": "nalla_note",
+        "kind": "black",
+        "from_": "manual_inputs.nalla_note",
+        "fb": "",
+        "tr": "str",
+        "comment": "Conditional note re: nalla (stormwater drain) — typically blank",
+    },
 }
 
 
@@ -146,24 +152,26 @@ def main() -> int:
         if coord in EXPLICIT:
             o = EXPLICIT[coord]
             name = unique(o["name"])
-            lines.append(f'  # {o["comment"]}')
+            lines.append(f"  # {o['comment']}")
             lines.append(f"  # placeholder: {ph_str!r}")
             lines.append(f"  - cell: {coord}")
             lines.append(f"    kind: {kind}")
             lines.append(f"    semantic_name: {name}")
             if "calc" in o:
-                lines.append(f'    calc: {o["calc"]}')
+                lines.append(f"    calc: {o['calc']}")
                 if o.get("calc_args"):
-                    args_yaml = "{ " + ", ".join(f"{k}: {v}" for k, v in o["calc_args"].items()) + " }"
+                    args_yaml = (
+                        "{ " + ", ".join(f"{k}: {v}" for k, v in o["calc_args"].items()) + " }"
+                    )
                     lines.append(f"    calc_args: {args_yaml}")
             elif "sources" in o:
                 lines.append("    sources:")
                 for p in o["sources"]:
                     lines.append(f"      - {p}")
             else:
-                lines.append(f'    from: {o["from_"]}')
+                lines.append(f"    from: {o['from_']}")
             lines.append(emit_fallback(o["fb"]))
-            lines.append(f'    transform: {o["tr"]}')
+            lines.append(f"    transform: {o['tr']}")
             continue
 
         rec = lookup.get(coord)
@@ -226,4 +234,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

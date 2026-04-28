@@ -2,21 +2,32 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
-from typing import Optional, List, Dict
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, BackgroundTasks
-from fastapi.responses import StreamingResponse, JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
+from datetime import UTC, datetime
 
-from services.rag_service.db.session import get_db, User, ChatSession, Message, FeedbackLog, SessionLocal
-from services.rag_service.core.dependencies import require_auth
-from services.rag_service.schemas.chat import ChatMessageRequest, EditMessageRequest, FeedbackRequest, CreateSessionRequest
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session
+
+from ..core.dependencies import require_auth
+from ..db.session import (
+    ChatSession,
+    FeedbackLog,
+    Message,
+    SessionLocal,
+    get_db,
+)
+from ..schemas.chat import (
+    ChatMessageRequest,
+    CreateSessionRequest,
+    FeedbackRequest,
+)
 
 router = APIRouter(prefix="/api", tags=["Chat"])
 logger = logging.getLogger(__name__)
 
 STREAM_TIMEOUT_SECONDS = 120
+
 
 def sanitize_session_title(message: str) -> str:
     title = message.strip()[:50]
@@ -24,9 +35,12 @@ def sanitize_session_title(message: str) -> str:
         title += "..."
     return title or "New Chat"
 
+
 def get_rag_agent():
-    from services.rag_service.logic.intelligent_rag import IntelligentRAG
+    from ..services.intelligent_rag import IntelligentRAG
+
     return IntelligentRAG()
+
 
 def _save_chat_messages(
     session_db_id: int,
@@ -65,13 +79,11 @@ def _save_chat_messages(
         db.add(asst_msg)
 
         if update_title and new_title:
-            session_obj = (
-                db.query(ChatSession).filter(ChatSession.id == session_id).first()
-            )
+            session_obj = db.query(ChatSession).filter(ChatSession.id == session_id).first()
             if session_obj and session_obj.title == "New Chat":
                 session_obj.title = new_title
             if session_obj:
-                session_obj.last_message_at = datetime.now(timezone.utc)
+                session_obj.last_message_at = datetime.now(UTC)
 
         db.commit()
         logger.info(f"[DB] Messages saved to session {session_id}")
@@ -79,6 +91,7 @@ def _save_chat_messages(
         logger.error(f"[DB] Error saving messages: {db_err}", exc_info=True)
     finally:
         db.close()
+
 
 @router.get("/sessions")
 async def list_sessions(
@@ -102,13 +115,12 @@ async def list_sessions(
             "session_id": s.id,
             "title": s.title,
             "message_count": msg_count,
-            "last_message_at": s.last_message_at.isoformat()
-            if s.last_message_at
-            else None,
+            "last_message_at": s.last_message_at.isoformat() if s.last_message_at else None,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         }
         for s, msg_count in rows
     ]
+
 
 @router.post("/sessions")
 async def create_session(
@@ -117,9 +129,8 @@ async def create_session(
     db: Session = Depends(get_db),
 ):
     user_id = payload["sub"]
-    session_id = str(uuid.uuid4())[:8] # Simplified generate_session_id
+    session_id = str(uuid.uuid4())[:8]  # Simplified generate_session_id
     title = request.title if request and request.title else "New Chat"
-    is_incognito = False if request else False
 
     session = ChatSession(
         id=session_id,
@@ -137,6 +148,7 @@ async def create_session(
         "created_at": session.created_at.isoformat(),
     }
 
+
 @router.get("/sessions/{session_id}/history")
 async def get_session_history(
     session_id: str,
@@ -152,7 +164,7 @@ async def get_session_history(
         .filter(
             ChatSession.id == session_id,
             ChatSession.user_id == user_id,
-            ChatSession.is_deleted == False,
+            not ChatSession.is_deleted,
         )
         .first()
     )
@@ -160,11 +172,7 @@ async def get_session_history(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    total = (
-        db.query(sa_func.count(Message.id))
-        .filter(Message.session_id == session.id)
-        .scalar()
-    )
+    total = db.query(sa_func.count(Message.id)).filter(Message.session_id == session.id).scalar()
 
     messages = (
         db.query(Message)
@@ -195,6 +203,7 @@ async def get_session_history(
             for m in messages
         ],
     }
+
 
 @router.post("/chat/stream")
 async def chat_stream(
@@ -249,7 +258,7 @@ async def chat_stream(
             id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-)
+        )
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -259,7 +268,6 @@ async def chat_stream(
 
     async def event_generator():
         import asyncio
-        import traceback
 
         loop = asyncio.get_event_loop()
         async_q: asyncio.Queue = asyncio.Queue()
@@ -271,9 +279,7 @@ async def chat_stream(
 
         def produce():
             try:
-                for chunk in agent.stream_query(
-                    request.message, session_id=request.session_id
-                ):
+                for chunk in agent.stream_query(request.message, session_id=request.session_id):
                     asyncio.run_coroutine_threadsafe(async_q.put(chunk), loop)
                 asyncio.run_coroutine_threadsafe(async_q.put(None), loop)
             except Exception as e:
@@ -293,7 +299,7 @@ async def chat_stream(
                 break
             try:
                 item = await asyncio.wait_for(async_q.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield json.dumps({"type": "error", "content": "Stream timed out"})
                 break
             if item is None:
@@ -337,6 +343,7 @@ async def chat_stream(
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
 @router.post("/chat")
 async def chat(
     request: ChatMessageRequest,
@@ -345,7 +352,7 @@ async def chat(
 ):
     user_id = payload["sub"]
 
-    q_lower = request.message.lower().strip()
+    request.message.lower().strip()
     greeting_patterns = [
         (r"^(hi|hello|hey|hiya|hola)$", "Hello! How can I help you today?"),
         (r"^good\s*(morning|afternoon|evening)$", "Good day! Ready to assist you."),
@@ -393,7 +400,7 @@ async def chat(
             id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-)
+        )
         db.add(session)
         db.commit()
         db.refresh(session)
@@ -435,7 +442,7 @@ async def chat(
 
         if session.title == "New Chat":
             session.title = sanitize_session_title(request.message)
-        session.last_message_at = datetime.now(timezone.utc)
+        session.last_message_at = datetime.now(UTC)
 
         db.commit()
         db.refresh(user_msg)
@@ -451,6 +458,7 @@ async def chat(
 
     return answer_data
 
+
 @router.post("/messages/{message_id}/feedback")
 async def add_feedback(
     message_id: int,
@@ -463,7 +471,11 @@ async def add_feedback(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    session = db.query(ChatSession).filter(ChatSession.id == message.session_id, ChatSession.user_id == user_id).first()
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == message.session_id, ChatSession.user_id == user_id)
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -475,8 +487,6 @@ async def add_feedback(
     )
     db.add(feedback_log)
     message.feedback = feedback.feedback_type
-    message.feedback_at = datetime.now(timezone.utc)
+    message.feedback_at = datetime.now(UTC)
     db.commit()
     return {"success": True}
-
-

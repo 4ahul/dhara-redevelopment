@@ -14,6 +14,7 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "pypdf>=4.0.0",
     "python-multipart>=0.0.12",
+    "redis[hiredis]>=5.0.0",
     "dhara_shared",
 ]
 
@@ -27,4 +28,5 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv.sources]
 dhara_shared = { workspace = true }
+
 

@@ -4,17 +4,21 @@ Purges audit logs and stale report data to maintain performance.
 Usage: uv run python services/orchestrator/scripts/cleanup_logs.py --days 30
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from services.orchestrator.db import async_session_factory
-from services.orchestrator.models import AuditLog
 from sqlalchemy import delete
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+from services.orchestrator.db import async_session_factory
+from services.orchestrator.models import AuditLog
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("cleanup")
+
 
 async def cleanup_logs(days: int):
     """Delete audit logs older than N days."""
@@ -29,6 +33,7 @@ async def cleanup_logs(days: int):
             logger.info(f"Successfully purged {result.rowcount} logs from audit_logs table.")
     except Exception as e:
         logger.error(f"Cleanup failed: {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cleanup old audit logs.")

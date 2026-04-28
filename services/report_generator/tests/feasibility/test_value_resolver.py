@@ -1,4 +1,4 @@
-from feasibility.value_resolver import lookup
+from services.report_generator.feasibility.value_resolver import lookup
 
 
 def test_nested_dict():
@@ -22,4 +22,3 @@ def test_index_access():
 
 def test_none_path_component():
     assert lookup({"a": None}, "a.b") is None
-

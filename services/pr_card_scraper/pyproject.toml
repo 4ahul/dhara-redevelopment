@@ -21,7 +21,7 @@ dependencies = [
     "ddddocr>=1.4.11",
     "opencv-python-headless>=4.8.0",
     "dhara_shared",
-    "alembic>=1.14.0",
+    "alembic>=1.13.0",
     "sqlalchemy>=2.0.0",
 ]
 

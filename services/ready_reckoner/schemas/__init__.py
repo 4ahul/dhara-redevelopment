@@ -1,5 +1,4 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel
 
 
 class PremiumLineItem(BaseModel):
@@ -46,17 +45,17 @@ class PremiumRequest(BaseModel):
     # Location — use locality (primary) + zone to identify the RR zone
     district: str = "mumbai"
     taluka: str = "mumbai-city"
-    locality: str = "bhuleshwar"   # e.g. "bhuleshwar", "bhandup", "vile-parle-east"
-    zone: str = "5"                 # zone number as in data (may be compound like "5/43")
-    sub_zone: str = ""              # optional; only ~111 records have it
+    locality: str = "bhuleshwar"  # e.g. "bhuleshwar", "bhandup", "vile-parle-east"
+    zone: str = "5"  # zone number as in data (may be compound like "5/43")
+    sub_zone: str = ""  # optional; only ~111 records have it
 
     property_type: str = "residential"  # "residential", "commercial", "open_land"
     property_area_sqm: float = 0.0
     plot_area_sqm: float = 0.0
 
     # RR Rate overrides (leave None to auto-resolve from matched record)
-    rr_open_land_sqm: Optional[float] = None
-    rr_residential_sqm: Optional[float] = None
+    rr_open_land_sqm: float | None = None
+    rr_residential_sqm: float | None = None
 
     # Buildable area inputs
     permissible_bua_sqft: float = 0.0
@@ -93,13 +92,12 @@ class PremiumResponse(BaseModel):
     matched_location: LocationInfo
     administrative: AdministrativeInfo
     applicability: ApplicabilityInfo
-    rr_rates: List[RRRateItem]
+    rr_rates: list[RRRateItem]
 
     # Calculation output
-    line_items: List[PremiumLineItem]
+    line_items: list[PremiumLineItem]
     total_property_value: float
     total_fsi_tdr_premiums: float
     total_mcgm_charges: float
     grand_total: float
     grand_total_crore: float
-

@@ -24,3 +24,46 @@ members = [
 dhara_shared = { workspace = true }
 
 
+# Ruff configuration to silence false-positive import-order checks for
+# tests and utility scripts that purposefully modify sys.path or load
+# environment variables before imports. Keep runtime packages clean.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = []
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"services/**/tests/*.py" = ["E402"]
+"services/**/test_*.py" = ["E402"]
+"services/**/scripts/*.py" = ["E402"]
+"services/**/run_*.py" = ["E402"]
+"services/**/verify_*.py" = ["E402"]
+"services/orchestrator/test_full_pipeline.py" = ["E402"]
+"services/pr_card_scraper/tests/*.py" = ["E402"]
+"services/pr_card_scraper/run_scraper.py" = ["E402"]
+"services/report_generator/apply_manual_sample.py" = ["E402"]
+"services/report_generator/verify_yellow_mapping.py" = ["E402"]
+"services/site_analysis/test_api.py" = ["E402"]
+"services/rag_service/scripts/*.py" = ["E402"]
+"services/rag_service/services/langgraph_rag.py" = ["E402"]
+
+# Backward-compatibility for older Ruff configs
+[tool.ruff.per-file-ignores]
+"services/**/tests/*.py" = ["E402"]
+"services/**/tests/**.py" = ["E402"]
+"services/**/test_*.py" = ["E402"]
+"services/**/scripts/*.py" = ["E402"]
+"services/**/run_*.py" = ["E402"]
+"services/**/verify_*.py" = ["E402"]
+"services/orchestrator/test_full_pipeline.py" = ["E402"]
+"services/pr_card_scraper/tests/*.py" = ["E402"]
+"services/pr_card_scraper/run_scraper.py" = ["E402"]
+"services/report_generator/apply_manual_sample.py" = ["E402"]
+"services/report_generator/verify_yellow_mapping.py" = ["E402"]
+"services/site_analysis/test_api.py" = ["E402"]
+"services/rag_service/scripts/*.py" = ["E402"]
+"services/rag_service/services/langgraph_rag.py" = ["E402"]

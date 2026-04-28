@@ -9,7 +9,6 @@ This will modify the template in-place:
 """
 
 import os
-from typing import Optional
 
 import openpyxl
 
@@ -48,9 +47,7 @@ def zero_template_yellow_fields(template_path: str) -> int:
 
 def main():
     base_dir = os.path.dirname(__file__)
-    template_path = os.path.join(
-        base_dir, "templates", "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
-    )
+    template_path = os.path.join(base_dir, "templates", "FINAL TEMPLATE _ 33 (7)(B) .xlsx")
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template not found: {template_path}")
     count = zero_template_yellow_fields(template_path)
@@ -59,4 +56,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

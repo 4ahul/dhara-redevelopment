@@ -12,7 +12,3 @@ try:
 except FileNotFoundError:
     # Fallback for unexpected pathing issues
     SYSTEM_PROMPT = "You are Dhara AI. Generate the feasibility report."
-
-
-
-

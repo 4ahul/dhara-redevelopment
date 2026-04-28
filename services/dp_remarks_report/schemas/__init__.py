@@ -3,107 +3,107 @@ DP Report Service — Pydantic Schemas
 """
 
 from datetime import datetime
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 
 class DPReportRequest(BaseModel):
-    ward: str                       # e.g. "G/S"
-    village: str                  # e.g. "WORLI"
-    cts_no: str                  # CTS or FP number depending on scheme
-    use_fp_scheme: bool = False       # If True, search as FP (2034 scheme) instead of CTS (1991)
-    lat: Optional[float] = None    # centroid latitude (from MCGM property lookup)
-    lng: Optional[float] = None    # centroid longitude (from MCGM property lookup)
+    ward: str  # e.g. "G/S"
+    village: str  # e.g. "WORLI"
+    cts_no: str  # CTS or FP number depending on scheme
+    use_fp_scheme: bool = False  # If True, go directly to FP path (skip CTS attempt)
+    tps_scheme: str | None = None  # TPS scheme name for FP path, e.g. "VILE PARLE (E) No. I"
+    fp_no: str | None = None  # Explicit FP number if different from cts_no
+    lat: float | None = None  # centroid latitude (from MCGM property lookup)
+    lng: float | None = None  # centroid longitude (from MCGM property lookup)
 
 
-class DPReportStatus(str, Enum):
+class DPReportStatus(StrEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
 class DPReportResponse(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     status: DPReportStatus
 
     # Input echo
-    ward: Optional[str] = None
-    village: Optional[str] = None
-    cts_no: Optional[str] = None
+    ward: str | None = None
+    village: str | None = None
+    cts_no: str | None = None
 
     # ── Report metadata ──────────────────────────────────────────────
-    report_type: Optional[str] = None          # "SRDP_1991" or "DP_2034"
-    reference_no: Optional[str] = None         # e.g. "SRDP202211111425043"
-    report_date: Optional[str] = None          # e.g. "04/11/2022"
-    applicant_name: Optional[str] = None       # e.g. "Jinish N Soni"
+    report_type: str | None = None  # "SRDP_1991" or "DP_2034"
+    reference_no: str | None = None  # e.g. "SRDP202211111425043"
+    report_date: str | None = None  # e.g. "04/11/2022"
+    applicant_name: str | None = None  # e.g. "Jinish N Soni"
 
     # ── Land identification ──────────────────────────────────────────
-    cts_nos: Optional[list[str]] = None        # CTS numbers from PDF
-    fp_no: Optional[str] = None                # Final Plot number (2034)
-    tps_name: Optional[str] = None             # Town Planning Scheme name
+    cts_nos: list[str] | None = None  # CTS numbers from PDF
+    fp_no: str | None = None  # Final Plot number (2034)
+    tps_name: str | None = None  # Town Planning Scheme name
 
     # ── Zoning & classification ──────────────────────────────────────
-    zone_code: Optional[str] = None            # e.g. "R", "C1", "NA,R,NDZ,I,SDZ"
-    zone_name: Optional[str] = None            # e.g. "Residential(R)"
-    road_width_m: Optional[float] = None
-    fsi: Optional[float] = None
-    height_limit_m: Optional[float] = None
+    zone_code: str | None = None  # e.g. "R", "C1", "NA,R,NDZ,I,SDZ"
+    zone_name: str | None = None  # e.g. "Residential(R)"
+    road_width_m: float | None = None
+    fsi: float | None = None
+    height_limit_m: float | None = None
 
     # ── Reservations & designations ──────────────────────────────────
-    reservations: Optional[list[str]] = None
-    reservations_affecting: Optional[str] = None
-    reservations_abutting: Optional[str] = None
-    designations_affecting: Optional[str] = None
-    designations_abutting: Optional[str] = None
-    existing_amenities_affecting: Optional[str] = None
-    existing_amenities_abutting: Optional[str] = None
+    reservations: list[str] | None = None
+    reservations_affecting: str | None = None
+    reservations_abutting: str | None = None
+    designations_affecting: str | None = None
+    designations_abutting: str | None = None
+    existing_amenities_affecting: str | None = None
+    existing_amenities_abutting: str | None = None
 
     # ── Roads ────────────────────────────────────────────────────────
-    dp_roads: Optional[str] = None
-    proposed_road: Optional[str] = None
-    proposed_road_widening: Optional[str] = None
+    dp_roads: str | None = None
+    proposed_road: str | None = None
+    proposed_road_widening: str | None = None
 
     # ── Regular line remarks ─────────────────────────────────────────
-    rl_remarks_traffic: Optional[str] = None
-    rl_remarks_survey: Optional[str] = None
+    rl_remarks_traffic: str | None = None
+    rl_remarks_survey: str | None = None
 
     # ── Infrastructure (DP 2034) ─────────────────────────────────────
-    water_pipeline: Optional[dict] = None      # {"diameter_mm": int, "distance_m": float}
-    sewer_line: Optional[dict] = None          # {"node_no": str, "distance_m": float, "invert_level_m": float}
-    drainage: Optional[dict] = None            # {"node_id": str, "distance_m": float, "invert_level_m": float}
-    ground_level: Optional[dict] = None        # {"min_m": float, "max_m": float, "datum": str}
+    water_pipeline: dict | None = None  # {"diameter_mm": int, "distance_m": float}
+    sewer_line: dict | None = None  # {"node_no": str, "distance_m": float, "invert_level_m": float}
+    drainage: dict | None = None  # {"node_id": str, "distance_m": float, "invert_level_m": float}
+    ground_level: dict | None = None  # {"min_m": float, "max_m": float, "datum": str}
 
     # ── Heritage (DP 2034) ───────────────────────────────────────────
-    heritage_building: Optional[str] = None
-    heritage_precinct: Optional[str] = None
-    heritage_buffer_zone: Optional[str] = None
-    archaeological_site: Optional[str] = None
-    archaeological_buffer: Optional[str] = None
+    heritage_building: str | None = None
+    heritage_precinct: str | None = None
+    heritage_buffer_zone: str | None = None
+    archaeological_site: str | None = None
+    archaeological_buffer: str | None = None
 
     # ── Environmental & regulatory (DP 2034) ─────────────────────────
-    crz_zone_details: Optional[str] = None     # CRZ zone text with categories
-    high_voltage_line: Optional[str] = None
-    buffer_sgnp: Optional[str] = None          # SGNP/mangrove buffer text
-    flamingo_esz: Optional[str] = None         # Flamingo ESZ text
+    crz_zone_details: str | None = None  # CRZ zone text with categories
+    high_voltage_line: str | None = None
+    buffer_sgnp: str | None = None  # SGNP/mangrove buffer text
+    flamingo_esz: str | None = None  # Flamingo ESZ text
 
     # ── Modifications & corrections (DP 2034) ────────────────────────
-    corrections_dcpr: Optional[str] = None     # DCPR 2034 corrections
-    modifications_sec37: Optional[str] = None  # Section 37 modifications
-    road_realignment: Optional[str] = None
+    corrections_dcpr: str | None = None  # DCPR 2034 corrections
+    modifications_sec37: str | None = None  # Section 37 modifications
+    road_realignment: str | None = None
 
     # ── EP/SM sheet numbers (DP 2034) ────────────────────────────────
-    ep_nos: Optional[list[str]] = None         # e.g. ["EP-ME81", "EP-ME75"]
-    sm_nos: Optional[list[str]] = None         # e.g. ["SM-ME21"]
+    ep_nos: list[str] | None = None  # e.g. ["EP-ME81", "EP-ME75"]
+    sm_nos: list[str] | None = None  # e.g. ["SM-ME21"]
 
     # ── Legacy fields ────────────────────────────────────────────────
-    crz_zone: Optional[bool] = None
-    heritage_zone: Optional[bool] = None
-    dp_remarks: Optional[str] = None
-    pdf_text: Optional[str] = None
+    crz_zone: bool | None = None
+    heritage_zone: bool | None = None
+    dp_remarks: str | None = None
+    pdf_text: str | None = None
 
-    download_url: Optional[str] = None
-    error_message: Optional[str] = None
-    created_at: Optional[datetime] = None
-
+    download_url: str | None = None
+    error_message: str | None = None
+    created_at: datetime | None = None

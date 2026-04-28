@@ -2,13 +2,12 @@
 Document Indexer using Semantic Chunking
 Rebuilds the vector store with semantic chunks for better retrieval.
 """
+# noqa: E402
 
 import os
 import sys
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple
-import json
+from pathlib import Path
 
 # Add parent dir to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -17,10 +16,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from semantic_chunker import SemanticChunker, HybridChunker
-from milvus_utils import get_collection, setup_local_milvus
-from langchain_openai import OpenAIEmbeddings
-
+from langchain_openai import OpenAIEmbeddings  # noqa: E402
+from milvus_utils import get_collection, setup_local_milvus  # noqa: E402
+from semantic_chunker import SemanticChunker  # noqa: E402
 
 DOCS_DIR = Path(__file__).parent.parent / "docs"
 COLLECTION_NAME = "dcpr_knowledge"
@@ -52,7 +50,7 @@ def extract_text_from_file(filepath: Path) -> str:
                 except Exception as e2:
                     print(f"    PDF error: pypdf={e1}, PyMuPDF={e2}")
         elif filepath.suffix.lower() == ".txt":
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 text = f.read()
             method = "text"
         elif filepath.suffix.lower() == ".docx":
@@ -75,7 +73,7 @@ def extract_text_from_file(filepath: Path) -> str:
     return text
 
 
-def semantic_chunk_text(text: str, source: str) -> List[Tuple[str, str]]:
+def semantic_chunk_text(text: str, source: str) -> list[tuple[str, str]]:
     """Chunk text using semantic approach"""
     chunker = SemanticChunker(
         min_chunk_size=100,
@@ -87,7 +85,7 @@ def semantic_chunk_text(text: str, source: str) -> List[Tuple[str, str]]:
     return chunks
 
 
-def find_all_files() -> List[Path]:
+def find_all_files() -> list[Path]:
     """Find all document files to process"""
     extensions = [".pdf", ".txt", ".docx"]
     files = []
@@ -103,19 +101,16 @@ def find_all_files() -> List[Path]:
     else:
         doc_dir = DOCS_DIR
 
-    for root, dirs, filenames in os.walk(doc_dir):
+    for root, _dirs, filenames in os.walk(doc_dir):
         for f in filenames:
-            if (
-                any(f.lower().endswith(ext) for ext in extensions)
-                and f not in skip_files
-            ):
+            if any(f.lower().endswith(ext) for ext in extensions) and f not in skip_files:
                 files.append(Path(root) / f)
 
     print(f"Found {len(files)} files to process")
     return files
 
 
-def process_file(filepath: Path) -> List[Tuple[str, str]]:
+def process_file(filepath: Path) -> list[tuple[str, str]]:
     """Process a single file and return chunks"""
     print(f"\nProcessing: {filepath.name}")
     text = extract_text_from_file(filepath)
@@ -129,7 +124,7 @@ def process_file(filepath: Path) -> List[Tuple[str, str]]:
     return chunks
 
 
-def index_chunks(chunks: List[Tuple[str, str]], collection, embeddings):
+def index_chunks(chunks: list[tuple[str, str]], collection, embeddings):
     """Index chunks into Milvus"""
     total = len(chunks)
     indexed = 0
@@ -150,9 +145,7 @@ def index_chunks(chunks: List[Tuple[str, str]], collection, embeddings):
 
             collection.insert(data)
             indexed += len(batch)
-            print(
-                f"  Progress: {min(i + BATCH_SIZE, total)}/{total} ({indexed} indexed)"
-            )
+            print(f"  Progress: {min(i + BATCH_SIZE, total)}/{total} ({indexed} indexed)")
 
         except Exception as e:
             print(f"  Error indexing batch {i}: {e}")
@@ -223,4 +216,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

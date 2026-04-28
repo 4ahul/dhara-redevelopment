@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException
-from services.aviation_height.schemas import HeightRequest, HeightResponse
-from services.aviation_height.logic.height_service import height_service
 import logging
-from dhara_shared.dhara_common.schemas import InternalServiceResponse
+
+from fastapi import APIRouter
+
+from dhara_shared.schemas import InternalServiceResponse
+
+from ..schemas import HeightRequest
+from ..services.height_service import height_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Height"])
@@ -24,6 +27,3 @@ async def get_permissible_height(request: HeightRequest):
     except Exception as e:
         logger.error(f"Error in height service: {e}")
         return InternalServiceResponse(status="error", error=str(e))
-
-
-

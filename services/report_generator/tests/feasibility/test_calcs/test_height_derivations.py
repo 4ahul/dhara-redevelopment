@@ -1,7 +1,7 @@
 import pytest
-from feasibility.calcs import height_derivations  # registers
-from feasibility.calc_registry import get
-from feasibility.exceptions import MissingData
+
+from services.report_generator.feasibility.calc_registry import get
+from services.report_generator.feasibility.exceptions import MissingData
 
 
 def test_floors_from_max_height_exact():
@@ -28,4 +28,3 @@ def test_floors_missing_raises():
     fn = get("floors_from_max_height")
     with pytest.raises(MissingData):
         fn({"request": {}, "resolved": {}}, floor_height_m=3)
-

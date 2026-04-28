@@ -1,7 +1,10 @@
 import asyncio
+
 import httpx
 from utils import setup_path
+
 setup_path("report_generator")
+
 
 async def test_report_gen_health():
     print("Testing Report Generator Service Health...")
@@ -16,6 +19,6 @@ async def test_report_gen_health():
         except Exception:
             print("  Service not running on port 8005")
 
+
 if __name__ == "__main__":
     asyncio.run(test_report_gen_health())
-

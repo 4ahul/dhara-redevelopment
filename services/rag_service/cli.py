@@ -5,7 +5,6 @@ Combines DCPR 2034 knowledge base with property card workflow
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 
@@ -17,16 +16,16 @@ def main():
 Examples:
   # Query DCPR regulations
   python3 cli.py query "What is FSI for residential buildings?"
-  
+
   # Analyze property card and generate reports
   python3 cli.py analyze --survey-no "123/P" --area 2200 --road-width 12
-  
+
   # Process existing property card image/PDF
   python3 cli.py scan --input property_card.pdf --output reports/
-  
+
   # Generate scheme comparison
   python3 cli.py compare --area 2200 --schemes 33(7B) 33(20B) 30(A)
-  
+
   # Interactive mode
   python3 cli.py interactive
         """,
@@ -43,12 +42,8 @@ Examples:
     # Analyze command
     analyze_parser = subparsers.add_parser("analyze", help="Analyze property")
     analyze_parser.add_argument("--survey-no", required=True, help="Survey number")
-    analyze_parser.add_argument(
-        "--area", type=float, required=True, help="Plot area in sq.m"
-    )
-    analyze_parser.add_argument(
-        "--road-width", type=float, default=9, help="Road width in meters"
-    )
+    analyze_parser.add_argument("--area", type=float, required=True, help="Plot area in sq.m")
+    analyze_parser.add_argument("--road-width", type=float, default=9, help="Road width in meters")
     analyze_parser.add_argument(
         "--zone",
         default="Residential",
@@ -73,17 +68,13 @@ Examples:
     analyze_parser.add_argument("--output", default="reports/", help="Output directory")
 
     # Scan command
-    scan_parser = subparsers.add_parser(
-        "scan", help="Scan property card from image/PDF"
-    )
+    scan_parser = subparsers.add_parser("scan", help="Scan property card from image/PDF")
     scan_parser.add_argument("--input", required=True, help="Input file (PDF or image)")
     scan_parser.add_argument("--output", default="reports/", help="Output directory")
 
     # Compare command
     compare_parser = subparsers.add_parser("compare", help="Compare DCPR schemes")
-    compare_parser.add_argument(
-        "--area", type=float, required=True, help="Plot area in sq.m"
-    )
+    compare_parser.add_argument("--area", type=float, required=True, help="Plot area in sq.m")
     compare_parser.add_argument(
         "--schemes",
         nargs="+",
@@ -145,8 +136,9 @@ Examples:
 def handle_query(args):
     """Query DCPR regulations - using Intelligent RAG Agent"""
     import os
-    from services.rag_service.logic.intelligent_rag import IntelligentRAG
     from pathlib import Path
+
+    from services.rag_service.services.intelligent_rag import IntelligentRAG
 
     # Load API key from .env file
     env_file = Path(__file__).parent / ".env"
@@ -184,9 +176,9 @@ def handle_query(args):
 
 def handle_analyze(args):
     """Analyze property and generate reports"""
-    from services.rag_service.logic.property_card_workflow import (
-        PropertyCardWorkflow,
+    from services.rag_service.services.property_card_workflow import (
         PropertyCard,
+        PropertyCardWorkflow,
         RevenueBreakdown,
     )
 
@@ -265,7 +257,7 @@ def handle_scan(args):
 
     try:
         outputs = workflow.run_workflow(args.input, args.output)
-        print(f"\nReports generated:")
+        print("\nReports generated:")
         for report_type, path in outputs.items():
             print(f"  {report_type}: {path}")
     except Exception as e:
@@ -281,9 +273,7 @@ def handle_compare(args):
     calculator = DCPRCalculator()
     card = PropertyCard(plot_area_sq_m=args.area)
 
-    print(
-        f"{'Scheme':<15} {'Basic FSI':<12} {'Incentive':<12} {'Max FSI':<12} {'Premium':<12}"
-    )
+    print(f"{'Scheme':<15} {'Basic FSI':<12} {'Incentive':<12} {'Max FSI':<12} {'Premium':<12}")
     print("-" * 65)
 
     for scheme in args.schemes:
@@ -293,9 +283,7 @@ def handle_compare(args):
                 card.plot_area_sq_m,
                 road_width_m=12,
                 zone_type="Residential",
-                affordable_housing_pct=args.affordable_housing
-                if scheme == "33(7B)"
-                else 0,
+                affordable_housing_pct=args.affordable_housing if scheme == "33(7B)" else 0,
             )
             print(
                 f"{scheme:<15} {config.basic_fsi:<12.2f} {config.incentive_fsi:<12.2f} "
@@ -451,8 +439,9 @@ def handle_index(args):
             print(f"File not found: {pdf_path}")
             return
 
-    from services.rag_service.logic.rag import RAGAgent, DocumentLoader
-    from pymilvus import connections, utility, Collection
+    from pymilvus import connections, utility
+
+    from services.rag_service.services.rag import DocumentLoader, RAGAgent
 
     # Clear existing collection if rebuild
     if args.rebuild:
@@ -491,5 +480,3 @@ def handle_index(args):
 
 if __name__ == "__main__":
     main()
-
-

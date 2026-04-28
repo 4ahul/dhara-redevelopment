@@ -11,10 +11,11 @@ Usage:
     python -m scripts.index_dcpr_only --drop
 """
 
+# noqa: E402
+import argparse
 import os
 import sys
 import time
-import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,7 +27,7 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
 
-from scripts.index_pipeline import (
+from scripts.index_pipeline import (  # noqa: E402
     COLLECTION_NAME,
     EMBEDDING_DIM,
     chunk_document,
@@ -34,8 +35,7 @@ from scripts.index_pipeline import (
     insert_chunks_to_milvus,
     setup_milvus_collection,
 )
-from scripts.unified_extractor import extract_document
-
+from scripts.unified_extractor import extract_document  # noqa: E402
 
 DEFAULT_PDF = Path("data/docs/DCPR 2034 updated upto 30.9.24 for circulation (1).pdf")
 
@@ -107,4 +107,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run(Path(args.pdf), drop_existing=not args.keep)
-

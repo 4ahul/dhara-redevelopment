@@ -7,15 +7,17 @@ Refactored to use CRUD layer for user retrieval.
 import logging
 from uuid import UUID
 
-from services.orchestrator.core.security import decode_token
 from fastapi import Depends, Header, HTTPException
-from services.orchestrator.repositories import user_repository
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.orchestrator.core.security import decode_token
+from services.orchestrator.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
 
 # ─── DB Session ─────────────────────────────────────────────────────────────
+
 
 async def get_db() -> AsyncSession:
     """Yield an async DB session. Imported from services.orchestrator.db module at runtime."""
@@ -34,6 +36,7 @@ async def get_db() -> AsyncSession:
 
 # ─── Current User ───────────────────────────────────────────────────────────
 
+
 async def get_current_user(
     authorization: str = Header(None),
     db: AsyncSession = Depends(get_db),
@@ -48,7 +51,9 @@ async def get_current_user(
     on first request via the Clerk REST API.
     """
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header required (Bearer <token>)")
+        raise HTTPException(
+            status_code=401, detail="Authorization header required (Bearer <token>)"
+        )
 
     token = authorization.removeprefix("Bearer ").strip()
     payload = decode_token(token)
@@ -66,7 +71,8 @@ async def get_current_user(
 
         if not user:
             # Auto-provision on first request for this Clerk user
-            from services.orchestrator.logic.auth_service import AuthService
+            from services.orchestrator.services.auth_service import AuthService
+
             await AuthService(db).sync_clerk_user(token)
             user = await user_repository.get_user_by_clerk_id(db, user_id)
 
@@ -85,8 +91,10 @@ async def get_current_user_id(authorization: str = Header(None)) -> str:
 
 # ─── Role Guards ─────────────────────────────────────────────────────────────
 
+
 def require_role(*allowed_roles: str):
     """Factory: returns a dependency that enforces role membership."""
+
     async def _guard(
         authorization: str = Header(None),
         db: AsyncSession = Depends(get_db),
@@ -98,64 +106,72 @@ def require_role(*allowed_roles: str):
                 detail=f"Requires role: {', '.join(allowed_roles)}. You have: {user.role.value}",
             )
         return user
+
     return _guard
 
 
 # ─── Service Providers ───────────────────────────────────────────────────────
 
+
 async def get_auth_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.auth_service import AuthService
+    from services.orchestrator.services.auth_service import AuthService
+
     return AuthService(db)
 
 
 async def get_team_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.team_service import TeamService
+    from services.orchestrator.services.team_service import TeamService
+
     return TeamService(db)
 
 
 async def get_admin_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.admin_service import AdminService
+    from services.orchestrator.services.admin_service import AdminService
+
     return AdminService(db)
 
 
 async def get_society_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.society_service import SocietyService
+    from services.orchestrator.services.society_service import SocietyService
+
     return SocietyService(db)
 
 
 async def get_feasibility_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.feasibility_service import FeasibilityService
+    from services.orchestrator.services.feasibility_service import FeasibilityService
+
     return FeasibilityService(db)
 
 
 async def get_profile_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.profile_service import ProfileService
+    from services.orchestrator.services.profile_service import ProfileService
+
     return ProfileService(db)
 
 
 async def get_landing_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.landing_service import LandingService
+    from services.orchestrator.services.landing_service import LandingService
+
     return LandingService(db)
 
 
 async def get_agent_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.agent_service import AgentService
+    from services.orchestrator.services.agent_service import AgentService
+
     return AgentService(db)
 
 
 async def get_legacy_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.legacy_service import LegacyService
+    from services.orchestrator.services.legacy_service import LegacyService
+
     return LegacyService(db)
 
 
 async def get_search_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.logic.search_service import SearchService
+    from services.orchestrator.services.search_service import SearchService
+
     return SearchService(db)
 
 
 require_admin = require_role("admin")
 require_pmc = require_role("pmc", "admin")
-
-
-
-

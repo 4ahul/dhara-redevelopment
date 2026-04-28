@@ -18,13 +18,14 @@ Resilient to:
   - ChromeDriver crashes (fresh browser per attempt)
 """
 
-import sys
-import os
-import time
 import json
 import logging
-import requests
+import os
+import sys
+import time
 from datetime import datetime, timedelta
+
+import requests
 
 # ── Make service modules importable ──────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,97 +47,97 @@ HEADLESS = True  # run Chrome headlessly
 # Multiple fallbacks added for resilience.
 TARGETS = [
     # Primary — confirmed from debug screenshots
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Kothrud",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Kothrud",
-        survey_no="2",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Kothrud",
-        survey_no="5",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Kothrud",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Kothrud",
+        "survey_no": "2",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Kothrud",
+        "survey_no": "5",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
     # Property Card variant (urban Pune)
-    dict(
-        district="pune",
-        taluka="Pune City",
-        village="Kasba Peth",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="Property Card",
-        language="EN",
-        property_uid=None,
-    ),
-    dict(
-        district="pune",
-        taluka="Pune City",
-        village="Shivajinagar",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="Property Card",
-        language="EN",
-        property_uid=None,
-    ),
+    {
+        "district": "pune",
+        "taluka": "Pune City",
+        "village": "Kasba Peth",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "Property Card",
+        "language": "EN",
+        "property_uid": None,
+    },
+    {
+        "district": "pune",
+        "taluka": "Pune City",
+        "village": "Shivajinagar",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "Property Card",
+        "language": "EN",
+        "property_uid": None,
+    },
     # Haveli 7/12 with different villages
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Baner",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Wadgaon Sheri",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Baner",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Wadgaon Sheri",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
     # Nashik fallback
-    dict(
-        district="nashik",
-        taluka="Nashik",
-        village="Nashik",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-        record_of_right="7/12",
-        language="EN",
-        property_uid=None,
-    ),
+    {
+        "district": "nashik",
+        "taluka": "Nashik",
+        "village": "Nashik",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+        "record_of_right": "7/12",
+        "language": "EN",
+        "property_uid": None,
+    },
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -162,9 +163,7 @@ class _Utf8StreamHandler(logging.StreamHandler):
         try:
             msg = self.format(record)
             stream = self.stream
-            stream.buffer.write(
-                (msg + self.terminator).encode("utf-8", errors="replace")
-            )
+            stream.buffer.write((msg + self.terminator).encode("utf-8", errors="replace"))
             stream.buffer.flush()
         except Exception:
             self.handleError(record)
@@ -297,7 +296,10 @@ def _site_is_up() -> bool:
 
 
 def _run_scrape(target: dict) -> dict:
-    from services.pr_card_scraper.logic.browser import create_browser_service, MahabhumiScraperSelenium
+    from services.pr_card_scraper.services.browser import (
+        MahabhumiScraperSelenium,
+        create_browser_service,
+    )
 
     browser = None
     try:
@@ -345,9 +347,7 @@ def _persist_image(result: dict, target: dict) -> str:
     summary = {
         "success": True,
         "file": final_path,
-        "file_size_bytes": os.path.getsize(final_path)
-        if os.path.exists(final_path)
-        else 0,
+        "file_size_bytes": os.path.getsize(final_path) if os.path.exists(final_path) else 0,
         "image_url": result.get("image_url"),
         "target": target,
         "completed_at": ts,
@@ -403,9 +403,7 @@ def main():
         logger.info(f"[Poll #{poll_count}] {now_str} — probing site...")
 
         up = _site_is_up()
-        logger.info(
-            f"[Poll #{poll_count}] Site is {'UP' if up else 'DOWN (maintenance)'}"
-        )
+        logger.info(f"[Poll #{poll_count}] Site is {'UP' if up else 'DOWN (maintenance)'}")
 
         _write_status(
             {
@@ -449,18 +447,14 @@ def main():
                         with open(cap_path, "wb") as f:
                             f.write(cap_img)
                         logger.info(f"  Saved unsolved CAPTCHA to: {cap_path}")
-                    logger.info(
-                        f"  CAPTCHA retry {cap_tries}/{CAPTCHA_RETRIES} (fresh browser)..."
-                    )
+                    logger.info(f"  CAPTCHA retry {cap_tries}/{CAPTCHA_RETRIES} (fresh browser)...")
                     result = _run_scrape(target)
                     status = result.get("status", "unknown")
                     logger.info(f"  CAPTCHA retry {cap_tries} result: {status}")
 
                 if status == "completed":
                     final_path = _persist_image(result, target)
-                    file_size = (
-                        os.path.getsize(final_path) if os.path.exists(final_path) else 0
-                    )
+                    file_size = os.path.getsize(final_path) if os.path.exists(final_path) else 0
                     image_url = result.get("image_url", "N/A")
 
                     logger.info("")
@@ -496,9 +490,7 @@ def main():
                 err = result.get("error", "")[:120]
                 logger.warning(f"  Target {t_idx} exhausted ({status}): {err}")
 
-            logger.warning(
-                "All targets attempted without success — will retry on next poll"
-            )
+            logger.warning("All targets attempted without success — will retry on next poll")
 
         # ── Wait before next poll ────────────────────────────────────────
         next_poll = datetime.now() + timedelta(seconds=POLL_INTERVAL)
@@ -529,5 +521,3 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
-
-

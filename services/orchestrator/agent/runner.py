@@ -11,20 +11,21 @@ import logging
 import os
 import uuid
 
-from services.orchestrator.agent.llm_client import get_llm_client as get_factory_llm_client
-from services.orchestrator.agent.prompts import SYSTEM_PROMPT
-from services.orchestrator.agent.tool_executor import tool_executor
-from services.orchestrator.agent.tools import TOOLS
-from services.orchestrator.db import async_session_factory
-from services.orchestrator.models import AuditLog
+from dhara_shared.services.http import AsyncHTTPClient
 
-from services.orchestrator.logic.feasibility_orchestrator import feasibility_orchestrator
-from dhara_shared.dhara_common.http import AsyncHTTPClient
+from ..db import async_session_factory
+from ..models import AuditLog
+from ..services.feasibility_orchestrator import feasibility_orchestrator
+from .llm_client import get_llm_client as get_factory_llm_client
+from .prompts import SYSTEM_PROMPT
+from .tool_executor import tool_executor
+from .tools import TOOLS
 
 logger = logging.getLogger(__name__)
 
 # Module-level LLM client
 _llm_client = None
+
 
 def set_llm_client(client):
     """Injected during app startup."""
@@ -32,6 +33,7 @@ def set_llm_client(client):
     _llm_client = client
     if client:
         logger.info("LLM client injected: %s", type(client).__name__)
+
 
 def get_llm_client():
     """Fail-safe getter to ensure LLM is always available."""
@@ -41,16 +43,20 @@ def get_llm_client():
         _llm_client = get_factory_llm_client()
     return _llm_client
 
+
 # ─── LLM Helpers ─────────────────────────────────────────────────────────────
+
 
 def convert_tools_for_llm(tools: list[dict]) -> list[dict]:
     converted = []
     for t in tools:
-        converted.append({
-            "name": t["name"],
-            "description": t["description"],
-            "parameters": t.get("input_schema", {})
-        })
+        converted.append(
+            {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t.get("input_schema", {}),
+            }
+        )
     return converted
 
 
@@ -65,20 +71,28 @@ def parse_llm_response(response: dict):
 # ─── Tool execution helpers ──────────────────────────────────────────────────
 
 _TOOL_TIMEOUTS = {
-    "get_pr_card": 600,             # 10 min
-    "get_mcgm_property": 300,       # 5 min
-    "get_dp_remarks": 300,          # 5 min
-    "get_max_height": 600,          # 10 min
-    "query_regulations": 300,       # 5 min
+    "get_pr_card": 600,  # 10 min
+    "get_mcgm_property": 300,  # 5 min
+    "get_dp_remarks": 300,  # 5 min
+    "get_max_height": 600,  # 10 min
+    "query_regulations": 300,  # 5 min
     "generate_feasibility_report": 300,
 }
 _DEFAULT_TIMEOUT = 300
 
 # Keys to strip from results before sending to LLM (binary / large data)
 _DROP_KEYS = {
-    "raw_data", "raw_attributes", "geometry_wgs84", "nearby_properties",
-    "extracted_data", "image_b64", "captcha_image_b64", "screenshot_b64",
-    "map_screenshot_b64", "ocr_text", "pr_card_image",
+    "raw_data",
+    "raw_attributes",
+    "geometry_wgs84",
+    "nearby_properties",
+    "extracted_data",
+    "image_b64",
+    "captcha_image_b64",
+    "screenshot_b64",
+    "map_screenshot_b64",
+    "ocr_text",
+    "pr_card_image",
 }
 
 
@@ -115,7 +129,9 @@ async def _call_tool(
                 action="tool_call",
                 tool_name=tool_name,
                 input_data=json.loads(json.dumps(tool_args, default=str)),
-                output_data=json.loads(json.dumps(result, default=str)) if isinstance(result, dict) else {"raw": str(result)},
+                output_data=json.loads(json.dumps(result, default=str))
+                if isinstance(result, dict)
+                else {"raw": str(result)},
                 status=status,
             )
             db.add(log)
@@ -124,7 +140,9 @@ async def _call_tool(
         logger.warning("[%s] Audit log failed for %s: %s", request_id, tool_name, e)
 
     if progress_callback:
-        await progress_callback({"type": "tool_result", "tool": tool_name, "success": status == "success"})
+        await progress_callback(
+            {"type": "tool_result", "tool": tool_name, "success": status == "success"}
+        )
 
     return result
 
@@ -138,7 +156,9 @@ async def _call_tools_parallel(
     """Execute multiple tools in parallel. Returns {tool_name: result}."""
     if not calls:
         return {}
-    logger.info("[%s] Running %d tools in parallel: %s", request_id, len(calls), [c[0] for c in calls])
+    logger.info(
+        "[%s] Running %d tools in parallel: %s", request_id, len(calls), [c[0] for c in calls]
+    )
 
     async def _one(name, args):
         res = await _call_tool(name, args, http, request_id, progress_callback)
@@ -152,6 +172,7 @@ async def _call_tools_parallel(
 
 
 # ─── Main Runner ──────────────────────────────────────────────────────────────
+
 
 def _map_mcgm_ward(ward: str) -> str:
     """Map standard ward names to MCGM scraper codes."""
@@ -182,7 +203,22 @@ def _map_rr_location(ward: str) -> tuple[str, str]:
         return "mumbai", "mumbai-city"
     w = ward.upper()
     # Mumbai City Districts (A to G wards)
-    city_wards = [" A ", " B ", " C ", " D ", " E ", " F/S ", " F/N ", " G/S ", " G/N ", "A-", "B-", "C-", "D-", "E-"]
+    city_wards = [
+        " A ",
+        " B ",
+        " C ",
+        " D ",
+        " E ",
+        " F/S ",
+        " F/N ",
+        " G/S ",
+        " G/N ",
+        "A-",
+        "B-",
+        "C-",
+        "D-",
+        "E-",
+    ]
     # Pad ward with spaces for exact matching of single letters
     padded_w = f" {w} "
     for cw in city_wards:
@@ -204,7 +240,12 @@ def _validate_location_inputs(society_data: dict) -> str | None:
     """Return a user-facing error when a request lacks enough location detail."""
     has_address = bool((society_data.get("address") or "").strip())
     has_plot_reference = bool(
-        (society_data.get("cts_no") or society_data.get("fp_no") or society_data.get("survey_no") or "").strip()
+        (
+            society_data.get("cts_no")
+            or society_data.get("fp_no")
+            or society_data.get("survey_no")
+            or ""
+        ).strip()
     )
     has_location_context = bool((society_data.get("ward") or "").strip()) and bool(
         (society_data.get("village") or "").strip()
@@ -243,7 +284,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
     logger.info("[%s] Starting feasibility analysis for %s", request_id, society_name)
 
     tool_results_log = []  # [{tool, input, result}, ...]
-    collected = {}         # {tool_name: result_dict}
+    collected = {}  # {tool_name: result_dict}
     report_paths = []
 
     async with AsyncHTTPClient(request_id=request_id) as http:
@@ -257,20 +298,26 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         # ── ROUND 1 (parallel): PR Card, MCGM, Site Analysis, DP Remarks ──
         # We use the centralized orchestrator for consistency.
         r1_results = await feasibility_orchestrator.run_round1(society_data, job_id=request_id)
-        
+
         # Map back to agent's internal tool names for backward compatibility with prompts/tools
         collected["get_pr_card"] = r1_results.get("pr_card")
         collected["get_mcgm_property"] = r1_results.get("mcgm")
         collected["analyse_site"] = r1_results.get("site_analysis")
         collected["get_dp_remarks"] = r1_results.get("dp_remarks")
 
-        for name, internal_name in [("pr_card", "get_pr_card"), ("mcgm", "get_mcgm_property"), 
-                                   ("site_analysis", "analyse_site"), ("dp_remarks", "get_dp_remarks")]:
+        for name, internal_name in [
+            ("pr_card", "get_pr_card"),
+            ("mcgm", "get_mcgm_property"),
+            ("site_analysis", "analyse_site"),
+            ("dp_remarks", "get_dp_remarks"),
+        ]:
             res = r1_results.get(name)
             tool_results_log.append({"tool": internal_name, "input": society_data, "result": res})
             if progress_callback:
                 success = isinstance(res, dict) and "error" not in res
-                await progress_callback({"type": "tool_result", "tool": internal_name, "success": success})
+                await progress_callback(
+                    {"type": "tool_result", "tool": internal_name, "success": success}
+                )
 
         # Extract coordinates for Round 2
         mcgm = collected.get("get_mcgm_property", {})
@@ -283,17 +330,24 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         zone = dp_report.get("zone_code") or dp_report.get("zone")
 
         # ── ROUND 2 (parallel): Max Height, Ready Reckoner ──
-        r2_results = await feasibility_orchestrator.run_round2(lat, lng, zone, society_data, job_id=request_id)
-        
+        r2_results = await feasibility_orchestrator.run_round2(
+            lat, lng, zone, society_data, job_id=request_id
+        )
+
         collected["get_max_height"] = r2_results.get("aviation_height")
         collected["calculate_premiums"] = r2_results.get("ready_reckoner")
 
-        for name, internal_name in [("aviation_height", "get_max_height"), ("ready_reckoner", "calculate_premiums")]:
+        for name, internal_name in [
+            ("aviation_height", "get_max_height"),
+            ("ready_reckoner", "calculate_premiums"),
+        ]:
             res = r2_results.get(name)
             tool_results_log.append({"tool": internal_name, "input": society_data, "result": res})
             if progress_callback:
                 success = isinstance(res, dict) and "error" not in res
-                await progress_callback({"type": "tool_result", "tool": internal_name, "success": success})
+                await progress_callback(
+                    {"type": "tool_result", "tool": internal_name, "success": success}
+                )
 
         # ── ROUND 3 (parallel): Regulations (RAG) ──
         # RAG is unique to the agent flow so we keep it here.
@@ -339,40 +393,52 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             f"Include FSI incentives, premium percentages, TDR eligibility, "
             f"and conditions for 30(A), 33(7)(A), 33(7)(B), 33(9), 33(12)(B), 33(19), 33(20)(B)."
         )
-        group3_calls.append(("query_regulations", {
-            "query": rag_query,
-            "scheme": requested_scheme,
-        }))
+        group3_calls.append(
+            (
+                "query_regulations",
+                {
+                    "query": rag_query,
+                    "scheme": requested_scheme,
+                },
+            )
+        )
 
         # Calculate Premiums
-        locality = (society_data.get("village") or "").strip().lower().replace(" ", "-").replace("/", "-")
+        locality = (
+            (society_data.get("village") or "").strip().lower().replace(" ", "-").replace("/", "-")
+        )
         if not locality:
-            locality = "bhuleshwar" # fallback consistent with orchestrator
+            locality = "bhuleshwar"  # fallback consistent with orchestrator
 
         rr_dist, rr_tal = _map_rr_location(society_data.get("ward", ""))
         rr_zone = (society_data.get("rr_zone") or "").strip()
-        
+
         # Fallback: if rr_zone is missing, use DP remarks zone_code
         if not rr_zone and dp_report.get("zone_code"):
             rr_zone = dp_report["zone_code"]
             logger.info("[%s] Using DP zone_code as RR zone: %s", request_id, rr_zone)
 
         if rr_zone:
-            group3_calls.append(("calculate_premiums", {
-                "district": society_data.get("district") or rr_dist,
-                "taluka": society_data.get("taluka") or rr_tal,
-                "locality": locality,
-                "zone": rr_zone,
-                "sub_zone": "",
-                "scheme": requested_scheme,
-                "property_type": "residential",
-                "plot_area_sqm": plot_sqm,
-                "permissible_bua_sqft": permissible_bua,
-                "residential_bua_sqft": permissible_bua * 0.7,
-                "commercial_bua_sqft": permissible_bua * 0.3,
-                "fungible_residential_sqft": permissible_bua * 0.7 * 0.35,
-                "premium_fsi_ratio": 0.50,
-            }))
+            group3_calls.append(
+                (
+                    "calculate_premiums",
+                    {
+                        "district": society_data.get("district") or rr_dist,
+                        "taluka": society_data.get("taluka") or rr_tal,
+                        "locality": locality,
+                        "zone": rr_zone,
+                        "sub_zone": "",
+                        "scheme": requested_scheme,
+                        "property_type": "residential",
+                        "plot_area_sqm": plot_sqm,
+                        "permissible_bua_sqft": permissible_bua,
+                        "residential_bua_sqft": permissible_bua * 0.7,
+                        "commercial_bua_sqft": permissible_bua * 0.3,
+                        "fungible_residential_sqft": permissible_bua * 0.7 * 0.35,
+                        "premium_fsi_ratio": 0.50,
+                    },
+                )
+            )
         else:
             premium_skip_error = (
                 "Ready Reckoner lookup skipped: missing rr_zone (and no DP zone fallback)."
@@ -382,7 +448,13 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         g3 = await _call_tools_parallel(group3_calls, http, request_id, progress_callback)
         collected.update(g3)
         for name in g3:
-            tool_results_log.append({"tool": name, "input": dict(next(a for n, a in group3_calls if n == name)), "result": g3[name]})
+            tool_results_log.append(
+                {
+                    "tool": name,
+                    "input": dict(next(a for n, a in group3_calls if n == name)),
+                    "result": g3[name],
+                }
+            )
         if premium_skip_error:
             skipped = {"error": premium_skip_error}
             collected["calculate_premiums"] = skipped
@@ -398,28 +470,12 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
         legal_citations = []
         reg_result = collected.get("query_regulations", {})
         for s in reg_result.get("sources", []):
-            legal_citations.append({
-                "clause": s.get("source", "DCPR 2034"),
-                "text": s.get("text", "")[:500],
-            })
-
-        # ── Collect PR Card result (if it finished by now) ──
-        if pr_card_task:
-            if pr_card_task.done():
-                pr_result = pr_card_task.result()
-                logger.info("[%s] PR card completed in time", request_id)
-            else:
-                # Give it 30 more seconds — Groups 1-3 already took ~60-90s
-                logger.info("[%s] PR card still running, waiting up to 30s more...", request_id)
-                try:
-                    pr_result = await asyncio.wait_for(pr_card_task, timeout=30)
-                    logger.info("[%s] PR card completed after extra wait", request_id)
-                except TimeoutError:
-                    logger.warning("[%s] PR card still not done — continuing without it", request_id)
-                    pr_result = {"error": "PR card still processing — will be available later"}
-                    # Don't cancel — let it finish in background for audit logging
-            collected["get_pr_card"] = pr_result
-            tool_results_log.append({"tool": "get_pr_card", "input": pr_card_args, "result": pr_result})
+            legal_citations.append(
+                {
+                    "clause": s.get("source", "DCPR 2034"),
+                    "text": s.get("text", "")[:500],
+                }
+            )
 
         # ══════════════════════════════════════════════════════════════
         # PHASE 2: LLM analyzes data → determines schemes → generates reports
@@ -435,13 +491,16 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": (
-                f"All microservice data has been collected. Here is the complete data:\n\n"
-                f"{json.dumps(data_summary, indent=2, default=str)}\n\n"
-                f"Now determine which schemes are eligible for this property and call "
-                f"generate_feasibility_report for EACH eligible (scheme, redevelopment_type) "
-                f"combination. Call them ALL IN A SINGLE RESPONSE so they run in parallel."
-            )},
+            {
+                "role": "user",
+                "content": (
+                    f"All microservice data has been collected. Here is the complete data:\n\n"
+                    f"{json.dumps(data_summary, indent=2, default=str)}\n\n"
+                    f"Now determine which schemes are eligible for this property and call "
+                    f"generate_feasibility_report for EACH eligible (scheme, redevelopment_type) "
+                    f"combination. Call them ALL IN A SINGLE RESPONSE so they run in parallel."
+                ),
+            },
         ]
 
         # Only give LLM the report generation tool — data collection is done
@@ -462,7 +521,9 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
                 # objects (e.g. PostGIS MapComposite) that leak into the conversation
                 safe_messages = json.loads(json.dumps(messages, default=str))
                 response = await llm.chat(
-                    messages=safe_messages, tools=converted_report_tool, max_tokens=8192,
+                    messages=safe_messages,
+                    tools=converted_report_tool,
+                    max_tokens=8192,
                 )
                 choice = response.get("choices", [{}])[0]
                 assistant_msg = choice.get("message", {})
@@ -470,6 +531,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
             except Exception as e:
                 import traceback
+
                 logger.error("[%s] LLM call failed: %s\n%s", request_id, e, traceback.format_exc())
                 break
 
@@ -477,15 +539,21 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
             if not tool_calls:
                 if not report_paths:
-                    logger.info("[%s] LLM didn't call report tool (iter %d). Nudging.", request_id, iteration + 1)
-                    messages.append({
-                        "role": "user",
-                        "content": (
-                            "You MUST call generate_feasibility_report NOW. At minimum, "
-                            "call it with scheme='33(20)(B)' and redevelopment_type='CLUBBING'. "
-                            "ONLY respond with tool calls, no text."
-                        ),
-                    })
+                    logger.info(
+                        "[%s] LLM didn't call report tool (iter %d). Nudging.",
+                        request_id,
+                        iteration + 1,
+                    )
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "You MUST call generate_feasibility_report NOW. At minimum, "
+                                "call it with scheme='33(20)(B)' and redevelopment_type='CLUBBING'. "
+                                "ONLY respond with tool calls, no text."
+                            ),
+                        }
+                    )
                     continue
                 break
 
@@ -494,14 +562,20 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             for tc in tool_calls:
                 if "function" in tc:
                     tool_name = tc["function"]["name"]
-                    tool_args = json.loads(tc["function"]["arguments"]) if isinstance(tc["function"]["arguments"], str) else tc["function"]["arguments"]
+                    tool_args = (
+                        json.loads(tc["function"]["arguments"])
+                        if isinstance(tc["function"]["arguments"], str)
+                        else tc["function"]["arguments"]
+                    )
                 else:
                     tool_name = tc.get("name")
                     tool_args = tc.get("arguments", tc.get("input", {}))
 
                 if tool_name == "generate_feasibility_report":
                     # Inject microservice data the LLM may not have included
-                    tool_args = _enrich_report_args(tool_args, society_data, collected, legal_citations)
+                    tool_args = _enrich_report_args(
+                        tool_args, society_data, collected, legal_citations
+                    )
                     report_calls.append((tc, tool_name, tool_args))
 
             if report_calls:
@@ -515,41 +589,59 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
                 completed = await asyncio.gather(*[_gen_one(rc) for rc in report_calls])
 
                 for tc, tool_name, tool_args, result in completed:
-                    tool_results_log.append({"tool": tool_name, "input": tool_args, "result": result})
+                    tool_results_log.append(
+                        {"tool": tool_name, "input": tool_args, "result": result}
+                    )
                     path = result.get("path")
                     if path:
-                        report_paths.append({
-                            "path": path,
-                            "scheme": tool_args.get("scheme", "unknown"),
-                            "redevelopment_type": tool_args.get("redevelopment_type", "CLUBBING"),
-                        })
+                        report_paths.append(
+                            {
+                                "path": path,
+                                "scheme": tool_args.get("scheme", "unknown"),
+                                "redevelopment_type": tool_args.get(
+                                    "redevelopment_type", "CLUBBING"
+                                ),
+                            }
+                        )
 
                     # Feed result back to LLM
                     result_str = json.dumps(result, default=str)
                     if len(result_str) > 500:
                         result_str = result_str[:500] + "..."
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get("id", "none"),
-                        "name": tool_name,
-                        "content": result_str,
-                    })
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc.get("id", "none"),
+                            "name": tool_name,
+                            "content": result_str,
+                        }
+                    )
 
             if report_paths:
                 break
 
         # ── Fallback: if LLM never generated a report, force one ─────
         if not report_paths:
-            logger.warning("[%s] LLM failed to generate any reports. Force-calling with 33(20)(B).", request_id)
+            logger.warning(
+                "[%s] LLM failed to generate any reports. Force-calling with 33(20)(B).", request_id
+            )
             forced_args = _enrich_report_args(
                 {"scheme": "33(20)(B)", "redevelopment_type": "CLUBBING"},
-                society_data, collected, legal_citations,
+                society_data,
+                collected,
+                legal_citations,
             )
-            result = await _call_tool("generate_feasibility_report", forced_args, http, request_id, progress_callback)
-            tool_results_log.append({"tool": "generate_feasibility_report", "input": forced_args, "result": result})
+            result = await _call_tool(
+                "generate_feasibility_report", forced_args, http, request_id, progress_callback
+            )
+            tool_results_log.append(
+                {"tool": "generate_feasibility_report", "input": forced_args, "result": result}
+            )
             path = result.get("path")
             if path:
-                report_paths.append({"path": path, "scheme": "33(20)(B)", "redevelopment_type": "CLUBBING"})
+                report_paths.append(
+                    {"path": path, "scheme": "33(20)(B)", "redevelopment_type": "CLUBBING"}
+                )
 
     # ── Extract LLM summary ──────────────────────────────────────────
     final_summary = "Analysis Complete."
@@ -577,7 +669,7 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
                     "tool_calls_count": len(tool_results_log),
                     "report_path": report_path,
                     "all_reports": report_paths,
-                }
+                },
             )
             db.add(final_log)
             await db.commit()
@@ -601,11 +693,16 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
 
 # ─── Helper functions ────────────────────────────────────────────────────────
 
+
 def _build_data_summary(society_data: dict, collected: dict) -> dict:
     """Build a concise summary of all collected data for the LLM."""
 
     # ── Intelligence: Extract and Estimate scalar metrics ────────────────
-    plot_sqm = society_data.get("plot_area_sqm") or collected.get("get_mcgm_property", {}).get("area_sqm") or 0
+    plot_sqm = (
+        society_data.get("plot_area_sqm")
+        or collected.get("get_mcgm_property", {}).get("area_sqm")
+        or 0
+    )
     carpet_sqft = float(society_data.get("residential_area_sqft") or 0)
 
     if not plot_sqm and carpet_sqft:
@@ -626,7 +723,9 @@ def _build_data_summary(society_data: dict, collected: dict) -> dict:
             "ward": society_data.get("ward"),
             "village": society_data.get("village"),
             "plot_area_sqm": plot_sqm,
-            "road_width_m": society_data.get("road_width_m") or collected.get("get_dp_remarks", {}).get("road_width_m") or 9,
+            "road_width_m": society_data.get("road_width_m")
+            or collected.get("get_dp_remarks", {}).get("road_width_m")
+            or 9,
             "num_flats": num_flats,
             "num_commercial": society_data.get("num_commercial") or 0,
             "residential_area_sqft": carpet_sqft,
@@ -719,7 +818,7 @@ def _build_data_summary(society_data: dict, collected: dict) -> dict:
         # Extract RR rates from the list format returned by premium service
         rr_land = None
         rr_res = None
-        for item in (prem.get("rr_rates") or []):
+        for item in prem.get("rr_rates") or []:
             cat = str(item.get("category", "")).lower()
             if "land" in cat or "open" in cat:
                 rr_land = item.get("value")
@@ -733,7 +832,11 @@ def _build_data_summary(society_data: dict, collected: dict) -> dict:
         }
 
     # Errors
-    errors = {name: res.get("error") for name, res in collected.items() if isinstance(res, dict) and "error" in res}
+    errors = {
+        name: res.get("error")
+        for name, res in collected.items()
+        if isinstance(res, dict) and "error" in res
+    }
     if errors:
         summary["service_errors"] = errors
 
@@ -753,12 +856,21 @@ def _enrich_report_args(
     enriched.setdefault("society_name", society_data.get("society_name", "Society"))
 
     # Estimate plot area if missing
-    p_sqm = society_data.get("plot_area_sqm") or collected.get("get_mcgm_property", {}).get("area_sqm") or 0
+    p_sqm = (
+        society_data.get("plot_area_sqm")
+        or collected.get("get_mcgm_property", {}).get("area_sqm")
+        or 0
+    )
     if not p_sqm and society_data.get("residential_area_sqft"):
-         p_sqm = round((float(society_data["residential_area_sqft"]) / 0.75) / 1.33 / 10.764, 2)
+        p_sqm = round((float(society_data["residential_area_sqft"]) / 0.75) / 1.33 / 10.764, 2)
     enriched.setdefault("plot_area_sqm", p_sqm)
 
-    enriched.setdefault("road_width_m", society_data.get("road_width_m") or collected.get("get_dp_remarks", {}).get("road_width_m") or 9)
+    enriched.setdefault(
+        "road_width_m",
+        society_data.get("road_width_m")
+        or collected.get("get_dp_remarks", {}).get("road_width_m")
+        or 9,
+    )
 
     # Estimate flats if missing
     n_flats = society_data.get("num_flats") or 0
@@ -767,9 +879,15 @@ def _enrich_report_args(
     enriched.setdefault("num_flats", n_flats)
 
     enriched.setdefault("num_commercial", society_data.get("num_commercial", 0))
-    enriched.setdefault("existing_residential_carpet_sqft", society_data.get("residential_area_sqft", 0))
-    enriched.setdefault("existing_commercial_carpet_sqft", society_data.get("commercial_area_sqft", 0))
-    enriched["sale_rate_per_sqft"] = args.get("sale_rate_per_sqft") or society_data.get("sale_rate") or 60000
+    enriched.setdefault(
+        "existing_residential_carpet_sqft", society_data.get("residential_area_sqft", 0)
+    )
+    enriched.setdefault(
+        "existing_commercial_carpet_sqft", society_data.get("commercial_area_sqft", 0)
+    )
+    enriched["sale_rate_per_sqft"] = (
+        args.get("sale_rate_per_sqft") or society_data.get("sale_rate") or 60000
+    )
     enriched.setdefault("ward", society_data.get("ward", ""))
     enriched.setdefault("redevelopment_type", "CLUBBING")
     enriched.setdefault("regulatory_sources", legal_citations)
@@ -821,10 +939,9 @@ def _enrich_report_args(
             # Also inject into the premium dict so premium.rr_open_land_sqm resolves
             if "premium" in enriched and isinstance(enriched["premium"], dict):
                 enriched["premium"].setdefault("rr_open_land_sqm", rr_dict.get("rr_open_land_sqm"))
-                enriched["premium"].setdefault("rr_residential_sqm", rr_dict.get("rr_residential_sqm"))
+                enriched["premium"].setdefault(
+                    "rr_residential_sqm", rr_dict.get("rr_residential_sqm")
+                )
 
     # Final sanitization — ensure no protobuf/PostGIS objects leak to report generator
     return json.loads(json.dumps(enriched, default=str))
-
-
-

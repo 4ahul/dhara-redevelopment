@@ -38,6 +38,3 @@ class TenderStatus(enum.StrEnum):
     OPEN = "open"
     CLOSED = "closed"
     AWARDED = "awarded"
-
-
-
