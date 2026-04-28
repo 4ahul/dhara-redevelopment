@@ -129,8 +129,9 @@ services:
 
   - type: pserv
     name: milvus
-    env: docker
-    image: milvusdb/milvus:v2.4.0
+    env: image
+    image:
+      url: docker.io/milvusdb/milvus:v2.4.0
     dockerCommand: "milvus run standalone"
     disk:
       name: milvus_data
@@ -146,8 +147,9 @@ services:
 
   - type: pserv
     name: milvus-etcd
-    env: docker
-    image: quay.io/coreos/etcd:v3.5.5
+    env: image
+    image:
+      url: quay.io/coreos/etcd:v3.5.5
     dockerCommand: "etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd"
     disk:
       name: etcd_data
@@ -161,8 +163,9 @@ services:
 
   - type: pserv
     name: milvus-attu
-    env: docker
-    image: zilliz/attu:latest
+    env: image
+    image:
+      url: docker.io/zilliz/attu:latest
     envVars:
       - key: MILVUS_URL
         value: milvus:19530
