@@ -58,27 +58,27 @@ services:
           name: redis
           property: connectionString
 
-  - type: service
+  - type: pserv
     name: site-analysis
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
     
-  - type: service
+  - type: pserv
     name: aviation-height
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
 
-  - type: service
+  - type: pserv
     name: ready-reckoner
     env: docker
     dockerfilePath: services/ready_reckoner/Dockerfile
 
-  - type: service
+  - type: pserv
     name: report-generator
     env: docker
     dockerfilePath: services/report_generator/Dockerfile
 
-  - type: service
+  - type: pserv
     name: pr-card-scraper
     env: docker
     dockerfilePath: services/pr_card_scraper/Dockerfile
@@ -88,7 +88,7 @@ services:
           name: postgres
           property: connectionString
 
-  - type: service
+  - type: pserv
     name: mcgm-property-lookup
     env: docker
     dockerfilePath: services/mcgm_property_lookup/Dockerfile
@@ -98,7 +98,7 @@ services:
           name: postgres
           property: connectionString
 
-  - type: service
+  - type: pserv
     name: dp-remarks-report
     env: docker
     dockerfilePath: services/dp_remarks_report/Dockerfile
@@ -108,12 +108,12 @@ services:
           name: postgres
           property: connectionString
 
-  - type: service
+  - type: pserv
     name: ocr-service
     env: docker
     dockerfilePath: services/ocr_service/Dockerfile
 
-  - type: service
+  - type: pserv
     name: rag-service
     env: docker
     dockerfilePath: services/rag_service/Dockerfile
@@ -127,7 +127,7 @@ services:
       - key: MILVUS_PORT
         value: "19530"
 
-  - type: service
+  - type: pserv
     name: milvus
     env: docker
     image: milvusdb/milvus:v2.4.0
@@ -144,7 +144,7 @@ services:
       - key: COMMON_STORAGETYPE
         value: local
 
-  - type: service
+  - type: pserv
     name: milvus-etcd
     env: docker
     image: quay.io/coreos/etcd:v3.5.5
@@ -159,7 +159,7 @@ services:
       - key: ETCD_AUTO_COMPACTION_RETENTION
         value: "1000"
 
-  - type: service
+  - type: pserv
     name: milvus-attu
     env: docker
     image: zilliz/attu:latest
