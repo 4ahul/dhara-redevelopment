@@ -122,50 +122,7 @@ services:
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: MILVUS_HOST
-        value: milvus
-      - key: MILVUS_PORT
-        value: "19530"
-
-  - type: pserv
-    name: milvus
-    env: image
-    image:
-      url: docker.io/milvusdb/milvus:v2.4.0
-    dockerCommand: "milvus run standalone"
-    disk:
-      name: milvus_data
-      mountPath: /var/lib/milvus
-      sizeGB: 10
-    envVars:
-      - key: ETCD_ENDPOINTS
-        value: milvus-etcd:2379
-      - key: KNOWHERE_SIMD_TYPE
-        value: auto
-      - key: COMMON_STORAGETYPE
-        value: local
-
-  - type: pserv
-    name: milvus-etcd
-    env: image
-    image:
-      url: quay.io/coreos/etcd:v3.5.5
-    dockerCommand: "etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd"
-    disk:
-      name: etcd_data
-      mountPath: /etcd
-      sizeGB: 10
-    envVars:
-      - key: ETCD_AUTO_COMPACTION_MODE
-        value: revision
-      - key: ETCD_AUTO_COMPACTION_RETENTION
-        value: "1000"
-
-  - type: pserv
-    name: milvus-attu
-    env: image
-    image:
-      url: docker.io/zilliz/attu:latest
-    envVars:
-      - key: MILVUS_URL
-        value: milvus:19530
+      - key: MILVUS_URI
+        sync: false
+      - key: MILVUS_TOKEN
+        sync: false
