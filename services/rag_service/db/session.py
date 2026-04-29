@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -27,7 +28,8 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(String(128), primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True)
+    clerk_id = Column(String(255), unique=True, index=True, nullable=True)
     email = Column(String(255), unique=True, index=True, nullable=True)
     username = Column(String(100), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=True)
@@ -44,7 +46,7 @@ class User(Base):
 class ChatSession(Base):
     __tablename__ = "sessions"
     id = Column(String(36), primary_key=True, index=True)
-    user_id = Column(String(128), index=True, nullable=True)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=True)
     title = Column(String(255), nullable=True)
     is_deleted = Column(Boolean, default=False)
     last_message_at = Column(DateTime, nullable=True)
@@ -69,7 +71,7 @@ class Message(Base):
 class FeedbackLog(Base):
     __tablename__ = "feedback_logs"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(128), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=False, index=True)
     session_id = Column(String(36), nullable=False)
     feedback_type = Column(String(20))
@@ -99,7 +101,7 @@ def init_db():
             if not db.query(User).filter(User.email == system_email).first():
                 db.add(
                     User(
-                        id="system_user_0000",
+                        id="00000000-0000-0000-0000-000000000000",
                         email=system_email,
                         username="system",
                         full_name="System User",
@@ -114,7 +116,7 @@ def init_db():
             if not db.query(User).filter(User.email == admin_email).first():
                 db.add(
                     User(
-                        id="admin_user_0001",
+                        id="00000000-0000-0000-0000-000000000001",
                         email=admin_email,
                         username="admin",
                         full_name="Admin User",

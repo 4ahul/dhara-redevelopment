@@ -41,7 +41,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    user_id = str(uuid.uuid4())
+    user_id = uuid.uuid4()
     user = User(
         id=user_id,
         email=request.email,
@@ -55,7 +55,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return {"message": "Registration successful", "user_id": user.id}
+    return {"message": "Registration successful", "user_id": str(user.id)}
 
 
 @router.post("/login")
