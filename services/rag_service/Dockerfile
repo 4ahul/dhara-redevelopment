@@ -45,7 +45,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8006
+EXPOSE 10000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.rag_service.main:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["uvicorn", "services.rag_service.main:app", "--host", "0.0.0.0", "--port", "10000"]

@@ -57,7 +57,7 @@ RUN playwright install chromium
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8008
+EXPOSE 10000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.dp_remarks_report.main:app", "--host", "0.0.0.0", "--port", "8008"]
+CMD ["uvicorn", "services.dp_remarks_report.main:app", "--host", "0.0.0.0", "--port", "10000"]

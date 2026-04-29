@@ -13,7 +13,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8000
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -21,21 +21,21 @@ services:
       - key: REDIS_URL
         sync: false
       - key: SITE_ANALYSIS_URL
-        value: http://site-analysis:8001
+        value: http://site-analysis:10000
       - key: HEIGHT_URL
-        value: http://aviation-height:8002
+        value: http://aviation-height:10000
       - key: PREMIUM_URL
-        value: http://ready-reckoner:8003
+        value: http://ready-reckoner:10000
       - key: REPORT_URL
-        value: http://report-generator:8004
+        value: http://report-generator:10000
       - key: PR_CARD_URL
-        value: http://pr-card-scraper:8005
+        value: http://pr-card-scraper:10000
       - key: RAG_URL
-        value: http://rag-service:8006
+        value: http://rag-service:10000
       - key: MCGM_PROPERTY_URL
-        value: http://mcgm-property-lookup:8007
+        value: http://mcgm-property-lookup:10000
       - key: DP_REPORT_URL
-        value: http://dp-remarks-report:8008
+        value: http://dp-remarks-report:10000
       - key: GEMINI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
@@ -109,7 +109,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8001
+        value: 10000
       - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: SERP_API_KEY
@@ -122,7 +122,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8002
+        value: 10000
       - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: SERP_API_KEY
@@ -135,7 +135,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8003
+        value: 10000
 
   - type: pserv
     name: report-generator
@@ -144,7 +144,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8004
+        value: 10000
 
   - type: pserv
     name: pr-card-scraper
@@ -153,7 +153,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8005
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -174,7 +174,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8007
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -189,7 +189,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8008
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -214,7 +214,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8009
+        value: 10000
 
   - type: pserv
     name: rag-service
@@ -223,7 +223,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PORT
-        value: 8006
+        value: 10000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres

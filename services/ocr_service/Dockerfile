@@ -55,9 +55,9 @@ COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhar
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8009
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:8009/health || exit 1
+    CMD curl -f http://localhost:10000/health || exit 1
 
-CMD ["uvicorn", "services.ocr_service.main:app", "--host", "0.0.0.0", "--port", "8009"]
+CMD ["uvicorn", "services.ocr_service.main:app", "--host", "0.0.0.0", "--port", "10000"]

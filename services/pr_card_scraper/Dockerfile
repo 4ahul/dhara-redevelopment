@@ -63,7 +63,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 8005
+EXPOSE 10000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.pr_card_scraper.main:app", "--host", "0.0.0.0", "--port", "8005"]
+CMD ["uvicorn", "services.pr_card_scraper.main:app", "--host", "0.0.0.0", "--port", "10000"]

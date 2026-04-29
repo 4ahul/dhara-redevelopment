@@ -220,6 +220,43 @@ async def get_mesh_docs():
     }
 
 
+# ─── Service Proxy for OpenAPI Endpoints ──────────────────────────────────────
+
+@app.get("/api-docs/{service}/openapi.json")
+async def proxy_service_openapi(service: str):
+    """Proxy OpenAPI specs from downstream services."""
+    import httpx
+
+    service_map = {
+        "site-analysis": settings.SITE_ANALYSIS_URL,
+        "height": settings.HEIGHT_URL,
+        "ready-reckoner": settings.READY_RECKONER_URL,
+        "report": settings.REPORT_URL,
+        "pr-card": settings.PR_CARD_URL,
+        "mcgm": settings.MCGM_PROPERTY_URL,
+        "dp-remarks": settings.DP_REPORT_URL,
+        "rag": settings.RAG_URL,
+        "ocr": settings.OCR_URL,
+    }
+
+    target_base = service_map.get(service)
+    if not target_base:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Unknown service: {service}")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(f"{target_base}/openapi.json")
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI")
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=502, detail=f"Service unavailable: {service}")
+
+
 # ─── Run ─────────────────────────────────────────────────────────────────────
 
 
