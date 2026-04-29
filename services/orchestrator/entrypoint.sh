@@ -26,11 +26,11 @@ while True:
 # echo "Running Database Migrations..."
 # alembic -c /app/services/orchestrator/alembic.ini upgrade head
 
-# Initialize and start Cron for background tasks
-echo "Setting up background cron jobs..."
-chmod +x /app/services/orchestrator/scripts/setup_cron.sh
-/bin/bash /app/services/orchestrator/scripts/setup_cron.sh
-service cron start
+# Initialize and start Cron for background tasks (Disabled for Render)
+# echo "Setting up background cron jobs..."
+# chmod +x /app/services/orchestrator/scripts/setup_cron.sh
+# /bin/bash /app/services/orchestrator/scripts/setup_cron.sh
+# service cron start
 
 
 echo "Database is up-to-date. Launching application..."

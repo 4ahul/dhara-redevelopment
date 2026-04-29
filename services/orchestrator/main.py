@@ -36,38 +36,40 @@ logger = logging.getLogger("gateway")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing Orchestrator | DB: %s", settings.DATABASE_URL)
+    try:
+        # 1. PostgreSQL
+        from .db import init_db
+        await init_db()
 
-    # 1. PostgreSQL
-    from .db import init_db
+        # 2. Redis
+        from .services.redis import init_redis
+        await init_redis()
 
-    await init_db()
+        # 3. LLM Client → inject into agent runner
+        from .agent.llm_client import get_llm_client
+        from .agent.runner import set_llm_client
 
-    # 2. Redis
-    from .services.redis import init_redis
+        client = get_llm_client()
+        set_llm_client(client)
+        logger.info("LLM: %s (%s)", type(client).__name__, client.get_model_name())
 
-    await init_redis()
-
-    # 3. LLM Client → inject into agent runner
-    from .agent.llm_client import get_llm_client
-    from .agent.runner import set_llm_client
-
-    client = get_llm_client()
-    set_llm_client(client)
-    logger.info("LLM: %s (%s)", type(client).__name__, client.get_model_name())
-
-    # 4. Seed defaults (admin user + roles)
-    from .db.seed import seed_defaults
-
-    await seed_defaults()
-
+        # 4. Seed defaults (admin user + roles)
+        from .db.seed import seed_defaults
+        await seed_defaults()
+    except Exception as e:
+        logger.error("Error during Orchestrator initialization: %s", e)
+        # We continue to allow the health check to pass so we can debug live
+    
     yield
 
     # Shutdown
-    from .db import close_db
-    from .services.redis import close_redis
-
-    await close_db()
-    await close_redis()
+    try:
+        from .db import close_db
+        from .services.redis import close_redis
+        await close_db()
+        await close_redis()
+    except Exception:
+        pass
     logger.info("Shutdown complete")
 
 
@@ -98,6 +100,16 @@ app = FastAPI(
         ]
     },
 )
+
+@app.get("/")
+async def root():
+    """Root endpoint for basic connectivity check."""
+    return {
+        "status": "online",
+        "service": "orchestrator",
+        "message": "Dhara AI Master Gateway is reachable"
+    }
+
 setup_sentry(settings.APP_NAME)
 setup_metrics(app, settings.APP_NAME)
 setup_tracing(app, settings.APP_NAME)

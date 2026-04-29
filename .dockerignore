@@ -20,3 +20,5 @@ services/rag_service/dhara-ui/node_modules/
 *.docx
 *.zip
 *.tar.gz
+!services/orchestrator/*.sh
+!services/orchestrator/scripts/*.sh

@@ -32,6 +32,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     cron \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
@@ -44,16 +45,13 @@ COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhar
 COPY services/__init__.py /app/services/
 COPY services/orchestrator/ /app/services/orchestrator/
 COPY services/orchestrator/entrypoint.sh /app/entrypoint.sh
-
-RUN sed -i 's/\r$//' /app/services/orchestrator/scripts/setup_cron.sh || true
+COPY services/orchestrator/scripts/setup_cron.sh /app/services/orchestrator/scripts/setup_cron.sh
 
 RUN chmod +x /app/entrypoint.sh
-RUN chmod +x /app/services/orchestrator/scripts/setup_cron.sh
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 10000
+EXPOSE 8000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "10000", "--workers", "1"]
+CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
