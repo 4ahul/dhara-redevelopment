@@ -41,8 +41,10 @@ class Settings(BaseServiceSettings):
     def db_url(self) -> str:
         """Uses DATABASE_URL as provided, only mapping localhost to postgres for local Docker Compose development."""
         url = self.DATABASE_URL
-        # If we are on Render, use the URL as-is (Render provides the full connection string)
+        # If we are on Render, use the URL as-is but ensure +asyncpg driver is present
         if os.environ.get("RENDER"):
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
             return url
         # Fallback for local Docker Compose
         if _is_docker():
