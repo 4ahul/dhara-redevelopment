@@ -6,11 +6,6 @@ databases:
     postgresMajorVersion: 15
 
 services:
-  - type: redis
-    name: redis
-    plan: free
-    ipAllowList: []
-
   - type: web
     name: orchestrator
     env: docker
@@ -21,10 +16,7 @@ services:
           name: postgres
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: redis
-          property: connectionString
+        sync: false
       - key: SITE_ANALYSIS_URL
         value: http://site-analysis:8001
       - key: HEIGHT_URL
@@ -53,10 +45,7 @@ services:
           name: postgres
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: redis
-          property: connectionString
+        sync: false
 
   - type: pserv
     name: site-analysis
