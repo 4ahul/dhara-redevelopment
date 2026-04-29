@@ -4,12 +4,23 @@ set -e
 echo "Starting Orchestrator Entrypoint..."
 
 # Wait for PostgreSQL
-echo "Waiting for PostgreSQL at postgres:5432..."
-until printf "" 2>>/dev/null >/dev/tcp/postgres/5432; do
-  echo "Postgres is unavailable - sleeping"
-  sleep 2
-done
-echo "PostgreSQL is UP!"
+python -c '
+import sys, urllib.parse, socket, time, os
+url = os.environ.get("DATABASE_URL")
+if not url: sys.exit(0)
+res = urllib.parse.urlparse(url)
+host = res.hostname
+port = res.port or 5432
+print(f"Waiting for {host}:{port}...", flush=True)
+while True:
+    try:
+        socket.create_connection((host, port), timeout=1)
+        print("PostgreSQL is UP!", flush=True)
+        break
+    except OSError:
+        print("Postgres is unavailable - sleeping", flush=True)
+        time.sleep(2)
+'
 
 # Run Database Migrations (Temporarily disabled to fix crash loop)
 # echo "Running Database Migrations..."
