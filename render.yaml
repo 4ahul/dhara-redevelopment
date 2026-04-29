@@ -33,6 +33,32 @@ services:
         value: http://mcgm-property-lookup:8007
       - key: DP_REPORT_URL
         value: http://dp-remarks-report:8008
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_JWT_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
 
   - type: worker
     name: orchestrator-worker
@@ -46,16 +72,52 @@ services:
           property: connectionString
       - key: REDIS_URL
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_JWT_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
 
   - type: pserv
     name: site-analysis
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
+    envVars:
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
     
   - type: pserv
     name: aviation-height
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
+    envVars:
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
 
   - type: pserv
     name: ready-reckoner
@@ -76,6 +138,14 @@ services:
         fromDatabase:
           name: postgres
           property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: BROWSER_HEADLESS
+        value: "true"
 
   - type: pserv
     name: mcgm-property-lookup
@@ -86,6 +156,8 @@ services:
         fromDatabase:
           name: postgres
           property: connectionString
+      - key: BROWSER_HEADLESS
+        value: "true"
 
   - type: pserv
     name: dp-remarks-report
@@ -96,6 +168,18 @@ services:
         fromDatabase:
           name: postgres
           property: connectionString
+      - key: DPRMARKS_USERNAME
+        sync: false
+      - key: DPRMARKS_PASSWORD
+        sync: false
+      - key: BUSINESS_UPI_VPA
+        sync: false
+      - key: BROWSER_HEADLESS
+        value: "true"
+      - key: SKIP_PAYMENT
+        value: "true"
+      - key: REDIS_URL
+        sync: false
 
   - type: pserv
     name: ocr-service
@@ -114,4 +198,10 @@ services:
       - key: MILVUS_URI
         sync: false
       - key: MILVUS_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: CLERK_JWT_KEY
         sync: false
