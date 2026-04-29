@@ -10,7 +10,7 @@ class Settings(BaseServiceSettings):
 
     # Load from this service's .env file
     DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@localhost:5435/mcgm_property_lookup_db"
+        "postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db"
     )
 
     # ArcGIS / MCGM
