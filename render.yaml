@@ -2,7 +2,7 @@ databases:
   - name: postgres
     databaseName: redevelopment
     user: redevelopment
-    plan: free
+    plan: starter
     postgresMajorVersion: 15
 
 services:
@@ -10,147 +10,89 @@ services:
     name: orchestrator
     env: docker
     dockerfilePath: services/orchestrator/Dockerfile
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: REDIS_URL
-        sync: false
+      - key: PORT
+        value: 8000
       - key: SITE_ANALYSIS_URL
-        value: http://site-analysis:10000
+        value: http://site-analysis-8a8n:10000
       - key: HEIGHT_URL
         value: http://aviation-height:10000
+      - key: READY_RECKONER_URL
+        value: http://ready-reckoner:10000
       - key: PREMIUM_URL
         value: http://ready-reckoner:10000
       - key: REPORT_URL
-        value: http://report-generator:10000
+        value: http://report-generator-jx9k:10000
       - key: PR_CARD_URL
         value: http://pr-card-scraper:10000
       - key: RAG_URL
-        value: http://rag-service:10000
+        value: http://rag-service-pl8p:10000
       - key: MCGM_PROPERTY_URL
         value: http://mcgm-property-lookup:10000
       - key: DP_REPORT_URL
         value: http://dp-remarks-report:10000
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: SERP_API_KEY
-        sync: false
-      - key: CLERK_SECRET_KEY
-        sync: false
-      - key: CLERK_PUBLISHABLE_KEY
-        sync: false
-      - key: CLERK_JWT_KEY
-        sync: false
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
-      - key: CLOUDINARY_API_KEY
-        sync: false
-      - key: CLOUDINARY_API_SECRET
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
+      - key: OCR_URL
+        value: http://ocr-service-y212:10000
 
   - type: worker
     name: orchestrator-worker
     env: docker
     dockerfilePath: services/orchestrator/Dockerfile
     dockerCommand: "arq services.orchestrator.services.worker.WorkerSettings"
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: REDIS_URL
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: SERP_API_KEY
-        sync: false
-      - key: CLERK_SECRET_KEY
-        sync: false
-      - key: CLERK_PUBLISHABLE_KEY
-        sync: false
-      - key: CLERK_JWT_KEY
-        sync: false
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
-      - key: CLOUDINARY_API_KEY
-        sync: false
-      - key: CLOUDINARY_API_SECRET
-        sync: false
-      - key: SMTP_USERNAME
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
 
-  - type: pserv
+  - type: private_service
     name: site-analysis
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
-    envVars:
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: SERP_API_KEY
-        sync: false
+    plan: starter
     
-  - type: pserv
+  - type: private_service
     name: aviation-height
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
-    envVars:
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: SERP_API_KEY
-        sync: false
+    plan: starter
 
-  - type: pserv
+  - type: private_service
     name: ready-reckoner
     env: docker
     dockerfilePath: services/ready_reckoner/Dockerfile
+    plan: starter
 
-  - type: pserv
+  - type: private_service
     name: report-generator
     env: docker
     dockerfilePath: services/report_generator/Dockerfile
+    plan: starter
 
-  - type: pserv
+  - type: private_service
     name: pr-card-scraper
     env: docker
     dockerfilePath: services/pr_card_scraper/Dockerfile
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_BASE_URL
-        sync: false
       - key: BROWSER_HEADLESS
         value: "true"
 
-  - type: pserv
+  - type: private_service
     name: mcgm-property-lookup
     env: docker
     dockerfilePath: services/mcgm_property_lookup/Dockerfile
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -159,49 +101,34 @@ services:
       - key: BROWSER_HEADLESS
         value: "true"
 
-  - type: pserv
+  - type: private_service
     name: dp-remarks-report
     env: docker
     dockerfilePath: services/dp_remarks_report/Dockerfile
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: DPRMARKS_USERNAME
-        sync: false
-      - key: DPRMARKS_PASSWORD
-        sync: false
-      - key: BUSINESS_UPI_VPA
-        sync: false
       - key: BROWSER_HEADLESS
         value: "true"
       - key: SKIP_PAYMENT
         value: "true"
-      - key: REDIS_URL
-        sync: false
 
-  - type: pserv
+  - type: private_service
     name: ocr-service
     env: docker
     dockerfilePath: services/ocr_service/Dockerfile
+    plan: starter
 
-  - type: pserv
+  - type: private_service
     name: rag-service
     env: docker
     dockerfilePath: services/rag_service/Dockerfile
+    plan: starter
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
           property: connectionString
-      - key: MILVUS_URI
-        sync: false
-      - key: MILVUS_TOKEN
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: HF_TOKEN
-        sync: false
-      - key: CLERK_JWT_KEY
-        sync: false
