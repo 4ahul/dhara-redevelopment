@@ -21,6 +21,8 @@ RUN uv pip install --system /build/dhara_shared
 # Install service dependencies via uv workspace mapping
 COPY services/ready_reckoner/pyproject.toml /build/services/ready_reckoner/
 RUN uv pip install --system -r /build/services/ready_reckoner/pyproject.toml
+# Reinstall dhara_shared non-editable to override any editable workspace install
+RUN uv pip install --system /build/dhara_shared
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -34,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+# Ensure dhara_shared package directory exists (belt-and-suspenders)
+COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhara_shared/
 
 # Copy source code (monorepo layout)
 COPY services/__init__.py /app/services/

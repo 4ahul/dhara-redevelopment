@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+# Ensure dhara_shared package directory exists (belt-and-suspenders)
+COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhara_shared/
 
 # Copy source code (monorepo layout)
 COPY services/__init__.py /app/services/
