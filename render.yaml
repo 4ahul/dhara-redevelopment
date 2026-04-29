@@ -11,6 +11,8 @@ services:
     env: docker
     dockerfilePath: services/orchestrator/Dockerfile
     envVars:
+      - key: PORT
+        value: 8000
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -104,6 +106,8 @@ services:
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
     envVars:
+      - key: PORT
+        value: 8001
       - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: SERP_API_KEY
@@ -114,6 +118,8 @@ services:
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
     envVars:
+      - key: PORT
+        value: 8002
       - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: SERP_API_KEY
@@ -123,17 +129,25 @@ services:
     name: ready-reckoner
     env: docker
     dockerfilePath: services/ready_reckoner/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8003
 
   - type: pserv
     name: report-generator
     env: docker
     dockerfilePath: services/report_generator/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8004
 
   - type: pserv
     name: pr-card-scraper
     env: docker
     dockerfilePath: services/pr_card_scraper/Dockerfile
     envVars:
+      - key: PORT
+        value: 8005
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -152,6 +166,8 @@ services:
     env: docker
     dockerfilePath: services/mcgm_property_lookup/Dockerfile
     envVars:
+      - key: PORT
+        value: 8007
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -164,6 +180,8 @@ services:
     env: docker
     dockerfilePath: services/dp_remarks_report/Dockerfile
     envVars:
+      - key: PORT
+        value: 8008
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
@@ -185,12 +203,17 @@ services:
     name: ocr-service
     env: docker
     dockerfilePath: services/ocr_service/Dockerfile
+    envVars:
+      - key: PORT
+        value: 8009
 
   - type: pserv
     name: rag-service
     env: docker
     dockerfilePath: services/rag_service/Dockerfile
     envVars:
+      - key: PORT
+        value: 8006
       - key: DATABASE_URL
         fromDatabase:
           name: postgres
