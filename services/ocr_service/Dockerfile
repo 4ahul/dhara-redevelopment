@@ -25,6 +25,8 @@ RUN uv pip install --system /build/dhara_shared
 # Install service dependencies via uv workspace mapping
 COPY services/ocr_service/pyproject.toml /build/services/ocr_service/
 RUN uv pip install --system -r /build/services/ocr_service/pyproject.toml
+# Reinstall dhara_shared non-editable to override any editable workspace install
+RUN uv pip install --system /build/dhara_shared
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
