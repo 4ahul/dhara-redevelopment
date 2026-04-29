@@ -39,8 +39,12 @@ class Settings(BaseServiceSettings):
 
     @property
     def db_url(self) -> str:
-        """Corrects localhost/5435 to postgres:5432 when in Docker."""
+        """Uses DATABASE_URL as provided, only mapping localhost to postgres for local Docker Compose development."""
         url = self.DATABASE_URL
+        # If we are on Render, use the URL as-is (Render provides the full connection string)
+        if os.environ.get("RENDER"):
+            return url
+        # Fallback for local Docker Compose
         if _is_docker():
             url = (
                 url.replace("localhost", "postgres")
