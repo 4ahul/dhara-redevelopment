@@ -77,29 +77,44 @@ async def lifespan(app: FastAPI):
 
 validate_config(settings, ["GEMINI_API_KEY", "DATABASE_URL", "REDIS_URL", "CLOUDINARY_API_KEY"])
 
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
+
 app = FastAPI(
     title="Dhara AI Master Gateway",
     version=settings.APP_VERSION,
     description="Unified API Gateway for Dhara AI Microservice Mesh",
     lifespan=lifespan,
-    # Configure the Master Swagger with dropdown for other services
     openapi_url="/openapi.json",
-    docs_url="/docs",
+    docs_url=None,  # Disable default /docs
     redoc_url="/redoc",
-    swagger_ui_parameters={
-        "urls": [
-            {"url": "/openapi.json", "name": "Orchestrator (Master)"},
-            {"url": "/site-analysis/openapi.json", "name": "Site Analysis"},
-            {"url": "/height/openapi.json", "name": "Aviation Height"},
-            {"url": "/ready-reckoner/openapi.json", "name": "Ready Reckoner"},
-            {"url": "/report/openapi.json", "name": "Report Generator"},
-            {"url": "/pr-card/openapi.json", "name": "PR Card Scraper"},
-            {"url": "/rag/openapi.json", "name": "RAG Service"},
-            {"url": "/mcgm/openapi.json", "name": "MCGM Lookup"},
-            {"url": "/dp-remarks/openapi.json", "name": "DP Remarks"},
-        ]
-    },
 )
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=app.title + " - Swagger UI",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+        swagger_ui_parameters={
+            "urls": [
+                {"url": "/openapi.json", "name": "Orchestrator (Master)"},
+                {"url": "/api-docs/site-analysis/openapi.json", "name": "Site Analysis"},
+                {"url": "/api-docs/height/openapi.json", "name": "Aviation Height"},
+                {"url": "/api-docs/ready-reckoner/openapi.json", "name": "Ready Reckoner"},
+                {"url": "/api-docs/report/openapi.json", "name": "Report Generator"},
+                {"url": "/api-docs/pr-card/openapi.json", "name": "PR Card Scraper"},
+                {"url": "/api-docs/rag/openapi.json", "name": "RAG Service"},
+                {"url": "/api-docs/mcgm/openapi.json", "name": "MCGM Lookup"},
+                {"url": "/api-docs/dp-remarks/openapi.json", "name": "DP Remarks"},
+                {"url": "/api-docs/ocr/openapi.json", "name": "OCR Service"},
+            ],
+            "layout": "StandaloneLayout",
+            "deepLinking": True,
+        },
+    )
 
 @app.get("/")
 async def root():
@@ -235,37 +250,46 @@ async def get_mesh_docs():
 # ─── Service Proxy for OpenAPI Endpoints ──────────────────────────────────────
 
 # Add routes that match swagger_ui_parameters expectations
-@app.get("/site-analysis/openapi.json")
-async def site_analysis_openapi():
-    return await proxy_service_openapi("site-analysis")
+@app.get("/api-docs/{service}/openapi.json")
+async def proxy_service_openapi(service: str, request: Request):
+    """Proxy OpenAPI specs from downstream services and rewrite servers for gateway routing."""
+    import httpx
 
-@app.get("/height/openapi.json")
-async def height_openapi():
-    return await proxy_service_openapi("height")
+    service_map = {
+        "site-analysis": settings.SITE_ANALYSIS_URL,
+        "height": settings.HEIGHT_URL,
+        "ready-reckoner": settings.READY_RECKONER_URL,
+        "report": settings.REPORT_URL,
+        "pr-card": settings.PR_CARD_URL,
+        "mcgm": settings.MCGM_PROPERTY_URL,
+        "dp-remarks": settings.DP_REPORT_URL,
+        "rag": settings.RAG_URL,
+        "ocr": settings.OCR_URL,
+    }
 
-@app.get("/ready-reckoner/openapi.json")
-async def ready_reckoner_openapi():
-    return await proxy_service_openapi("ready-reckoner")
+    target_base = service_map.get(service)
+    if not target_base:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"Unknown service: {service}")
 
-@app.get("/report/openapi.json")
-async def report_openapi():
-    return await proxy_service_openapi("report")
-
-@app.get("/pr-card/openapi.json")
-async def pr_card_openapi():
-    return await proxy_service_openapi("pr-card")
-
-@app.get("/mcgm/openapi.json")
-async def mcgm_openapi():
-    return await proxy_service_openapi("mcgm")
-
-@app.get("/dp-remarks/openapi.json")
-async def dp_remarks_openapi():
-    return await proxy_service_openapi("dp-remarks")
-
-@app.get("/rag/openapi.json")
-async def rag_openapi():
-    return await proxy_service_openapi("rag")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(f"{target_base}/openapi.json")
+            response.raise_for_status()
+            spec = response.json()
+            
+            # Rewrite "servers" so Swagger UI calls go through the gateway
+            # The gateway path for service X is /{service}
+            # e.g. for site-analysis, it's /site-analysis
+            spec["servers"] = [{"url": f"/{service}", "description": f"Proxied {service}"}]
+            
+            return spec
+        except httpx.HTTPStatusError as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI")
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=502, detail=f"Service unavailable: {service}")
 
 
 # ─── Catch-all Proxy Routes for Interactive Swagger "Try It Out" ───────────────
@@ -301,6 +325,10 @@ async def proxy_dp_remarks(path: str, request: Request):
 @app.api_route("/rag/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_rag(path: str, request: Request):
     return await proxy_service(path, "rag", settings.RAG_URL, request)
+
+@app.api_route("/ocr/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_ocr(path: str, request: Request):
+    return await proxy_service(path, "ocr", settings.OCR_URL, request)
 
 
 async def proxy_service(path: str, service: str, target_base: str, request: Request):
@@ -342,8 +370,8 @@ async def proxy_service(path: str, service: str, target_base: str, request: Requ
 
 
 @app.get("/api-docs/{service}/openapi.json")
-async def proxy_service_openapi(service: str):
-    """Proxy OpenAPI specs from downstream services."""
+async def proxy_service_openapi(service: str, request: Request):
+    """Proxy OpenAPI specs from downstream services and rewrite servers for gateway routing."""
     import httpx
 
     service_map = {
@@ -367,7 +395,14 @@ async def proxy_service_openapi(service: str):
         try:
             response = await client.get(f"{target_base}/openapi.json")
             response.raise_for_status()
-            return response.json()
+            spec = response.json()
+            
+            # Rewrite "servers" so Swagger UI calls go through the gateway
+            # The gateway path for service X is /{service}
+            # e.g. for site-analysis, it's /site-analysis
+            spec["servers"] = [{"url": f"/{service}", "description": f"Proxied {service}"}]
+            
+            return spec
         except httpx.HTTPStatusError as e:
             from fastapi import HTTPException
             raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI")

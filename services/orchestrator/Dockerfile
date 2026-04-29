@@ -16,8 +16,10 @@ COPY pyproject.toml uv.lock ./
 COPY dhara_shared/ ./dhara_shared/
 COPY services/orchestrator/pyproject.toml ./services/orchestrator/
 
-# uv sync → resolves workspace links, builds package, drops into site-packages
-RUN uv pip install --system -r /build/pyproject.toml || uv sync --frozen
+# Install service dependencies via uv
+RUN uv pip install --system -r services/orchestrator/pyproject.toml
+# Re-install dhara_shared non-editable to override any editable workspace install
+RUN uv pip install --system ./dhara_shared
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

@@ -16,8 +16,9 @@ COPY pyproject.toml uv.lock ./
 COPY dhara_shared/ ./dhara_shared/
 COPY services/report_generator/pyproject.toml ./services/report_generator/
 
-# uv sync → resolves workspace links, builds package, drops into site-packages
-RUN uv pip install --system -r /build/pyproject.toml || uv sync --frozen
+# Install dependencies - includes dhara_shared from local workspace via editable install
+RUN uv pip install --system -r /build/pyproject.toml && \
+    uv pip install --system /build/dhara_shared
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
@@ -33,6 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy ALL installed packages from builder (where uv placed them)
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+# Belt-and-suspenders: ensure dhara_shared is available (uv workspace may not copy editable properly)
+COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhara_shared/
 
 # Service code
 COPY services/__init__.py /app/services/
@@ -41,7 +44,7 @@ COPY services/report_generator/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/usr/local/lib/python3.12/site-packages
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8004
