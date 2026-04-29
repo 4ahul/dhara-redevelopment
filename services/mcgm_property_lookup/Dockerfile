@@ -54,5 +54,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app:/usr/local/lib/python3.12/site-packages
 ENV PYTHONUNBUFFERED=1
 
+EXPOSE 8007
+
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "services.mcgm_property_lookup.main:app", "--host", "0.0.0.0", "--port", "8007"]

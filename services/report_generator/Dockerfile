@@ -50,5 +50,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
+EXPOSE 8004
+
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "services.report_generator.main:app", "--host", "0.0.0.0", "--port", "8004"]

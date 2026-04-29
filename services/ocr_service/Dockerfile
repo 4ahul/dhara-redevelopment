@@ -55,6 +55,8 @@ COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhar
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
+EXPOSE 8009
+
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -f http://localhost:8009/health || exit 1
 

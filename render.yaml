@@ -10,7 +10,6 @@ services:
     name: orchestrator
     env: docker
     dockerfilePath: services/orchestrator/Dockerfile
-    port: 8000
     envVars:
       - key: PORT
         value: 8000
@@ -106,7 +105,6 @@ services:
     name: site-analysis
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
-    port: 8001
     envVars:
       - key: PORT
         value: 8001
@@ -119,7 +117,6 @@ services:
     name: aviation-height
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
-    port: 8002
     envVars:
       - key: PORT
         value: 8002
@@ -132,7 +129,6 @@ services:
     name: ready-reckoner
     env: docker
     dockerfilePath: services/ready_reckoner/Dockerfile
-    port: 8003
     envVars:
       - key: PORT
         value: 8003
@@ -141,7 +137,6 @@ services:
     name: report-generator
     env: docker
     dockerfilePath: services/report_generator/Dockerfile
-    port: 8004
     envVars:
       - key: PORT
         value: 8004
@@ -150,7 +145,6 @@ services:
     name: pr-card-scraper
     env: docker
     dockerfilePath: services/pr_card_scraper/Dockerfile
-    port: 8005
     envVars:
       - key: PORT
         value: 8005
@@ -171,7 +165,6 @@ services:
     name: mcgm-property-lookup
     env: docker
     dockerfilePath: services/mcgm_property_lookup/Dockerfile
-    port: 8007
     envVars:
       - key: PORT
         value: 8007
@@ -186,7 +179,6 @@ services:
     name: dp-remarks-report
     env: docker
     dockerfilePath: services/dp_remarks_report/Dockerfile
-    port: 8008
     envVars:
       - key: PORT
         value: 8008
@@ -211,7 +203,6 @@ services:
     name: ocr-service
     env: docker
     dockerfilePath: services/ocr_service/Dockerfile
-    port: 8009
     envVars:
       - key: PORT
         value: 8009
@@ -220,7 +211,6 @@ services:
     name: rag-service
     env: docker
     dockerfilePath: services/rag_service/Dockerfile
-    port: 8006
     envVars:
       - key: PORT
         value: 8006
