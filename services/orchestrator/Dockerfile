@@ -11,37 +11,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace root for uv and workspace member
-COPY pyproject.toml /build/pyproject.toml
-COPY uv.lock /build/uv.lock
-COPY dhara_shared/ /build/dhara_shared/
-# Install dhara_shared as a non-editable package to avoid editable .pth
-RUN uv pip install --system /build/dhara_shared
+# Copy workspace (root + dhara_shared)
+COPY pyproject.toml uv.lock ./
+COPY dhara_shared/ ./dhara_shared/
+COPY services/orchestrator/pyproject.toml ./services/orchestrator/
 
-# Install orchestrator dependencies via uv workspace mapping
-COPY services/orchestrator/pyproject.toml /build/services/orchestrator/
-RUN uv pip install --system -r /build/services/orchestrator/pyproject.toml
-# Reinstall dhara_shared non-editable to override any editable workspace install
-RUN uv pip install --system /build/dhara_shared
+# uv sync → resolves workspace links, builds package, drops into site-packages
+RUN uv pip install --system -r /build/pyproject.toml || uv sync --frozen
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     cron \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
+# Copy ALL installed packages from builder (where uv placed them)
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-# Ensure dhara_shared package directory exists (belt-and-suspenders)
-COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhara_shared/
 
-# Copy source code (monorepo layout)
+# Service code
 COPY services/__init__.py /app/services/
 COPY services/orchestrator/ /app/services/orchestrator/
 COPY services/orchestrator/entrypoint.sh /app/entrypoint.sh
@@ -54,4 +48,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000"]
