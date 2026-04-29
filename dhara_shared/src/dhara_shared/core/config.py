@@ -42,15 +42,19 @@ class BaseServiceSettings(BaseSettings):
 def validate_config(settings: BaseSettings, keys: list[str]):
     """
     Verify that mandatory keys are present in the settings object.
-    Used at startup to prevent silent failures.
+    Logs a warning at startup if keys are missing but does not crash,
+    allowing the service to boot (e.g. for Render health checks).
     """
     missing = [k for k in keys if not getattr(settings, k, None)]
     if missing:
+        import logging
+        logger = logging.getLogger("config")
         app_name = getattr(settings, "APP_NAME", "unknown_service")
         error_msg = (
-            f"\n[CRITICAL CONFIG ERROR] The following environment variables are missing "
+            f"\n[CONFIG WARNING] The following environment variables are missing "
             f"for service '{app_name}':\n"
             + "\n".join([f" - {k}" for k in missing])
-            + "\n\nPlease check your .env file or Docker environment."
+            + "\n\nPlease check your .env file or Render dashboard variables."
         )
-        raise RuntimeError(error_msg)
+        logger.warning(error_msg)
+
