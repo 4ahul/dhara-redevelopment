@@ -31,7 +31,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    # Playwright chromium dependencies
+    bash \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
     libcairo2 libasound2 libxshmfence1 fonts-liberation \
@@ -56,7 +56,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 10000
+EXPOSE 8002
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.aviation_height.main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["uvicorn", "services.aviation_height.main:app", "--host", "0.0.0.0", "--port", "8002"]

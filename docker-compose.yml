@@ -108,10 +108,9 @@ services:
     build:
       context: .
       dockerfile: services/orchestrator/Dockerfile
-    image: redevelopment-ai/orchestrator:v4
     ports:
       - "8000:8000"
-    command: ["/bin/bash", "-c", "service cron start && uvicorn services.orchestrator.main:app --host 0.0.0.0 --port 8000 --workers 1"]
+    
     env_file:
       - .env
       - ./services/orchestrator/.env
@@ -150,7 +149,6 @@ services:
     build:
       context: .
       dockerfile: services/orchestrator/Dockerfile
-    image: redevelopment-ai/orchestrator:v4
     command: ["arq", "services.orchestrator.services.worker.WorkerSettings"]
     env_file:
       - .env

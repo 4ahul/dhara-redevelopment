@@ -8,7 +8,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from dhara_shared.core.banner import print_banner
@@ -233,6 +233,113 @@ async def get_mesh_docs():
 
 
 # ─── Service Proxy for OpenAPI Endpoints ──────────────────────────────────────
+
+# Add routes that match swagger_ui_parameters expectations
+@app.get("/site-analysis/openapi.json")
+async def site_analysis_openapi():
+    return await proxy_service_openapi("site-analysis")
+
+@app.get("/height/openapi.json")
+async def height_openapi():
+    return await proxy_service_openapi("height")
+
+@app.get("/ready-reckoner/openapi.json")
+async def ready_reckoner_openapi():
+    return await proxy_service_openapi("ready-reckoner")
+
+@app.get("/report/openapi.json")
+async def report_openapi():
+    return await proxy_service_openapi("report")
+
+@app.get("/pr-card/openapi.json")
+async def pr_card_openapi():
+    return await proxy_service_openapi("pr-card")
+
+@app.get("/mcgm/openapi.json")
+async def mcgm_openapi():
+    return await proxy_service_openapi("mcgm")
+
+@app.get("/dp-remarks/openapi.json")
+async def dp_remarks_openapi():
+    return await proxy_service_openapi("dp-remarks")
+
+@app.get("/rag/openapi.json")
+async def rag_openapi():
+    return await proxy_service_openapi("rag")
+
+
+# ─── Catch-all Proxy Routes for Interactive Swagger "Try It Out" ───────────────
+
+@app.api_route("/site-analysis/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_site_analysis(path: str, request: Request):
+    return await proxy_service(path, "site-analysis", settings.SITE_ANALYSIS_URL, request)
+
+@app.api_route("/height/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_height(path: str, request: Request):
+    return await proxy_service(path, "height", settings.HEIGHT_URL, request)
+
+@app.api_route("/ready-reckoner/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_ready_reckoner(path: str, request: Request):
+    return await proxy_service(path, "ready-reckoner", settings.READY_RECKONER_URL, request)
+
+@app.api_route("/report/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_report(path: str, request: Request):
+    return await proxy_service(path, "report", settings.REPORT_URL, request)
+
+@app.api_route("/pr-card/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_pr_card(path: str, request: Request):
+    return await proxy_service(path, "pr-card", settings.PR_CARD_URL, request)
+
+@app.api_route("/mcgm/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_mcgm(path: str, request: Request):
+    return await proxy_service(path, "mcgm", settings.MCGM_PROPERTY_URL, request)
+
+@app.api_route("/dp-remarks/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_dp_remarks(path: str, request: Request):
+    return await proxy_service(path, "dp-remarks", settings.DP_REPORT_URL, request)
+
+@app.api_route("/rag/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_rag(path: str, request: Request):
+    return await proxy_service(path, "rag", settings.RAG_URL, request)
+
+
+async def proxy_service(path: str, service: str, target_base: str, request: Request):
+    """Proxy actual API calls to downstream services."""
+    import httpx
+    from fastapi import HTTPException
+    from starlette.responses import StreamingResponse
+
+    target_url = f"{target_base}/{path}"
+    
+    # Get request body for POST/PUT/PATCH
+    body = await request.body()
+    
+    # Forward headers (excluding host)
+    headers = dict(request.headers)
+    headers.pop("host", None)
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            proxied = await client.request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                content=body,
+                params=request.query_params,
+            )
+            
+            # Return streaming response to preserve content type
+            return StreamingResponse(
+                content=proxied.aiter_bytes(),
+                status_code=proxied.status_code,
+                headers=dict(proxied.headers),
+                media_type=proxied.headers.get("content-type"),
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"{service} returned error")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Cannot reach {service}: {str(e)}")
+
 
 @app.get("/api-docs/{service}/openapi.json")
 async def proxy_service_openapi(service: str):

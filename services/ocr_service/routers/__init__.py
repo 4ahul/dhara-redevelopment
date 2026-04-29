@@ -189,6 +189,55 @@ CA_PATTERNS = [
     re.compile(r"\bCA\s*/\s*[A-Z0-9]+\s*/\s*[A-Z0-9]+\b", re.I),
 ]
 
+# Identifying phrases drawn from real CA / LS certificates.
+# Used to flag mismatched certificate-type uploads.
+_CA_KEYWORDS = (
+    "council of architecture",
+    "register of architects",
+    "architects act",
+    "registrar-secretary",
+    "certificate of registration",
+)
+_LS_KEYWORDS = (
+    "brihanmumbai municipal",
+    "licenced surveyor",
+    "licensed surveyor",
+    "license surveyor",
+    "city engineer",
+    "mcgm",
+    "mmc act",
+)
+# Strong "is this a CA reg-number" signal: literal "CA/" or "CA-" prefix.
+_CA_PREFIX_RE = re.compile(r"\bCA\s*[/\-]\s*\d", re.I)
+# Strong "is this an LS reg-number" signal: "/LS" suffix.
+_LS_SUFFIX_RE = re.compile(r"/\s*LS\b", re.I)
+
+_TYPE_LABEL = {
+    "CA": "Chartered Accountant / Architect (Council of Architecture)",
+    "LS": "Licensed Surveyor (MCGM)",
+}
+
+
+def detect_certificate_type(text: str) -> str | None:
+    """Return 'CA', 'LS', or None based on keywords + reg-number shape."""
+    if not text:
+        return None
+    lower = text.lower()
+    ca_score = sum(1 for kw in _CA_KEYWORDS if kw in lower)
+    ls_score = sum(1 for kw in _LS_KEYWORDS if kw in lower)
+    # Reg-number shape carries more weight than a single keyword hit.
+    if _CA_PREFIX_RE.search(text):
+        ca_score += 3
+    if _LS_SUFFIX_RE.search(text):
+        ls_score += 3
+    if ca_score == 0 and ls_score == 0:
+        return None
+    if ca_score > ls_score:
+        return "CA"
+    if ls_score > ca_score:
+        return "LS"
+    return None  # tie — can't tell with confidence
+
 
 def _find_first_match(text: str, patterns: list[re.Pattern[str]]) -> str | None:
     for pat in patterns:
@@ -251,6 +300,20 @@ async def extract_ls_registration(
         return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
     reg = _find_first_match(text, LS_PATTERNS)
     if not reg:
+        detected = detect_certificate_type(text)
+        if detected and detected != "LS":
+            return {
+                "ok": False,
+                "reason": "wrong_certificate_type",
+                "message": (
+                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
+                    f"but you selected {_TYPE_LABEL['LS']}. "
+                    f"Switch the certificate type to {detected} and try again."
+                ),
+                "detectedType": detected,
+                "selectedType": "LS",
+                "sampleText": text[:240],
+            }
         return {
             "ok": False,
             "reason": "pattern_not_found",
@@ -271,6 +334,20 @@ async def extract_architect_registration(
         return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
     reg = _find_first_match(text, CA_PATTERNS)
     if not reg:
+        detected = detect_certificate_type(text)
+        if detected and detected != "CA":
+            return {
+                "ok": False,
+                "reason": "wrong_certificate_type",
+                "message": (
+                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
+                    f"but you selected {_TYPE_LABEL['CA']}. "
+                    f"Switch the certificate type to {detected} and try again."
+                ),
+                "detectedType": detected,
+                "selectedType": "CA",
+                "sampleText": text[:240],
+            }
         return {
             "ok": False,
             "reason": "pattern_not_found",
@@ -290,10 +367,27 @@ async def extract_registration_number_generic(
     text, used_ocr, _, _ = await _extract_text_for_registration(file, strategy, lang)
     if not text:
         return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
-    pats = CA_PATTERNS if (certificate_type or "").upper() == "CA" else LS_PATTERNS
+    ct = (certificate_type or "").upper()
+    pats = CA_PATTERNS if ct == "CA" else LS_PATTERNS
     reg = _find_first_match(text, pats)
     if not reg:
-        ct = (certificate_type or "").upper()
+        # Maybe the user picked the wrong certificate type. If the document
+        # clearly belongs to the *other* register, surface that instead of
+        # the generic pattern_not_found message.
+        detected = detect_certificate_type(text)
+        if detected and detected != ct:
+            return {
+                "ok": False,
+                "reason": "wrong_certificate_type",
+                "message": (
+                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
+                    f"but you selected {_TYPE_LABEL[ct]}. "
+                    f"Switch the certificate type to {detected} and try again."
+                ),
+                "detectedType": detected,
+                "selectedType": ct,
+                "sampleText": text[:240],
+            }
         return {
             "ok": False,
             "reason": "pattern_not_found",

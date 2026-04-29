@@ -31,6 +31,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
@@ -49,7 +50,7 @@ RUN chmod +x /app/entrypoint.sh
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 10000
+EXPOSE 8003
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uvicorn", "services.ready_reckoner.main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["uvicorn", "services.ready_reckoner.main:app", "--host", "0.0.0.0", "--port", "8003"]
