@@ -113,38 +113,45 @@ async def custom_swagger_ui_html():
     
     html = f"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" >
-    <title>{app.title} - Unified Docs</title>
-    <style>
-      html {{ box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }}
-      *, *:before, *:after {{ box-sizing: inherit; }}
-      body {{ margin:0; background: #fafafa; }}
-    </style>
+      <meta charset="UTF-8">
+      <title>{app.title}</title>
+      <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" >
+      <link rel="icon" type="image/png" href="https://fastapi.tiangolo.com/img/favicon.png">
+      <style>
+        html {{ box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }}
+        *, *:before, *:after {{ box-sizing: inherit; }}
+        body {{ margin:0; background: #fafafa; }}
+        .swagger-ui .topbar {{ background-color: #1b1b1b; padding: 10px 0; }}
+        .swagger-ui .topbar-wrapper {{ max-width: 1460px; margin: 0 auto; padding: 0 20px; }}
+        .swagger-ui .topbar .link {{ display: none; }}
+      </style>
     </head>
     <body>
-    <div id="swagger-ui"></div>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"> </script>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"> </script>
-    <script>
-    window.onload = function() {{
-      const ui = SwaggerUIBundle({{
-        urls: {json.dumps(urls)},
-        dom_id: '#swagger-ui',
-        deepLinking: true,
-        presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIStandalonePreset
-        ],
-        plugins: [
-          SwaggerUIBundle.plugins.DownloadUrl
-        ],
-        layout: "StandaloneLayout"
-      }})
-      window.ui = ui
-    }}
-    </script>
+      <div id="swagger-ui"></div>
+      <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"> </script>
+      <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"> </script>
+      <script>
+        window.onload = function() {{
+          window.ui = SwaggerUIBundle({{
+            urls: {json.dumps(urls)},
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIStandalonePreset
+            ],
+            plugins: [
+              SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout",
+            persistAuthorization: true,
+            displayRequestDuration: true,
+            filter: true
+          }})
+        }}
+      </script>
     </body>
     </html>
     """
@@ -260,6 +267,99 @@ async def health():
                 health_status["status"] = "degraded"
 
     return health_status
+
+
+# ─── Service Proxy for OpenAPI Endpoints ──────────────────────────────────────
+
+SERVICE_MAP = {
+    "site-analysis": settings.SITE_ANALYSIS_URL,
+    "height": settings.HEIGHT_URL,
+    "ready-reckoner": settings.READY_RECKONER_URL,
+    "report": settings.REPORT_URL,
+    "pr-card": settings.PR_CARD_URL,
+    "mcgm": settings.MCGM_PROPERTY_URL,
+    "dp-remarks": settings.DP_REPORT_URL,
+    "rag": settings.RAG_URL,
+    "ocr": settings.OCR_URL,
+}
+
+@app.get("/api-docs/{service}/openapi.json")
+async def proxy_service_openapi(service: str, request: Request):
+    """Proxy OpenAPI specs from downstream services and rewrite servers for gateway routing."""
+    import httpx
+    from fastapi import HTTPException
+
+    target_base = SERVICE_MAP.get(service)
+    if not target_base:
+        raise HTTPException(status_code=404, detail=f"Unknown service: {service}")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            response = await client.get(f"{target_base}/openapi.json")
+            response.raise_for_status()
+            spec = response.json()
+            
+            # Rewrite "servers" so Swagger UI calls go through the gateway
+            spec["servers"] = [{"url": f"/{service}", "description": f"Proxied {service}"}]
+            
+            return spec
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Service unavailable: {service}")
+
+
+# ─── Catch-all Proxy Routes for Interactive Swagger "Try It Out" ───────────────
+
+@app.api_route("/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def catch_all_proxy(service: str, path: str, request: Request):
+    """Generic catch-all proxy that routes /{service}/* to the correct microservice."""
+    from fastapi import HTTPException
+    
+    target_base = SERVICE_MAP.get(service)
+    if not target_base:
+        # If it's not a proxied service, FastAPI will fall back to other routes
+        # Raise 404 only if it's clearly intended for a microservice but not found
+        raise HTTPException(status_code=404, detail=f"Service {service} not found")
+        
+    return await proxy_service(path, service, target_base, request)
+
+
+async def proxy_service(path: str, service: str, target_base: str, request: Request):
+    """Proxy actual API calls to downstream services."""
+    import httpx
+    from fastapi import HTTPException
+    from starlette.responses import StreamingResponse
+
+    target_url = f"{target_base}/{path}"
+    
+    # Get request body for POST/PUT/PATCH
+    body = await request.body()
+    
+    # Forward headers (excluding host)
+    headers = dict(request.headers)
+    headers.pop("host", None)
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            proxied = await client.request(
+                method=request.method,
+                url=target_url,
+                headers=headers,
+                content=body,
+                params=request.query_params,
+            )
+            
+            return StreamingResponse(
+                content=proxied.aiter_bytes(),
+                status_code=proxied.status_code,
+                headers=dict(proxied.headers),
+                media_type=proxied.headers.get("content-type"),
+            )
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"{service} returned error")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Cannot reach {service}: {str(e)}")
 
 
 if __name__ == "__main__":

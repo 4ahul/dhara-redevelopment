@@ -7,7 +7,8 @@ Refactored to use CRUD layer for user retrieval.
 import logging
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.orchestrator.core.security import decode_token
@@ -15,6 +16,8 @@ from services.orchestrator.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
+# Standard security scheme for Swagger UI integration
+security = HTTPBearer()
 
 # ─── DB Session ─────────────────────────────────────────────────────────────
 
@@ -33,29 +36,16 @@ async def get_db() -> AsyncSession:
         finally:
             await session.close()
 
-
 # ─── Current User ───────────────────────────────────────────────────────────
 
 
 async def get_current_user(
-    authorization: str = Header(None),
+    auth: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
     """Extract and validate user from JWT. Returns the full User ORM object.
-
-    Supports two token types:
-    - HS256 (admin service accounts) — sub is a UUID string
-    - RS256 Clerk tokens           — sub is a Clerk user ID (e.g. "user_abc123")
-
-    For Clerk tokens: if the user has no DB record yet, they are auto-provisioned
-    on first request via the Clerk REST API.
     """
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401, detail="Authorization header required (Bearer <token>)"
-        )
-
-    token = authorization.removeprefix("Bearer ").strip()
+    token = auth.credentials
     payload = decode_token(token)
     user_id = payload.get("sub")
     if not user_id:
@@ -81,11 +71,9 @@ async def get_current_user(
     return user
 
 
-async def get_current_user_id(authorization: str = Header(None)) -> str:
+async def get_current_user_id(auth: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """Lightweight dependency — returns just the user ID string from JWT."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header required")
-    payload = decode_token(authorization.removeprefix("Bearer ").strip())
+    payload = decode_token(auth.credentials)
     return payload.get("sub", "")
 
 
@@ -96,10 +84,10 @@ def require_role(*allowed_roles: str):
     """Factory: returns a dependency that enforces role membership."""
 
     async def _guard(
-        authorization: str = Header(None),
+        auth: HTTPAuthorizationCredentials = Depends(security),
         db: AsyncSession = Depends(get_db),
     ):
-        user = await get_current_user(authorization, db)
+        user = await get_current_user(auth, db)
         if user.role.value not in allowed_roles:
             raise HTTPException(
                 status_code=403,
