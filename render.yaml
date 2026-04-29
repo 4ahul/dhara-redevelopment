@@ -10,6 +10,7 @@ services:
     name: orchestrator
     env: docker
     dockerfilePath: services/orchestrator/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8000
@@ -105,6 +106,7 @@ services:
     name: site-analysis
     env: docker
     dockerfilePath: services/site_analysis/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8001
@@ -117,6 +119,7 @@ services:
     name: aviation-height
     env: docker
     dockerfilePath: services/aviation_height/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8002
@@ -129,6 +132,7 @@ services:
     name: ready-reckoner
     env: docker
     dockerfilePath: services/ready_reckoner/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8003
@@ -137,6 +141,7 @@ services:
     name: report-generator
     env: docker
     dockerfilePath: services/report_generator/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8004
@@ -145,6 +150,7 @@ services:
     name: pr-card-scraper
     env: docker
     dockerfilePath: services/pr_card_scraper/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8005
@@ -165,6 +171,7 @@ services:
     name: mcgm-property-lookup
     env: docker
     dockerfilePath: services/mcgm_property_lookup/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8007
@@ -179,6 +186,7 @@ services:
     name: dp-remarks-report
     env: docker
     dockerfilePath: services/dp_remarks_report/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8008
@@ -203,6 +211,7 @@ services:
     name: ocr-service
     env: docker
     dockerfilePath: services/ocr_service/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8009
@@ -211,6 +220,7 @@ services:
     name: rag-service
     env: docker
     dockerfilePath: services/rag_service/Dockerfile
+    healthCheckPath: /health
     envVars:
       - key: PORT
         value: 8006
