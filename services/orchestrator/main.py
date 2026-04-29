@@ -92,29 +92,63 @@ app = FastAPI(
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title=app.title + " - Swagger UI",
-        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
-        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
-        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
-        swagger_ui_parameters={
-            "urls": [
-                {"url": "/openapi.json", "name": "Orchestrator (Master)"},
-                {"url": "/api-docs/site-analysis/openapi.json", "name": "Site Analysis"},
-                {"url": "/api-docs/height/openapi.json", "name": "Aviation Height"},
-                {"url": "/api-docs/ready-reckoner/openapi.json", "name": "Ready Reckoner"},
-                {"url": "/api-docs/report/openapi.json", "name": "Report Generator"},
-                {"url": "/api-docs/pr-card/openapi.json", "name": "PR Card Scraper"},
-                {"url": "/api-docs/rag/openapi.json", "name": "RAG Service"},
-                {"url": "/api-docs/mcgm/openapi.json", "name": "MCGM Lookup"},
-                {"url": "/api-docs/dp-remarks/openapi.json", "name": "DP Remarks"},
-                {"url": "/api-docs/ocr/openapi.json", "name": "OCR Service"},
-            ],
-            "layout": "StandaloneLayout",
-            "deepLinking": True,
-        },
-    )
+    """
+    Custom Swagger UI that supports multiple OpenAPI specs via a dropdown.
+    Requires StandaloneLayout and StandalonePreset.
+    """
+    import json
+    
+    urls = [
+        {"url": "/openapi.json", "name": "Orchestrator (Master)"},
+        {"url": "/api-docs/site-analysis/openapi.json", "name": "Site Analysis"},
+        {"url": "/api-docs/height/openapi.json", "name": "Aviation Height"},
+        {"url": "/api-docs/ready-reckoner/openapi.json", "name": "Ready Reckoner"},
+        {"url": "/api-docs/report/openapi.json", "name": "Report Generator"},
+        {"url": "/api-docs/pr-card/openapi.json", "name": "PR Card Scraper"},
+        {"url": "/api-docs/rag/openapi.json", "name": "RAG Service"},
+        {"url": "/api-docs/mcgm/openapi.json", "name": "MCGM Lookup"},
+        {"url": "/api-docs/dp-remarks/openapi.json", "name": "DP Remarks"},
+        {"url": "/api-docs/ocr/openapi.json", "name": "OCR Service"},
+    ]
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" >
+    <title>{app.title} - Unified Docs</title>
+    <style>
+      html {{ box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }}
+      *, *:before, *:after {{ box-sizing: inherit; }}
+      body {{ margin:0; background: #fafafa; }}
+    </style>
+    </head>
+    <body>
+    <div id="swagger-ui"></div>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"> </script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"> </script>
+    <script>
+    window.onload = function() {{
+      const ui = SwaggerUIBundle({{
+        urls: {json.dumps(urls)},
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout"
+      }})
+      window.ui = ui
+    }}
+    </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
 
 @app.get("/")
 async def root():
