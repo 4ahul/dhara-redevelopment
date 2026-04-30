@@ -14,7 +14,7 @@ import logging
 from services.orchestrator.core.dependencies import get_auth_service, get_current_user
 from fastapi import APIRouter, Depends, Header
 from services.orchestrator.models import UserRole
-from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
+from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest, UserMetadata
 
 from services.orchestrator.logic.auth_service import AuthService
 
@@ -51,6 +51,12 @@ async def me(user=Depends(get_current_user)):
         organization=user.organization,
         avatar_url=user.avatar_url,
         phone=user.phone,
+        user_metadata=UserMetadata(
+            full_name=user.name,
+            user_type=user.role.value,
+            company_name=user.organization,
+            country=getattr(user, 'country', None),
+        ),
     )
 
 

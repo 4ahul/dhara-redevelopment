@@ -27,9 +27,12 @@ class InviteStatus(enum.StrEnum):
 
 
 class ReportStatus(enum.StrEnum):
+    DRAFT = "draft"
     PENDING = "pending"
+    IN_PROGRESS = "in_progress"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    FINAL = "final"
     FAILED = "failed"
 
 

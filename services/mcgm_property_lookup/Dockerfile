@@ -17,7 +17,7 @@ RUN uv pip install --system /build/dhara_shared
 
 # Install service dependencies
 COPY services/mcgm_property_lookup/pyproject.toml /build/services/mcgm_property_lookup/
-RUN uv pip install --system -r /build/services/mcgm_property_lookup/pyproject.toml
+RUN uv pip install --system --no-sources -r /build/services/mcgm_property_lookup/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

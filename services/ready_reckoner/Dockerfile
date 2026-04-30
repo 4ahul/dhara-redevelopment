@@ -17,7 +17,7 @@ RUN uv pip install --system /build/dhara_shared
 
 # Install service dependencies
 COPY services/ready_reckoner/pyproject.toml /build/services/ready_reckoner/
-RUN uv pip install --system -r /build/services/ready_reckoner/pyproject.toml
+RUN uv pip install --system --no-sources -r /build/services/ready_reckoner/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

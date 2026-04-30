@@ -17,7 +17,7 @@ RUN uv pip install --system /build/dhara_shared
 
 # Install service dependencies
 COPY services/aviation_height/pyproject.toml /build/services/aviation_height/
-RUN uv pip install --system -r /build/services/aviation_height/pyproject.toml
+RUN uv pip install --system --no-sources -r /build/services/aviation_height/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

@@ -210,50 +210,68 @@ class ReportResponse(BaseModel):
 
 
 class TenderCreate(BaseModel):
+    """Create tender -- accepts FE camelCase via aliases."""
     title: str = Field(min_length=2, max_length=500)
     description: str | None = Field(default=None, max_length=5000)
-    requirements: str | None = Field(default=None, max_length=5000)
-    budget_min: float | None = Field(default=None, ge=0)
-    budget_max: float | None = Field(default=None, ge=0)
+    requirements: str | None = Field(default=None, max_length=5000, alias='scope')
+    budget_min: float | None = Field(default=None, ge=0, alias='budgetMin')
+    budget_max: float | None = Field(default=None, ge=0, alias='budgetMax')
+    estimated_value: str | None = Field(default=None, alias='estimatedValue')
     deadline: datetime | None = None
+
+    model_config = {'populate_by_name': True}
 
 
 class TenderResponse(BaseModel):
+    """Tender response -- serialized as camelCase for FE."""
     id: UUID
-    society_id: UUID
+    society_id: UUID = Field(serialization_alias='societyId')
     title: str
     description: str | None = None
-    requirements: str | None = None
-    budget_min: float | None = None
-    budget_max: float | None = None
+    requirements: str | None = Field(default=None, serialization_alias='scope')
+    budget_min: float | None = Field(default=None, serialization_alias='budgetMin')
+    budget_max: float | None = Field(default=None, serialization_alias='budgetMax')
+    estimated_value: str | None = Field(default=None, serialization_alias='estimatedValue')
     deadline: datetime | None = None
     status: str
-    awarded_to: UUID | None = None
-    created_at: datetime
-    updated_at: datetime
+    awarded_to: UUID | None = Field(default=None, serialization_alias='awardedTo')
+    responses_count: int = Field(default=0, serialization_alias='responsesCount')
+    created_at: datetime = Field(serialization_alias='createdAt')
+    updated_at: datetime = Field(serialization_alias='updatedAt')
 
-    model_config = {'from_attributes': True}
+    model_config = {'from_attributes': True, 'populate_by_name': True}
 
 
 # --- Feasibility Reports ----------------------------------------------------
 
 
 class FeasibilityReportCreate(BaseModel):
-    society_id: UUID
+    """Create feasibility report -- accepts FE camelCase via aliases."""
+    society_id: UUID = Field(alias='societyId')
     title: str | None = Field(default='Feasibility Report', max_length=500)
-    cts_no: str | None = Field(default=None, max_length=100)
-    fp_no: str | None = Field(default=None, max_length=100)
-    num_flats: int | None = Field(default=None, ge=0)
-    num_commercial: int | None = Field(default=None, ge=0)
-    basement_required: bool | None = None
-    corpus_commercial: float | None = Field(default=None, ge=0)
-    corpus_residential: float | None = Field(default=None, ge=0)
-    sale_commercial_bua_sqft: float | None = Field(default=None, ge=0)
-    const_rate_commercial: float | None = Field(default=None, ge=0)
-    const_rate_residential: float | None = Field(default=None, ge=0)
-    const_rate_podium: float | None = Field(default=None, ge=0)
-    const_rate_basement: float | None = Field(default=None, ge=0)
-    cost_79a_acquisition: float | None = Field(default=None, ge=0)
+    # Land identification
+    skipped: bool | None = Field(default=None, description='Skip land data entry')
+    land_identifier_type: str | None = Field(default=None, alias='landIdentifierType')
+    land_identifier_value: str | None = Field(default=None, alias='landIdentifierValue')
+    cts_no: str | None = Field(default=None, max_length=100, alias='ctsNo')
+    fp_no: str | None = Field(default=None, max_length=100, alias='fpNo')
+    # Tenement info
+    tenement_mode: str | None = Field(default=None, alias='tenementMode')
+    num_flats: int | None = Field(default=None, ge=0, alias='numberOfTenements')
+    num_commercial: int | None = Field(default=None, ge=0, alias='numberOfCommercialShops')
+    # Financial inputs
+    basement_required: str | None = Field(default=None, alias='basementRequired')
+    corpus_commercial: float | None = Field(default=None, ge=0, alias='corpusCommercial')
+    corpus_residential: float | None = Field(default=None, ge=0, alias='corpusResidential')
+    bank_guarantee_commercial: float | None = Field(default=None, ge=0, alias='bankGuaranteeCommercial')
+    bank_guarantee_residential: float | None = Field(default=None, ge=0, alias='bankGuaranteeResidential')
+    sale_commercial_bua_sqft: float | None = Field(default=None, ge=0, alias='saleCommercialMunBuaSqFt')
+    const_rate_commercial: float | None = Field(default=None, ge=0, alias='commercialAreaCostPerSqFt')
+    const_rate_residential: float | None = Field(default=None, ge=0, alias='residentialAreaCostPerSqFt')
+    const_rate_podium: float | None = Field(default=None, ge=0, alias='podiumParkingCostPerSqFt')
+    const_rate_basement: float | None = Field(default=None, ge=0, alias='basementCostPerSqFt')
+    cost_79a_acquisition: float | None = Field(default=None, ge=0, alias='costAcquisition79a')
+    # Commercial floor breakdowns (FE sends nested saleAreaBreakup, we accept flat)
     commercial_gf_area: float | None = Field(default=None, ge=0)
     sale_rate_commercial_gf: float | None = Field(default=None, ge=0)
     commercial_1f_area: float | None = Field(default=None, ge=0)
@@ -262,29 +280,63 @@ class FeasibilityReportCreate(BaseModel):
     sale_rate_commercial_2f: float | None = Field(default=None, ge=0)
     commercial_other_area: float | None = Field(default=None, ge=0)
     sale_rate_commercial_other: float | None = Field(default=None, ge=0)
-    sale_rate_residential: float | None = Field(default=None, ge=0)
-    parking_price_per_unit: float | None = Field(default=None, ge=0)
+    sale_rate_residential: float | None = Field(default=None, ge=0, alias='salableResidentialRatePerSqFt')
+    parking_price_per_unit: float | None = Field(default=None, ge=0, alias='carsToSellRatePerCar')
+    # Nested sale area breakup (FE format) -- flattened in service layer
+    sale_area_breakup: dict | None = Field(default=None, alias='saleAreaBreakup')
+
+    model_config = {'populate_by_name': True}
+
+    @field_validator('basement_required', mode='before')
+    @classmethod
+    def _coerce_basement(cls, v: Any) -> Any:
+        """FE sends 'yes'/'no' string; coerce to keep as string for now."""
+        if isinstance(v, bool):
+            return 'yes' if v else 'no'
+        return v
 
 
 class FeasibilityReportUpdate(BaseModel):
+    """Partial update -- accepts FE camelCase."""
     title: str | None = Field(default=None, max_length=500)
     status: str | None = None
-    llm_analysis: str | None = None
+    llm_analysis: str | None = Field(default=None, alias='aiSummary')
+    feasibility: str | None = None
+    fsi: float | None = None
+    estimated_value: str | None = Field(default=None, alias='estimatedValue')
+    plot_area: float | None = Field(default=None, alias='plotArea')
+    existing_units: int | None = Field(default=None, alias='existingUnits')
+    proposed_units: int | None = Field(default=None, alias='proposedUnits')
+    structural_grade: str | None = Field(default=None, alias='structuralGrade')
+    completion_days: int | None = Field(default=None, alias='completionDays')
+
+    model_config = {'populate_by_name': True}
 
 
 class FeasibilityReportResponse(BaseModel):
+    """Report response -- serialized as camelCase for FE."""
     id: UUID
-    society_id: UUID
-    user_id: UUID
+    society_id: UUID = Field(serialization_alias='societyId')
+    user_id: UUID = Field(serialization_alias='userId')
     title: str
-    report_path: str | None = None
-    file_url: str | None = None
+    report_path: str | None = Field(default=None, serialization_alias='reportPath')
+    file_url: str | None = Field(default=None, serialization_alias='fileUrl')
     status: str
-    input_data: dict | None = None
-    output_data: dict | None = None
-    llm_analysis: str | None = None
-    error_message: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    feasibility: str | None = Field(default='pending')
+    fsi: float | None = None
+    estimated_value: str | None = Field(default=None, serialization_alias='estimatedValue')
+    plot_area: float | None = Field(default=None, serialization_alias='plotArea')
+    existing_units: int | None = Field(default=None, serialization_alias='existingUnits')
+    proposed_units: int | None = Field(default=None, serialization_alias='proposedUnits')
+    structural_grade: str | None = Field(default=None, serialization_alias='structuralGrade')
+    completion_days: int | None = Field(default=None, serialization_alias='completionDays')
+    llm_analysis: str | None = Field(default=None, serialization_alias='aiSummary')
+    input_data: dict | None = Field(default=None, serialization_alias='inputData')
+    output_data: dict | None = Field(default=None, serialization_alias='outputData')
+    error_message: str | None = Field(default=None, serialization_alias='errorMessage')
+    # Computed: populated in router from ORM relationship
+    society: str | None = Field(default=None, description='Society name')
+    created_at: datetime = Field(serialization_alias='createdAt')
+    updated_at: datetime = Field(serialization_alias='updatedAt')
 
-    model_config = {'from_attributes': True}
+    model_config = {'from_attributes': True, 'populate_by_name': True}

@@ -136,6 +136,14 @@ async def create_report(
     return ReportResponse.model_validate(rpt)
 
 
+def _tender_to_response(tender) -> dict:
+    """Build camelCase tender response, injecting responses_count placeholder."""
+    data = TenderResponse.model_validate(tender)
+    # TODO: once tender_proposals table exists, compute actual count here
+    data.responses_count = 0
+    return data.model_dump(by_alias=True)
+
+
 @router.get("/{society_id}/tenders", response_model=PaginatedResponse)
 async def list_tenders(
     society_id: UUID,
@@ -148,7 +156,7 @@ async def list_tenders(
     if result is None:
         raise HTTPException(404, "Society not found")
     return PaginatedResponse(
-        items=[TenderResponse.model_validate(r).model_dump() for r in result["items"]],
+        items=[_tender_to_response(r) for r in result["items"]],
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
@@ -156,7 +164,7 @@ async def list_tenders(
     )
 
 
-@router.post("/{society_id}/tenders", response_model=TenderResponse, status_code=201)
+@router.post("/{society_id}/tenders", status_code=201)
 async def create_tender(
     society_id: UUID,
     req: TenderCreate,
@@ -166,4 +174,4 @@ async def create_tender(
     t = await service.create_tender(user.id, society_id, req)
     if not t:
         raise HTTPException(404, "Society not found")
-    return TenderResponse.model_validate(t)
+    return _tender_to_response(t)

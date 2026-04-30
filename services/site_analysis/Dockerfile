@@ -17,7 +17,7 @@ RUN uv pip install --system /build/dhara_shared
 
 # Install service dependencies
 COPY services/site_analysis/pyproject.toml /build/services/site_analysis/
-RUN uv pip install --system -r /build/services/site_analysis/pyproject.toml
+RUN uv pip install --system --no-sources -r /build/services/site_analysis/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

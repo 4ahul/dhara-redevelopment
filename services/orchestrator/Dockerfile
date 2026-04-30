@@ -17,7 +17,7 @@ RUN uv pip install --system /build/dhara_shared
 
 # Install orchestrator dependencies
 COPY services/orchestrator/pyproject.toml /build/services/orchestrator/
-RUN uv pip install --system -r /build/services/orchestrator/pyproject.toml
+RUN uv pip install --system --no-sources -r /build/services/orchestrator/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
