@@ -1,4 +1,8 @@
-"""Society Routes — Clean refactored version using Service Layer"""
+"""Society Routes -- Clean refactored version using Service Layer
+
+FE-aligned: responses use camelCase aliases (by_alias=True),
+computed reports/tenders counts are injected.
+"""
 
 import logging
 from uuid import UUID
@@ -28,10 +32,26 @@ def get_society_service(db: AsyncSession = Depends(get_db)) -> SocietyService:
     return SocietyService(db)
 
 
+def _society_to_response(soc) -> dict:
+    """Build a SocietyResponse dict from an ORM Society, injecting computed counts."""
+    data = SocietyResponse.model_validate(soc)
+    data.reports = len(soc.reports) if soc.reports else 0
+    data.tenders = len(soc.tenders) if soc.tenders else 0
+    return data.model_dump(by_alias=True)
+
+
+def _society_to_list_item(soc) -> dict:
+    """Build a SocietyListItem dict from an ORM Society, injecting computed counts."""
+    data = SocietyListItem.model_validate(soc)
+    data.reports = len(soc.reports) if soc.reports else 0
+    data.tenders = len(soc.tenders) if soc.tenders else 0
+    return data.model_dump(by_alias=True)
+
+
 @router.get("", response_model=PaginatedResponse)
 async def list_societies(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias='pageSize'),
     status: str = Query(None),
     ward: str = Query(None),
     search: str = Query(None, max_length=200),
@@ -40,7 +60,7 @@ async def list_societies(
 ):
     result = await service.list_societies(user.id, page, page_size, status, ward, search)
     return PaginatedResponse(
-        items=[SocietyListItem.model_validate(r).model_dump() for r in result["items"]],
+        items=[_society_to_list_item(r) for r in result["items"]],
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
@@ -48,17 +68,17 @@ async def list_societies(
     )
 
 
-@router.post("", response_model=SocietyResponse, status_code=201)
+@router.post("", status_code=201)
 async def create_society(
     req: SocietyCreate,
     user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service)
 ):
     soc = await service.create_society(user.id, req)
-    return SocietyResponse.model_validate(soc)
+    return _society_to_response(soc)
 
 
-@router.get("/{society_id}", response_model=SocietyResponse)
+@router.get("/{society_id}")
 async def get_society(
     society_id: UUID,
     user=Depends(get_current_user),
@@ -67,10 +87,10 @@ async def get_society(
     soc = await service.get_society(user.id, society_id)
     if not soc:
         raise HTTPException(404, "Society not found")
-    return SocietyResponse.model_validate(soc)
+    return _society_to_response(soc)
 
 
-@router.patch("/{society_id}", response_model=SocietyResponse)
+@router.patch("/{society_id}")
 async def patch_society(
     society_id: UUID,
     req: SocietyUpdate,
@@ -80,7 +100,7 @@ async def patch_society(
     soc = await service.update_society(user.id, society_id, req)
     if not soc:
         raise HTTPException(404, "Society not found")
-    return SocietyResponse.model_validate(soc)
+    return _society_to_response(soc)
 
 
 @router.get("/{society_id}/reports", response_model=PaginatedResponse)
@@ -147,7 +167,3 @@ async def create_tender(
     if not t:
         raise HTTPException(404, "Society not found")
     return TenderResponse.model_validate(t)
-
-
-
-

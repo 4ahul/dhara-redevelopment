@@ -33,11 +33,19 @@ class ReportStatus(enum.StrEnum):
     FAILED = "failed"
 
 
+class SocietyStatus(enum.StrEnum):
+    NEW = "new"
+    INVITATION_SENT = "invitation_sent"
+    REPORT_PENDING = "report_pending"
+    TENDER_PENDING = "tender_pending"
+    TENDER_PUBLISHED = "tender_published"
+    TENDER_REVIEW_PENDING = "tender_review_pending"
+    BUILDER_FINALIZED = "builder_finalized"
+    MANUAL_PROCESS = "manual_process"
+
+
 class TenderStatus(enum.StrEnum):
     DRAFT = "draft"
     OPEN = "open"
     CLOSED = "closed"
     AWARDED = "awarded"
-
-
-

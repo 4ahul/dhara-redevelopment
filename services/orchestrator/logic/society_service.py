@@ -202,7 +202,19 @@ class SocietyService:
             if raw_age and raw_age.isdigit():
                 data.setdefault("society_age", int(raw_age))
 
-        # ── Step 3: Persist ───────────────────────────────────────────────────
+        # ── Step 3: Map FE-specific fields to DB columns ────────────────────
+        # initial_status → status
+        if "initial_status" in data:
+            data["status"] = data.pop("initial_status")
+
+        # point_of_contact array → flat poc fields (use first contact)
+        poc_list = data.pop("point_of_contact", None)
+        if poc_list and isinstance(poc_list, list) and len(poc_list) > 0:
+            first = poc_list[0]
+            data.setdefault("poc_name",  first.get("contactPerson"))
+            data.setdefault("poc_email", first.get("contactMail"))
+            data.setdefault("poc_phone", first.get("contactPhone"))
+
         data["cts_validated"] = None
 
         soc = await society_repository.create_society(self.db, user_id, data)
