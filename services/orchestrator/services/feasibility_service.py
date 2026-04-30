@@ -61,6 +61,31 @@ class FeasibilityService:
         if not soc:
             return None
 
+        # ── Flatten FE saleAreaBreakup nested object into flat fields ────────
+        breakup = getattr(req, "sale_area_breakup", None)
+        if breakup and isinstance(breakup, dict):
+            floor_map = {
+                "groundFloor": ("commercial_gf_area", "sale_rate_commercial_gf"),
+                "firstFloor":  ("commercial_1f_area", "sale_rate_commercial_1f"),
+                "secondFloor": ("commercial_2f_area", "sale_rate_commercial_2f"),
+                "otherFloors": ("commercial_other_area", "sale_rate_commercial_other"),
+            }
+            for fe_key, (area_attr, rate_attr) in floor_map.items():
+                floor = breakup.get(fe_key, {})
+                if floor.get("area") is not None and getattr(req, area_attr, None) is None:
+                    object.__setattr__(req, area_attr, float(floor["area"]))
+                if floor.get("rate") is not None and getattr(req, rate_attr, None) is None:
+                    object.__setattr__(req, rate_attr, float(floor["rate"]))
+
+        # ── Map FE landIdentifierType/Value to cts_no/fp_no ──────────────────
+        lid_type = getattr(req, "land_identifier_type", None)
+        lid_value = getattr(req, "land_identifier_value", None)
+        if lid_type and lid_value:
+            if lid_type.upper() == "CTS" and not getattr(req, "cts_no", None):
+                object.__setattr__(req, "cts_no", lid_value)
+            elif lid_type.upper() == "FP" and not getattr(req, "fp_no", None):
+                object.__setattr__(req, "fp_no", lid_value)
+
         # ── Resolve CTS/FP if provided in the feasibility request ────────────
         req_cts_no = getattr(req, "cts_no", None)
         req_fp_no = getattr(req, "fp_no", None)
@@ -134,6 +159,8 @@ class FeasibilityService:
                 "basement_required": getattr(req, "basement_required", None),
                 "corpus_commercial": getattr(req, "corpus_commercial", None),
                 "corpus_residential": getattr(req, "corpus_residential", None),
+                "bank_guarantee_commercial": getattr(req, "bank_guarantee_commercial", None),
+                "bank_guarantee_residential": getattr(req, "bank_guarantee_residential", None),
                 "sale_commercial_bua_sqft": getattr(req, "sale_commercial_bua_sqft", None),
                 "const_rate_commercial": getattr(req, "const_rate_commercial", None),
                 "const_rate_residential": getattr(req, "const_rate_residential", None),

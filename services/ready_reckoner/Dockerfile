@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace (root + dhara_shared)
-COPY pyproject.toml uv.lock ./
-COPY dhara_shared/ ./dhara_shared/
-COPY services/ready_reckoner/pyproject.toml ./services/ready_reckoner/
+# Copy dhara_shared and install it
+COPY dhara_shared/ /build/dhara_shared/
+RUN uv pip install --system /build/dhara_shared
 
-# uv sync → resolves workspace links, builds package, drops into site-packages
-RUN uv pip install --system -r /build/pyproject.toml || uv sync --frozen
+# Install service dependencies
+COPY services/ready_reckoner/pyproject.toml /build/services/ready_reckoner/
+RUN uv pip install --system --no-sources -r /build/services/ready_reckoner/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

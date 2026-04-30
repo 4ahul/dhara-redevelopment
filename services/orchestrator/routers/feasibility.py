@@ -39,18 +39,26 @@ def get_feasibility_service(db: AsyncSession = Depends(get_db)) -> FeasibilitySe
     return FeasibilityService(db)
 
 
+def _report_to_response(report) -> dict:
+    """Build a FeasibilityReportResponse dict, injecting society name."""
+    data = FeasibilityReportResponse.model_validate(report)
+    if hasattr(report, 'society') and report.society:
+        data.society = report.society.name
+    return data.model_dump(by_alias=True)
+
+
 @router.get("", response_model=PaginatedResponse)
 async def list_reports(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=100, alias='pageSize'),
     status: str = Query(None),
-    society_id: UUID = Query(None),
+    society_id: UUID = Query(None, alias='societyId'),
     user=Depends(get_current_user),
     service: FeasibilityService = Depends(get_feasibility_service),
 ):
     result = await service.list_reports(user.id, page, page_size, status, society_id)
     return PaginatedResponse(
-        items=[FeasibilityReportResponse.model_validate(r).model_dump() for r in result["items"]],
+        items=[_report_to_response(r) for r in result["items"]],
         total=result["total"],
         page=result["page"],
         page_size=result["page_size"],
@@ -58,7 +66,7 @@ async def list_reports(
     )
 
 
-@router.post("", response_model=FeasibilityReportResponse, status_code=201)
+@router.post("", status_code=201)
 async def create_report(
     req: FeasibilityReportCreate,
     bg: BackgroundTasks,
@@ -73,10 +81,10 @@ async def create_report(
     # Force commit here to ensure background task sees the record
     await db.commit()
 
-    return FeasibilityReportResponse.model_validate(report)
+    return _report_to_response(report)
 
 
-@router.get("/{report_id}", response_model=FeasibilityReportResponse)
+@router.get("/{report_id}")
 async def get_report(
     report_id: UUID,
     user=Depends(get_current_user),
@@ -85,10 +93,10 @@ async def get_report(
     report = await service.get_report(user.id, report_id)
     if not report:
         raise HTTPException(404, "Report not found")
-    return FeasibilityReportResponse.model_validate(report)
+    return _report_to_response(report)
 
 
-@router.patch("/{report_id}", response_model=FeasibilityReportResponse)
+@router.patch("/{report_id}")
 async def patch_report(
     report_id: UUID,
     req: FeasibilityReportUpdate,
@@ -98,7 +106,7 @@ async def patch_report(
     report = await service.update_report(user.id, report_id, req)
     if not report:
         raise HTTPException(404, "Report not found")
-    return FeasibilityReportResponse.model_validate(report)
+    return _report_to_response(report)
 
 
 # ─── New Analyze Endpoint ────────────────────────────────────────────

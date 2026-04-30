@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import InviteStatus, TenderStatus
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,6 +40,7 @@ class TeamMember(Base):
         default=InviteStatus.PENDING,
         nullable=False,
     )
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     joined_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -62,6 +65,7 @@ class SocietyTender(Base):
     requirements: Mapped[str | None] = mapped_column(Text, nullable=True)
     budget_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     budget_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    estimated_value: Mapped[str | None] = mapped_column(String(50), nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[TenderStatus] = mapped_column(
         SAEnum(TenderStatus, name="tender_status", create_constraint=True),

@@ -31,23 +31,18 @@ class TeamService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def list_members(
-        self, organization: str, page: int = 1, page_size: int = 20, status: str = None
-    ) -> PaginatedResponse:
-        """List team members within an organization with pagination."""
+    async def list_members(self, organization: str, page: int = 1, page_size: int = 20, status: str = None) -> dict:
+        """List team members within an organization with pagination.
+
+        Returns raw dict with ORM items so the router can serialize with camelCase aliases.
+        """
         if not organization:
-            return PaginatedResponse()
+            return {"items": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
 
-        items, total = await team_repository.list_team_members(
-            self.db, organization, page, page_size, status
-        )
-
-        serialized = [TeamMemberResponse.model_validate(r).model_dump() for r in items]
+        items, total = await team_repository.list_team_members(self.db, organization, page, page_size, status)
         total_pages = math.ceil(total / page_size) if total else 0
 
-        return PaginatedResponse(
-            items=serialized, total=total, page=page, page_size=page_size, total_pages=total_pages
-        )
+        return {"items": items, "total": total, "page": page, "page_size": page_size, "total_pages": total_pages}
 
     async def invite_member(
         self,
@@ -99,10 +94,8 @@ class TeamService:
             message=f"Invitation sent to {req.email}", invite_id=member.id, email=req.email
         )
 
-    async def update_member(
-        self, member_id: UUID, organization: str, req: TeamMemberUpdate
-    ) -> TeamMemberResponse:
-        """Update member details (role, name) within an organization."""
+    async def update_member(self, member_id: UUID, organization: str, req: TeamMemberUpdate):
+        """Update member details (roles, name, enabled) within an organization."""
         if not organization:
             raise HTTPException(400, "Organization not set")
 
@@ -111,12 +104,25 @@ class TeamService:
         if not member:
             raise HTTPException(404, "Team member not found")
 
-        for k, v in req.model_dump(exclude_unset=True).items():
+        update_data = req.model_dump(exclude_unset=True)
+
+        # FE sends 'roles' as array — DB stores single 'role' string (use first)
+        if 'roles' in update_data:
+            roles_list = update_data.pop('roles')
+            if roles_list and len(roles_list) > 0:
+                member.role = roles_list[0]
+
+        # FE sends 'enabled' — DB stores 'is_enabled'
+        if 'enabled' in update_data:
+            member.is_enabled = update_data.pop('enabled')
+
+        # Apply remaining fields directly
+        for k, v in update_data.items():
             setattr(member, k, v)
 
         await self.db.flush()
         await self.db.refresh(member)
-        return TeamMemberResponse.model_validate(member)
+        return member
 
     async def remove_member(self, member_id: UUID, organization: str) -> dict:
         """Remove a member from the organization."""

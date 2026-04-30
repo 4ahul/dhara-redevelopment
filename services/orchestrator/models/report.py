@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -53,6 +53,15 @@ class FeasibilityReport(Base, UUIDMixin, TimestampMixin):
     tool_log: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     llm_analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # FE summary fields (populated from output_data after report generation)
+    feasibility: Mapped[str | None] = mapped_column(String(20), nullable=True, default="pending")
+    fsi: Mapped[float | None] = mapped_column(Float, nullable=True)
+    estimated_value: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    plot_area: Mapped[float | None] = mapped_column(Float, nullable=True)
+    existing_units: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proposed_units: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    structural_grade: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    completion_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     society = relationship("Society", back_populates="feasibility_reports")
     user = relationship("User", back_populates="feasibility_reports")

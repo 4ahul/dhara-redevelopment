@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import SocietyStatus
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,12 +51,16 @@ class Society(Base):
     existing_bua_sqft: Mapped[float | None] = mapped_column(Float, nullable=True)
     pfa_sqft: Mapped[float | None] = mapped_column(Float, nullable=True)
     ocr_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    registration_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    year_built: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_manual_process: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[str] = mapped_column(String(100), default="New", nullable=False)
-    created_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    status: Mapped[SocietyStatus] = mapped_column(
+        SAEnum(SocietyStatus, name="society_status", create_constraint=True),
+        nullable=False, default=SocietyStatus.NEW,
     )
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_now, onupdate=_now, nullable=False
@@ -70,4 +77,4 @@ class Society(Base):
         "FeasibilityReport", back_populates="society", lazy="selectin", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (Index("ix_societies_created_by", "created_by"),)
+    __table_args__ = (Index('ix_societies_created_by', 'created_by'),)

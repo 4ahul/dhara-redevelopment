@@ -16,10 +16,9 @@ COPY pyproject.toml uv.lock ./
 COPY dhara_shared/ ./dhara_shared/
 COPY services/orchestrator/pyproject.toml ./services/orchestrator/
 
-# Install service dependencies via uv
-RUN uv pip install --system -r services/orchestrator/pyproject.toml
-# Re-install dhara_shared non-editable to override any editable workspace install
-RUN uv pip install --system ./dhara_shared
+# Install orchestrator dependencies
+COPY services/orchestrator/pyproject.toml /build/services/orchestrator/
+RUN uv pip install --system --no-sources -r /build/services/orchestrator/pyproject.toml
 
 # ─── RUNTIME ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime

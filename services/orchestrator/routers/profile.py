@@ -16,18 +16,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile", tags=["Profile"])
 
 
-@router.get("", response_model=ProfileResponse)
+@router.get("")
 async def get_profile(user=Depends(get_current_user)):
-    return ProfileResponse.model_validate(user)
+    return ProfileResponse.model_validate(user).model_dump(by_alias=True)
 
 
-@router.patch("", response_model=ProfileResponse)
+@router.patch("")
 async def update_profile(
     req: ProfileUpdate,
     user=Depends(get_current_user),
     service: ProfileService = Depends(get_profile_service),
 ):
-    return await service.update_profile(user, req)
+    updated = await service.update_profile(user, req)
+    if hasattr(updated, 'model_dump'):
+        return updated.model_dump(by_alias=True)
+    return ProfileResponse.model_validate(updated).model_dump(by_alias=True)
 
 
 @router.post("/portfolio", response_model=PortfolioUploadResponse)

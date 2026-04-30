@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, String
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import UserRole
+from sqlalchemy import Boolean, DateTime, Index, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -34,6 +36,15 @@ class User(Base):
         nullable=False,
         default=UserRole.PMC,
     )
+    # PMC company profile fields (FE §3.2)
+    registration_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    experience: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    projects_completed: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    specialization: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    portfolio_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     portfolio_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -26,9 +26,19 @@ class AuthUserInfo(BaseModel):
     avatar_url: str | None = None
 
 
-class MeResponse(BaseModel):
-    """Full profile of the currently authenticated user."""
+class UserMetadata(BaseModel):
+    """Nested user_metadata object expected by FE."""
+    full_name: str | None = Field(default=None, serialization_alias='full_name')
+    user_type: str | None = Field(default=None, serialization_alias='user_type')
+    company_name: str | None = Field(default=None, serialization_alias='company_name')
+    country: str | None = None
 
+
+class MeResponse(BaseModel):
+    """Full profile of the currently authenticated user.
+
+    Includes both flat fields (for backward compat) and nested user_metadata (for FE).
+    """
     id: str
     clerk_id: str | None = None
     email: str
@@ -37,6 +47,13 @@ class MeResponse(BaseModel):
     organization: str | None = None
     avatar_url: str | None = None
     phone: str | None = None
+    user_metadata: UserMetadata | None = None
+
+
+class LogoutResponse(BaseModel):
+    """Logout confirmation."""
+    status: str = "success"
+    message: str = "Logged out successfully"
 
 
 class TokenRefreshRequest(BaseModel):
