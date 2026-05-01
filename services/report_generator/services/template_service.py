@@ -77,21 +77,53 @@ class TemplateService:
         return "FFFF" in color_str or color_str in ["FFFFFF00", "FFFF99", "FFFFCC"]
 
     def _get_cell_label(self, ws, row: int, col: int) -> str:
-        """Try to get a label for the cell from nearby cells."""
+        """Get label for the cell prioritizing the nearest textual context visually."""
         col_letter = openpyxl.utils.get_column_letter(col)
 
-        # Check if there's a label in column A or B for this row
-        for check_col in [1, 2, 3]:
+        col_label = ""
+        row_label = ""
+
+        # 1. Vertical Scan (Find Column Header Hierarchy)
+        col_labels = []
+        for offset in range(1, 4):
+            if row - offset >= 1:
+                above_cell = ws.cell(row=row - offset, column=col)
+                val = str(above_cell.value).strip() if above_cell.value else ""
+                
+                if val and val != "None" and not val.startswith("="):
+                    # Skip digits
+                    if not val.replace('.', '', 1).isdigit() and len(val) > 2:
+                        # Only add if it's not a duplicate of the one below it
+                        if not col_labels or val[:50] != col_labels[-1]:
+                            col_labels.append(val[:50])
+                            
+        col_label = " - ".join(reversed(col_labels))
+
+        # 2. Horizontal Scan (Find Row Header)
+        # Traverse leftward to find the first non-numeric textual label
+        for check_col in range(col - 1, 0, -1):
             cell = ws.cell(row=row, column=check_col)
-            if cell.value and isinstance(cell.value, str) and len(str(cell.value)) > 2:
-                return str(cell.value)[:50]
+            val = str(cell.value).strip() if cell.value else ""
+            
+            # Skip empty, Excel formulas, "None", and purely numeric data
+            if not val or val == "None" or val.startswith("="):
+                continue
+                
+            # If it's a number/float (e.g., 153.27 or 2000), it's not a label!
+            if val.replace('.', '', 1).isdigit():
+                continue
+                
+            if len(val) > 2:
+                row_label = val[:50]
+                break
 
-        # Check above cell
-        if row > 1:
-            above = ws.cell(row=row - 1, column=col)
-            if above.value:
-                return str(above.value)[:50]
-
+        # 3. Composite Logic
+        if row_label and col_label and row_label != col_label:
+            return f"{row_label} | {col_label}"
+        elif row_label:
+            return row_label
+        elif col_label:
+            return col_label
         return f"{col_letter}{row}"
 
     def get_yellow_fields(

@@ -16,6 +16,9 @@ dependencies = [
     "dhara_shared",
     "alembic>=1.13.0",
     "redis>=4.0.0",
+    "geopandas>=1.0.0",
+    "cartopy>=0.23.0",
+    "matplotlib>=3.9.0",
 ]
 
 [tool.setuptools.packages.find]
