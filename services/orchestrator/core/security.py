@@ -7,11 +7,28 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import JWTError, jwt as jose_jwt
+from jwt import PyJWKClient
+import jwt as pyjwt
+from jwt.exceptions import InvalidTokenError as JWTInvalidTokenError
 
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+# Module-level singleton — avoids fetching JWKS on every request
+_jwks_client: PyJWKClient | None = None
+
+
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(
+            settings.CLERK_JWKS_URL,
+            cache_jwk_set=True,
+            lifespan=3600,
+        )
+    return _jwks_client
 
 
 def hash_password(password: str) -> str:
@@ -48,24 +65,24 @@ def create_access_token(
     if not permanent:
         payload["exp"] = now + timedelta(hours=expires_hours)
     # permanent tokens have no "exp" claim → never expire
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+    return jose_jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
 def decode_token(token: str) -> dict:
     """
     Decode JWT — tries local secret (HS256) first,
-    then falls back to Clerk RSA (RS256) public key validation.
+    then falls back to Clerk RSA (RS256) public key validation via JWKS.
     """
     # 1. Try Local Symmetric Token (PMC/Admin)
     try:
-        return jwt.decode(
+        return jose_jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=["HS256"],
             issuer="dhara-ai",
             options={"verify_exp": True, "require": ["sub", "iss"]},
         )
-    except jwt.ExpiredSignatureError as e:
+    except jose_jwt.ExpiredSignatureError as e:
         from fastapi import HTTPException
 
         logger.warning("JWT expired")
@@ -75,16 +92,24 @@ def decode_token(token: str) -> dict:
 
     # 2. Try External Clerk Asymmetric Token (Social/Client)
     try:
-        # RS256 is the standard for Clerk PEM public keys
-        return jwt.decode(
+        # Use PyJWKClient to dynamically fetch the correct signing key from Clerk's JWKS
+        jwks_client = _get_jwks_client()
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        logger.info(f"Using signing key with kid: {signing_key.key_id}")
+        return pyjwt.decode(
             token,
-            settings.CLERK_JWT_KEY,
+            signing_key.key,
             algorithms=["RS256"],
             issuer=settings.CLERK_JWT_ISSUER,
-            options={"verify_aud": False},  # Permissive mode since audience is not in .env
+            options={"verify_aud": False, "verify_iss": True},  # Verify issuer
         )
-    except JWTError as e:
+    except JWTInvalidTokenError as e:
         from fastapi import HTTPException
 
         logger.warning(f"JWT Validation failed: {str(e)}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from e
+    except Exception as e:
+        from fastapi import HTTPException
+
+        logger.error(f"Unexpected error during Clerk JWT validation: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e

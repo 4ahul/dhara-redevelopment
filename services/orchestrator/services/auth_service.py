@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
 from ..core.security import (
+    create_access_token,
     decode_token,
 )
 from ..models.enums import UserRole
@@ -30,57 +31,42 @@ class AuthService:
     # ------------------------------------------------------------------ #
 
     async def sync_clerk_user(self, clerk_token: str) -> AuthResponse:
-        """Provision or refresh a user from a Clerk session token.
+        """Get user from DB after Clerk login.
 
-        Called once after Clerk sign-in to ensure the user exists in our DB.
-        Fetches authoritative user data from the Clerk REST API so we never
-        rely on what claims happen to be in the JWT.
+        User should already exist from webhook. If not found, returns 404.
+        This validates the token and returns user profile.
         """
         payload = decode_token(clerk_token)
         clerk_id: str = payload.get("sub", "")
         if not clerk_id:
             raise HTTPException(status_code=401, detail="Invalid Clerk token")
 
-        clerk_user = await self._fetch_clerk_user(clerk_id)
-
-        email = clerk_user.get("email_addresses", [{}])[0].get("email_address", "")
-        name = (
-            f"{clerk_user.get('first_name') or ''} {clerk_user.get('last_name') or ''}".strip()
-            or email
-        )
-        avatar_url = clerk_user.get("image_url")
-
-        # Upsert: find by clerk_id first, fall back to email match
+        # Get user from DB (already created by webhook)
         user = await user_repository.get_user_by_clerk_id(self.db, clerk_id)
 
-        if not user and email:
-            user = await user_repository.get_user_by_email(self.db, email)
+        if not user:
+            # Fallback: try by email from token (if webhook hasn't fired yet)
+            email = payload.get("email") or payload.get("email_addresses", [{}])[0].get("email_address", "") if isinstance(payload.get("email_addresses"), list) else ""
+            if email:
+                user = await user_repository.get_user_by_email(self.db, email)
 
-        if user:
-            # Refresh fields that may have changed in Clerk
-            user.clerk_id = clerk_id
-            user.name = name or user.name
-            user.avatar_url = avatar_url or user.avatar_url
-            user.last_login_at = datetime.utcnow()
-            await self.db.flush()
-        else:
-            # First login — provision with default PMC role
-            user = await user_repository.create_user(
-                self.db,
-                {
-                    "clerk_id": clerk_id,
-                    "email": email,
-                    "name": name or "Unknown",
-                    "role": UserRole.PMC,
-                    "avatar_url": avatar_url,
-                    "is_active": True,
-                    "last_login_at": datetime.utcnow(),
-                },
-            )
-            logger.info("Provisioned new Clerk user: %s (%s)", email, clerk_id)
+        if not user:
+            logger.warning(f"User not found for clerk_id: {clerk_id}")
+            raise HTTPException(status_code=404, detail="User not found. Please wait a moment for account creation.")
+
+        # Update last login
+        user.last_login_at = datetime.utcnow()
+        await self.db.flush()
+
+        access_token = create_access_token(
+            user_id=str(user.id),
+            email=user.email,
+            role=user.role.value,
+            name=user.name or "",
+        )
 
         return AuthResponse(
-            access_token=clerk_token,
+            access_token=access_token,
             user=AuthUserInfo(
                 id=str(user.id),
                 email=user.email,
