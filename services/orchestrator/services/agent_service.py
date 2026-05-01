@@ -57,7 +57,7 @@ class AgentService:
         """
         import uuid as _uuid
 
-        from agent.runner import run_agent
+        from services.orchestrator.agent.runner import run_agent
 
         await self.mgr.broadcast(
             session_id, {"type": "status", "status": "started", "message": "Agent started..."}
@@ -85,5 +85,3 @@ class AgentService:
         except Exception as e:
             logger.error("WebSocket agent error for session %s: %s", session_id, e, exc_info=True)
             await self.mgr.broadcast(session_id, {"type": "error", "message": str(e)})
-
-

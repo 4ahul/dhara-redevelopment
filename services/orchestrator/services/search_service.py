@@ -8,60 +8,70 @@ import logging
 import math
 from uuid import UUID
 
-from models import FeasibilityReport, Role, Society, SocietyTender
-from schemas.admin import RoleResponse
-from schemas.common import PaginatedResponse
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.orchestrator.models import FeasibilityReport, Role, Society, SocietyTender
+from services.orchestrator.schemas.admin import RoleResponse
+from services.orchestrator.schemas.common import PaginatedResponse
+
 logger = logging.getLogger(__name__)
+
 
 class SearchService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def global_search(
-        self,
-        query: str,
-        user_id: UUID,
-        entity_type: str = None,
-        page: int = 1,
-        page_size: int = 20
+        self, query: str, user_id: UUID, entity_type: str = None, page: int = 1, page_size: int = 20
     ) -> PaginatedResponse:
         """Perform a cross-entity search for a specific user."""
         results, term = [], f"%{query}%"
 
         # 1. Society Search
         if not entity_type or entity_type == "society":
-            stmt = select(Society).where(
-                Society.created_by == user_id,
-                or_(Society.name.ilike(term), Society.address.ilike(term), Society.cts_no.ilike(term))
-            ).limit(page_size)
+            stmt = (
+                select(Society)
+                .where(
+                    Society.created_by == user_id,
+                    or_(
+                        Society.name.ilike(term),
+                        Society.address.ilike(term),
+                        Society.cts_no.ilike(term),
+                    ),
+                )
+                .limit(page_size)
+            )
             for s in (await self.db.execute(stmt)).scalars().all():
-                results.append({
-                    "type": "society",
-                    "id": str(s.id),
-                    "title": s.name,
-                    "subtitle": s.address,
-                    "status": s.status,
-                    "created_at": s.created_at.isoformat()
-                })
+                results.append(
+                    {
+                        "type": "society",
+                        "id": str(s.id),
+                        "title": s.name,
+                        "subtitle": s.address,
+                        "status": s.status,
+                        "created_at": s.created_at.isoformat(),
+                    }
+                )
 
         # 2. Report Search
         if not entity_type or entity_type == "report":
-            stmt = select(FeasibilityReport).where(
-                FeasibilityReport.user_id == user_id,
-                FeasibilityReport.title.ilike(term)
-            ).limit(page_size)
+            stmt = (
+                select(FeasibilityReport)
+                .where(FeasibilityReport.user_id == user_id, FeasibilityReport.title.ilike(term))
+                .limit(page_size)
+            )
             for r in (await self.db.execute(stmt)).scalars().all():
-                results.append({
-                    "type": "report",
-                    "id": str(r.id),
-                    "title": r.title,
-                    "subtitle": f"Status: {r.status.value}",
-                    "status": r.status.value,
-                    "created_at": r.created_at.isoformat()
-                })
+                results.append(
+                    {
+                        "type": "report",
+                        "id": str(r.id),
+                        "title": r.title,
+                        "subtitle": f"Status: {r.status.value}",
+                        "status": r.status.value,
+                        "created_at": r.created_at.isoformat(),
+                    }
+                )
 
         # 3. Tender Search
         if not entity_type or entity_type == "tender":
@@ -70,33 +80,35 @@ class SearchService:
             soc_ids = [row[0] for row in (await self.db.execute(soc_stmt)).all()]
 
             if soc_ids:
-                stmt = select(SocietyTender).where(
-                    SocietyTender.society_id.in_(soc_ids),
-                    or_(SocietyTender.title.ilike(term), SocietyTender.description.ilike(term))
-                ).limit(page_size)
+                stmt = (
+                    select(SocietyTender)
+                    .where(
+                        SocietyTender.society_id.in_(soc_ids),
+                        or_(SocietyTender.title.ilike(term), SocietyTender.description.ilike(term)),
+                    )
+                    .limit(page_size)
+                )
                 for t in (await self.db.execute(stmt)).scalars().all():
-                    results.append({
-                        "type": "tender",
-                        "id": str(t.id),
-                        "title": t.title,
-                        "subtitle": (t.description or "")[:100],
-                        "status": t.status.value,
-                        "created_at": t.created_at.isoformat()
-                    })
+                    results.append(
+                        {
+                            "type": "tender",
+                            "id": str(t.id),
+                            "title": t.title,
+                            "subtitle": (t.description or "")[:100],
+                            "status": t.status.value,
+                            "created_at": t.created_at.isoformat(),
+                        }
+                    )
 
         # Sorting and Pagination
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         total = len(results)
         offset = (page - 1) * page_size
-        items = results[offset:offset + page_size]
+        items = results[offset : offset + page_size]
         total_pages = math.ceil(total / page_size) if total else 0
 
         return PaginatedResponse(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-            total_pages=total_pages
+            items=items, total=total, page=page, page_size=page_size, total_pages=total_pages
         )
 
     async def get_active_roles(self) -> list[RoleResponse]:
@@ -106,11 +118,10 @@ class SearchService:
 
         if not rows:
             logger.info("No roles found in DB. Seeding defaults...")
-            from db.seed import seed_defaults
+            from services.orchestrator.db.seed import seed_defaults
+
             await seed_defaults()
             # Re-fetch after seeding
             rows = (await self.db.execute(stmt)).scalars().all()
 
         return [RoleResponse.model_validate(r) for r in rows]
-
-

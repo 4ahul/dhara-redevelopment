@@ -9,11 +9,12 @@ Usage:
     python -m scripts.migrate_local_to_cloud
     python -m scripts.migrate_local_to_cloud --collection dcpr_knowledge
 """
+# noqa: E402
 
+import argparse
 import os
 import sys
 import time
-import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,15 +26,14 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
 
-from pymilvus import (
-    connections,
-    utility,
+from pymilvus import (  # noqa: E402
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
-
 
 EMBEDDING_DIM = 1536
 BATCH = 200  # cloud insert batch

@@ -1,6 +1,7 @@
-import openpyxl
 import os
-from pathlib import Path
+
+import openpyxl
+
 
 def verify_report(file_path):
     if not os.path.exists(file_path):
@@ -9,7 +10,7 @@ def verify_report(file_path):
 
     print(f"Analyzing report: {file_path}")
     wb = openpyxl.load_workbook(file_path, data_only=True)
-    
+
     # Check Details sheet
     if "Details" in wb.sheetnames:
         ws = wb["Details"]
@@ -40,13 +41,19 @@ def verify_report(file_path):
                 for cell in row:
                     if cell.value in ["#DIV/0!", "#NAME?", "#REF!", "#VALUE!"]:
                         error_cells.append(f"{cell.coordinate} ({cell.value})")
-        except: pass
-        
+        except Exception:
+            pass
+
         if error_cells:
-            print(f"Sheet '{sheet_name}': Found {len(error_cells)} errors. Examples: {error_cells[:10]}")
+            print(
+                f"Sheet '{sheet_name}': Found {len(error_cells)} errors. Examples: {error_cells[:10]}"
+            )
         else:
             print(f"Sheet '{sheet_name}': No errors found.")
 
+
 if __name__ == "__main__":
-    report_file = "/tmp/reports/Feasibility_33(20)(B)_CLUBBING_Dhiraj_Kunj,_Dwaraka_&_Kalpana_8D001ED7.xlsx"
+    report_file = (
+        "/tmp/reports/Feasibility_33(20)(B)_CLUBBING_Dhiraj_Kunj,_Dwaraka_&_Kalpana_8D001ED7.xlsx"
+    )
     verify_report(report_file)

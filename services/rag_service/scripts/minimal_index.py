@@ -1,9 +1,10 @@
 """
 Minimal Indexer - Process ONE PDF at a time
 """
+# noqa: E402
 
-import os
 import hashlib
+import os
 from pathlib import Path
 
 # Load .env
@@ -14,9 +15,9 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ[key.strip()] = val.strip()
 
-from pymilvus import connections, Collection
-from langchain_openai import OpenAIEmbeddings
-from pypdf import PdfReader
+from langchain_openai import OpenAIEmbeddings  # noqa: E402
+from pymilvus import Collection, connections  # noqa: E402
+from pypdf import PdfReader  # noqa: E402
 
 COLLECTION_NAME = "documents"
 BATCH_SIZE = 50
@@ -39,7 +40,7 @@ def process_pdf(pdf_path: Path, collection, embeddings):
             all_text += text + "\n"
 
     if len(all_text) < 100:
-        print(f"  No text extracted")
+        print("  No text extracted")
         return 0
 
     # Simple chunking

@@ -6,25 +6,23 @@ Uses OpenAI embeddings (text-embedding-3-small)
 
 import os
 import sys
-import uuid
-from pathlib import Path
 import time
-import json
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pymilvus import (
-    connections,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
     utility,
 )
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
 
 MILVUS_HOST = "localhost"
 MILVUS_PORT = "19530"
@@ -62,9 +60,7 @@ def get_embedding_dimension():
 def setup_local_milvus():
     print(f"Connecting to local Milvus at {MILVUS_HOST}:{MILVUS_PORT}...")
     try:
-        connections.connect(
-            alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=10
-        )
+        connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=10)
         print("Connected to local Milvus")
     except Exception as e:
         print(f"Failed to connect: {e}")
@@ -106,7 +102,7 @@ def extract_text_from_pdf(filepath):
         for page in reader.pages:
             text += page.extract_text() or ""
         return text.strip()
-    except Exception as e:
+    except Exception:
         return None
 
 
@@ -142,15 +138,15 @@ def process_file(filepath):
         text = extract_text_from_pdf(filepath)
         method = "pypdf"
         if not text or len(text) < 100:
-            print(f"    Text extraction weak, trying OCR...")
+            print("    Text extraction weak, trying OCR...")
             text = extract_text_with_ocr(filepath)
             method = "ocr" if text else method
     elif filepath.suffix.lower() == ".txt":
         try:
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            with open(filepath, encoding="utf-8", errors="ignore") as f:
                 text = f.read().strip()
             method = "txt"
-        except:
+        except Exception:
             return []
     elif filepath.suffix.lower() == ".docx":
         try:
@@ -159,7 +155,7 @@ def process_file(filepath):
             doc = docx.Document(filepath)
             text = "\n".join([p.text for p in doc.paragraphs]).strip()
             method = "docx"
-        except:
+        except Exception:
             return []
     elif filepath.suffix.lower() in {".tif", ".tiff"}:
         text = extract_text_with_ocr(filepath)
@@ -189,7 +185,7 @@ def find_all_files():
 
     extensions = [".pdf", ".txt", ".docx", ".tif", ".tiff"]
     files = []
-    for root, dirs, filenames in os.walk(DOCS_DIR):
+    for root, _dirs, filenames in os.walk(DOCS_DIR):
         for f in filenames:
             if any(f.lower().endswith(ext) for ext in extensions):
                 if f not in SKIP_FILES:
@@ -217,7 +213,7 @@ def main():
     all_chunks = []
 
     print("\n--- Phase 1: Text Extraction ---")
-    start_time = time.time()
+    time.time()
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(process_file, f): f for f in files}
@@ -251,9 +247,7 @@ def main():
 
             collection.insert(entities)
             total_inserted += len(texts)
-            print(
-                f"  Indexed {min(i + batch_size, len(all_chunks))}/{len(all_chunks)} chunks"
-            )
+            print(f"  Indexed {min(i + batch_size, len(all_chunks))}/{len(all_chunks)} chunks")
 
         except Exception as e:
             print(f"  Batch error: {e}")
@@ -268,8 +262,8 @@ def index_document(filepath: str, description: str = "") -> str:
     Index a single document to Milvus.
     Returns document ID.
     """
-    from pypdf import PdfReader
     from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from pypdf import PdfReader
 
     file_path = Path(filepath)
     filename = file_path.name
@@ -285,7 +279,7 @@ def index_document(filepath: str, description: str = "") -> str:
             return None
     elif file_path.suffix.lower() == ".txt":
         try:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 text = f.read()
         except Exception as e:
             print(f"Error reading text: {e}")

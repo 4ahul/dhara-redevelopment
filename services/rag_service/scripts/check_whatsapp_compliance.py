@@ -4,9 +4,8 @@ Check WhatsApp Compliance Updates
 Run: Every hour
 """
 
-import sys
-import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def check_whatsapp_compliance():
 
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent))
-        from integrations.whatsapp_integration import WhatsAppIntegration
+        from services.rag_service.integrations.whatsapp_integration import WhatsAppIntegration
 
         whatsapp = WhatsAppIntegration()
 

@@ -10,12 +10,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pymilvus import (
-    connections,
-    utility,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
 
 
@@ -100,8 +100,9 @@ def main():
 
     # Embed and index
     print("Embedding with Ollama...")
-    from langchain_ollama import OllamaEmbeddings
     import time
+
+    from langchain_ollama import OllamaEmbeddings
 
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
 

@@ -2,12 +2,11 @@
 Quick Indexer - Simple document indexing to Milvus with full metadata schema
 Uses OpenAI embeddings, processes all PDFs in data/docs
 """
+# noqa: E402
 
-import os
-import json
 import hashlib
+import os
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Load .env
 env_file = Path(__file__).parent / ".env"
@@ -17,7 +16,7 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ[key.strip()] = val.strip()
 
-from pymilvus import connections, Collection, DataType
+from pymilvus import Collection, connections  # noqa: E402
 
 # Config
 COLLECTION_NAME = "documents"
@@ -41,7 +40,7 @@ def get_text_from_pdf(pdf_path: Path) -> str:
         return ""
 
 
-def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> list[str]:
     """Simple chunking by characters"""
     chunks = []
     start = 0
@@ -96,14 +95,14 @@ def main():
     print("=" * 60)
 
     # Connect to Milvus
-    print(f"\n[1] Connecting to Milvus...")
+    print("\n[1] Connecting to Milvus...")
     connections.connect(host=MILVUS_HOST, port=MILVUS_PORT)
     collection = Collection(COLLECTION_NAME)
     collection.load()
     print(f"    Collection: {COLLECTION_NAME}")
 
     # Find all PDFs
-    print(f"\n[2] Finding PDFs...")
+    print("\n[2] Finding PDFs...")
     docs_dir = Path("data/docs")
     pdf_files = list(docs_dir.rglob("*.pdf"))
     print(f"    Found {len(pdf_files)} PDFs")
@@ -113,7 +112,7 @@ def main():
         return
 
     # Get embeddings client
-    print(f"\n[3] Setting up embeddings...")
+    print("\n[3] Setting up embeddings...")
     from langchain_openai import OpenAIEmbeddings
 
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
@@ -121,7 +120,7 @@ def main():
     print(f"    Embedding dim: {len(test_vec)}")
 
     # Process each PDF
-    print(f"\n[4] Indexing documents...")
+    print("\n[4] Indexing documents...")
     total_chunks = 0
 
     for pdf_file in pdf_files:
@@ -151,9 +150,7 @@ def main():
         batch_doc_types = [doc_type] * len(batch_texts)
         batch_chunk_types = [detect_chunk_type(c) for c in batch_texts]
         batch_chunk_indices = list(range(len(batch_texts)))
-        batch_file_hashes = [hashlib.sha256(rel_path.encode()).hexdigest()[:16]] * len(
-            batch_texts
-        )
+        batch_file_hashes = [hashlib.sha256(rel_path.encode()).hexdigest()[:16]] * len(batch_texts)
 
         # Embed
         try:
@@ -185,12 +182,12 @@ def main():
     # Flush
     collection.flush()
 
-    print(f"\n[5] Indexing complete!")
+    print("\n[5] Indexing complete!")
     print(f"    Total chunks: {total_chunks}")
     print(f"    Collection entities: {collection.num_entities}")
 
     # Verify schema
-    print(f"\n[6] Schema verification:")
+    print("\n[6] Schema verification:")
     for f in collection.schema.fields:
         print(f"    - {f.name}: {f.dtype}")
 

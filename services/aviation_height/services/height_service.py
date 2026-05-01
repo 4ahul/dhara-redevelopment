@@ -2,15 +2,13 @@ import asyncio
 import logging
 import re
 import sys
-from typing import Dict, Any, Optional
+from typing import Any
+
+import httpx
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
-import httpx
 
-try:
-    from core import settings
-except ImportError:
-    from services.height_service.core import settings
+from ..core import settings
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -88,8 +86,8 @@ class HeightService:
         return 250.0  # Default for far areas
 
     async def get_height(
-        self, lat: float, lng: float, site_elevation: Optional[float] = None
-    ) -> Dict[str, Any]:
+        self, lat: float, lng: float, site_elevation: float | None = None
+    ) -> dict[str, Any]:
         elevation_source = "provided"
         if site_elevation is None:
             site_elevation, elevation_source = await self._get_elevation(lat, lng)
@@ -110,16 +108,12 @@ class HeightService:
 
         if pm_result:
             pm_result["elevation_source"] = elevation_source
-            logger.info(
-                f"[FALLBACK] Project Maitree found: {pm_result.get('max_height_m')}m"
-            )
+            logger.info(f"[FALLBACK] Project Maitree found: {pm_result.get('max_height_m')}m")
             return pm_result
 
         # Step 3: Use distance-based fallback
         fallback_height = self._get_height_from_distance(lat, lng)
-        max_height = (
-            fallback_height - site_elevation if site_elevation else fallback_height
-        )
+        max_height = fallback_height - site_elevation if site_elevation else fallback_height
         logger.info(
             f"[FALLBACK] Distance-based max height: {fallback_height}m, Building: {max_height}m"
         )
@@ -131,7 +125,7 @@ class HeightService:
             "elevation_source": elevation_source,
             "max_height_m": round(max_height, 2),
             "max_floors": int(max_height // 3),
-            "restriction_reason": f"Distance-based fallback (near Mumbai airport)",
+            "restriction_reason": "Distance-based fallback (near Mumbai airport)",
             "nocas_reference": "Fallback",
             "aai_zone": "Mumbai Distance Fallback",
             "rl_datum_m": fallback_height,
@@ -151,23 +145,19 @@ class HeightService:
                     data = response.json()
                     if data.get("results"):
                         return data["results"][0].get("formatted_address", "")
-        except:
+        except Exception:
             pass
         return f"{lat},{lng}"
 
-    async def _query_project_maitree(self, address: str) -> Optional[Dict[str, Any]]:
-        logger.info(f"[MAITREE] Attempting...")
+    async def _query_project_maitree(self, address: str) -> dict[str, Any] | None:
+        logger.info("[MAITREE] Attempting...")
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             try:
-                context = await browser.new_context(
-                    viewport={"width": 1280, "height": 720}
-                )
+                context = await browser.new_context(viewport={"width": 1280, "height": 720})
                 page = await context.new_page()
 
-                await page.goto(
-                    "https://www.projectmaitree.com/heightnoc", timeout=30000
-                )
+                await page.goto("https://www.projectmaitree.com/heightnoc", timeout=30000)
                 await page.wait_for_load_state("networkidle", timeout=15000)
                 await page.wait_for_timeout(3000)
 
@@ -194,7 +184,7 @@ class HeightService:
                     await page.locator(
                         'button:has-text("Search"), input[type="submit"]'
                     ).first.click(timeout=5000)
-                except:
+                except Exception:
                     pass
 
                 await page.wait_for_timeout(5000)
@@ -205,7 +195,7 @@ class HeightService:
                     if await table.is_visible():
                         rows = await table.locator("tr").count()
                         logger.info(f"[MAITREE] Found table with {rows} rows")
-                except:
+                except Exception:
                     pass
 
                 return None
@@ -217,7 +207,7 @@ class HeightService:
 
     async def _query_nocas(
         self, lat: float, lng: float, site_elevation: float
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         max_retries = 3
         retry_delay = 120  # 2 minutes
 
@@ -236,7 +226,7 @@ class HeightService:
 
     async def _nocas_attempt(
         self, lat: float, lng: float, site_elevation: float
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         logger.info("[NOCAS] Starting headless browser...")
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -256,9 +246,7 @@ class HeightService:
                 await page.wait_for_timeout(3000)
 
                 if response.status >= 400:
-                    logger.warning(
-                        f"[NOCAS] Site returned {response.status}, taking screenshot..."
-                    )
+                    logger.warning(f"[NOCAS] Site returned {response.status}, taking screenshot...")
                     await page.screenshot(path="nocas_error.png")
                     return None
 
@@ -279,11 +267,11 @@ class HeightService:
 
                 try:
                     await page.locator('button:has-text("Accept")').click(timeout=3000)
-                except:
+                except Exception:
                     pass
                 try:
                     await page.locator('button:has-text("Allow")').click(timeout=3000)
-                except:
+                except Exception:
                     pass
 
                 await page.evaluate("""
@@ -311,9 +299,7 @@ class HeightService:
                         "input[type='button'], button, [onclick*='Approx']"
                     ).first.click(timeout=5000)
                 except Exception as e:
-                    logger.info(
-                        f"[STEP 3] Button click failed: {e}, trying evaluate..."
-                    )
+                    logger.info(f"[STEP 3] Button click failed: {e}, trying evaluate...")
                     await page.evaluate("onclickApprox && onclickApprox()")
 
                 await page.wait_for_timeout(5000)
@@ -335,7 +321,7 @@ class HeightService:
                         result = await page.evaluate(check_method)
                         if result and len(result.strip()) > 0:
                             logger.info(f"[STEP 5] Found result: {result[:100]}")
-                    except:
+                    except Exception:
                         pass
 
                 alerts = await page.evaluate("window.captured_alerts || []")
@@ -356,7 +342,16 @@ class HeightService:
                             if "Approximate Permissible Top Elevation" in msg:
                                 result_text = msg
                                 break
-                            error_keywords = ["try again", "please try", "cannot", "error", "unavailable", "failed", "timeout", "server"]
+                            error_keywords = [
+                                "try again",
+                                "please try",
+                                "cannot",
+                                "error",
+                                "unavailable",
+                                "failed",
+                                "timeout",
+                                "server",
+                            ]
                             if any(keyword in msg.lower() for keyword in error_keywords):
                                 retry_count += 1
                                 logger.warning(f"[RETRY {retry_count}/{max_retries}] {msg}")
@@ -373,7 +368,9 @@ class HeightService:
                                     await page.evaluate("onclickApprox && onclickApprox()")
                                     timeout_count = 0
                                 else:
-                                    logger.warning("[RETRY] Max retries reached, giving up on NOCAS")
+                                    logger.warning(
+                                        "[RETRY] Max retries reached, giving up on NOCAS"
+                                    )
                                     break
                     timeout_count += 1
                     await asyncio.sleep(1)
@@ -390,8 +387,7 @@ class HeightService:
                         top_amsl = float(match.group(1))
                         max_height = top_amsl - site_elevation
                         airport = (
-                            await page.evaluate("sessionStorage.getItem('Remarks')")
-                            or "Unknown"
+                            await page.evaluate("sessionStorage.getItem('Remarks')") or "Unknown"
                         )
                         logger.info(f"[SUCCESS] Top: {top_amsl}m, Max: {max_height}m")
                         return {

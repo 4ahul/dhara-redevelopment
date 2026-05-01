@@ -2,21 +2,17 @@
 
 POST /auth/sync          — provision/refresh DB user from a Clerk session token
 GET  /auth/me            — return current authenticated user's profile
-POST /auth/admin/login   — password login for ADMIN service accounts only
-POST /auth/admin/logout  — admin logout (session invalidation is Clerk-side)
-POST /auth/login         — PMC user login with email/password
-POST /auth/logout        — PMC logout (session invalidation is client-side)
-POST /auth/signup        — PMC user signup with email/password
 """
 
 import logging
 
-from core.dependencies import get_auth_service, get_current_user
 from fastapi import APIRouter, Depends, Header
-from models import UserRole
-from schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest
+from services.orchestrator.models import UserRole
+from services.orchestrator.schemas.auth import AuthResponse, LoginRequest, LogoutResponse, MeResponse, SignupRequest, UserMetadata
 
-from services.auth_service import AuthService
+from ..core.dependencies import get_auth_service, get_current_user
+from ..schemas.auth import AuthResponse, MeResponse
+from ..services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -33,6 +29,7 @@ async def sync_clerk_user(
     requests use the standard Bearer token flow — no repeated sync needed.
     """
     from fastapi import HTTPException
+
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization header required")
     token = authorization.removeprefix("Bearer ").strip()
@@ -51,6 +48,12 @@ async def me(user=Depends(get_current_user)):
         organization=user.organization,
         avatar_url=user.avatar_url,
         phone=user.phone,
+        user_metadata=UserMetadata(
+            full_name=user.name,
+            user_type=user.role.value,
+            company_name=user.organization,
+            country=getattr(user, 'country', None),
+        ),
     )
 
 
@@ -87,5 +90,7 @@ async def pmc_signup(req: SignupRequest, service: AuthService = Depends(get_auth
 async def pmc_login(req: LoginRequest, service: AuthService = Depends(get_auth_service)):
     """PMC user login with email/password."""
     return await service.pmc_login(req)
+
+
 
 

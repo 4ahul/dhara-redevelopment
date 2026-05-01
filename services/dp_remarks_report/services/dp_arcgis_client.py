@@ -13,7 +13,6 @@ import asyncio
 import json
 import logging
 import math
-from typing import Optional
 
 import httpx
 
@@ -31,11 +30,11 @@ class DPArcGISClient:
     """Direct ArcGIS REST queries for MCGM DP 2034 zone data."""
 
     # Class-level URL caches (per process lifetime)
-    _zone_layer_url: Optional[str] = None
+    _zone_layer_url: str | None = None
 
     # ── Discovery ─────────────────────────────────────────────────────────────
 
-    async def discover_zone_layer(self, http: httpx.AsyncClient) -> Optional[str]:
+    async def discover_zone_layer(self, http: httpx.AsyncClient) -> str | None:
         """Search MCGM's ArcGIS portal for the DP 2034 zone feature layer."""
         if DPArcGISClient._zone_layer_url:
             return DPArcGISClient._zone_layer_url
@@ -70,12 +69,14 @@ class DPArcGISClient:
         # ── Fallback ──────────────────────────────────────────────────────────
         # If discovery fails, use known stable DP 2034 MapServer layers
         # Layer 0 is REVISED PLU ZONES (DP 2034)
-        fallback_url = "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Plan_2034/MapServer/0"
+        fallback_url = (
+            "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Plan_2034/MapServer/0"
+        )
         logger.warning("Discovery failed. Using fallback DP layer: %s", fallback_url)
         DPArcGISClient._zone_layer_url = fallback_url
         return fallback_url
 
-    async def _probe_item(self, item_id: str, http: httpx.AsyncClient) -> Optional[str]:
+    async def _probe_item(self, item_id: str, http: httpx.AsyncClient) -> str | None:
         """Fetch item metadata to get the feature service URL, then probe for zone fields."""
         try:
             meta_url = f"{MCGM_PORTAL_URL}/sharing/rest/content/items/{item_id}"
@@ -102,7 +103,7 @@ class DPArcGISClient:
 
     async def _find_zone_layer_in_service(
         self, service_url: str, http: httpx.AsyncClient
-    ) -> Optional[str]:
+    ) -> str | None:
         """Walk FeatureServer layers to find the one with DP zone fields."""
         base = service_url.rstrip("/")
         try:
@@ -126,7 +127,7 @@ class DPArcGISClient:
 
         return None
 
-    async def _is_zone_layer(self, url: str, http: httpx.AsyncClient) -> Optional[str]:
+    async def _is_zone_layer(self, url: str, http: httpx.AsyncClient) -> str | None:
         """Return the URL if this layer has DP zone fields, else None."""
         try:
             resp = await http.get(url, params={"f": "json"}, timeout=10.0)
@@ -147,7 +148,7 @@ class DPArcGISClient:
         lat: float,
         lng: float,
         http: httpx.AsyncClient,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Identify DP zone, road, and reservation data for a point."""
         layer_url = await self.discover_zone_layer(http)
         if not layer_url:
@@ -155,7 +156,7 @@ class DPArcGISClient:
 
         # Base URL for other layers
         base_url = layer_url.rsplit("/", 1)[0]
-        
+
         # Convert WGS84 to Web Mercator
         x, y = _wgs84_to_web_mercator(lng, lat)
         geometry = json.dumps({"x": x, "y": y, "spatialReference": {"wkid": 102100}})
@@ -170,11 +171,11 @@ class DPArcGISClient:
         }
 
         merged_attrs = {}
-        
-        # Try Layers in priority: 0 (Zone), 44 (Exist Road), 45 (Prop Road), 46 (Reservations), 
+
+        # Try Layers in priority: 0 (Zone), 44 (Exist Road), 45 (Prop Road), 46 (Reservations),
         # 1128 (ROADS), 1527 (ROAD), 193 (Traffic RoadLines), 194 (Survey RoadLines)
         target_layers = [0, 44, 45, 46, 1128, 1527, 193, 194]
-        
+
         async def fetch_layer(l_id):
             try:
                 url = f"{base_url}/{l_id}"
@@ -183,13 +184,17 @@ class DPArcGISClient:
                 if l_id != 0:
                     # 50 meter buffer in Web Mercator to catch nearby roads
                     buffer = 50.0
-                    q_params["geometry"] = json.dumps({
-                        "xmin": x - buffer, "ymin": y - buffer, 
-                        "xmax": x + buffer, "ymax": y + buffer,
-                        "spatialReference": {"wkid": 102100}
-                    })
+                    q_params["geometry"] = json.dumps(
+                        {
+                            "xmin": x - buffer,
+                            "ymin": y - buffer,
+                            "xmax": x + buffer,
+                            "ymax": y + buffer,
+                            "spatialReference": {"wkid": 102100},
+                        }
+                    )
                     q_params["geometryType"] = "esriGeometryEnvelope"
-                
+
                 resp = await http.get(f"{url}/query", params=q_params, timeout=15.0)
                 if resp.status_code == 200:
                     features = resp.json().get("features", [])
@@ -229,7 +234,7 @@ class DPArcGISClient:
         village: str,
         cts_no: str,
         http: httpx.AsyncClient,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Query DP zone by CTS/ward attribute."""
         layer_url = await self.discover_zone_layer(http)
         if not layer_url:
@@ -318,7 +323,7 @@ def _esc(s: str) -> str:
     return s.replace("'", "''")
 
 
-def _pick(up: dict, keys: set) -> Optional[str]:
+def _pick(up: dict, keys: set) -> str | None:
     for k in keys:
         v = up.get(k)
         if v is not None and str(v).strip() not in ("", "None", "null"):
@@ -326,7 +331,7 @@ def _pick(up: dict, keys: set) -> Optional[str]:
     return None
 
 
-def _pick_float(up: dict, keys: set) -> Optional[float]:
+def _pick_float(up: dict, keys: set) -> float | None:
     for k in keys:
         v = up.get(k)
         if v is not None:
@@ -337,7 +342,7 @@ def _pick_float(up: dict, keys: set) -> Optional[float]:
     return None
 
 
-def _truthy(val) -> Optional[bool]:
+def _truthy(val) -> bool | None:
     if val is None:
         return None
     s = str(val).strip().upper()
@@ -348,7 +353,7 @@ def _truthy(val) -> Optional[bool]:
     return None
 
 
-def _find_service_url_in_config(config: dict) -> Optional[str]:
+def _find_service_url_in_config(config: dict) -> str | None:
     """Recursively find a feature service URL in an ArcGIS app config."""
     if isinstance(config, dict):
         url = config.get("url", "")

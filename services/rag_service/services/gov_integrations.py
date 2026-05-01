@@ -4,17 +4,11 @@ Real Government Data Source Integrations
 BMC, Bhulekh, NOCAS, MCGM Property Lookup
 """
 
-import os
-import re
-import json
-import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Any
-from dataclasses import dataclass
+
 import requests
-from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,7 +37,7 @@ class BhulekhIntegration:
 
     def search_property(
         self, district: str, taluka: str, village: str, survey_no: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Search property in Bhulekh
         District: Mumbai City, Mumbai Suburban, Thane, etc.
@@ -78,11 +72,10 @@ class BhulekhIntegration:
 
     def _scrape_bhulekh(
         self, district: str, taluka: str, village: str, survey_no: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Scrape Bhulekh website"""
         try:
             # Bhulekh requires login - use Form-based search
-            search_url = f"{self.BASE_URL}/search"
 
             # For demo, return structure that shows what's needed
             return {
@@ -103,7 +96,7 @@ class BhulekhIntegration:
             logger.error(f"Bhulekh scrape error: {e}")
             return None
 
-    def _parse_bhulekh_response(self, data: Dict) -> Optional[Dict]:
+    def _parse_bhulekh_response(self, data: dict) -> dict | None:
         """Parse Bhulekh API response"""
         if data.get("status") == "success":
             return {
@@ -119,7 +112,7 @@ class BhulekhIntegration:
 
     def get_property_card(
         self, district: str, taluka: str, village: str, survey_no: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Get property card details"""
         result = self.search_property(district, taluka, village, survey_no)
         if result and result.get("success"):
@@ -147,7 +140,7 @@ class BhulekhIntegration:
         # If just a number
         try:
             return float(area_str)
-        except:
+        except Exception:
             pass
 
         # Guntha format: 1-23-45 means 1 guntha 23gunta 45 ad
@@ -174,7 +167,7 @@ class BMCIntegration:
         self.cache_dir = Path("data/data_sources/bmc")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_dp_remarks(self, survey_no: str, ward: str = "") -> Optional[Dict]:
+    def get_dp_remarks(self, survey_no: str, ward: str = "") -> dict | None:
         """
         Get Development Plan remarks for a property
         Ward: Find from MCGM ward map
@@ -198,11 +191,10 @@ class BMCIntegration:
             logger.error(f"BMC DP remarks error: {e}")
             return self._scrape_mcgm_dp(survey_no, ward)
 
-    def _scrape_mcgm_dp(self, survey_no: str, ward: str) -> Optional[Dict]:
+    def _scrape_mcgm_dp(self, survey_no: str, ward: str) -> dict | None:
         """Scrape DP remarks from MCGM"""
         try:
             # MCGM DP website
-            dp_url = "https://dp.mcgm.gov.in/search"
 
             # For now, return structure showing what's available
             return {
@@ -231,7 +223,7 @@ class BMCIntegration:
             logger.error(f"MCGM scrape error: {e}")
             return None
 
-    def _parse_dp_remarks(self, data: Dict) -> Dict:
+    def _parse_dp_remarks(self, data: dict) -> dict:
         """Parse DP remarks response"""
         return {
             "survey_no": data.get("survey_no"),
@@ -246,7 +238,7 @@ class BMCIntegration:
             "source": "mcgm",
         }
 
-    def get_zone_info(self, address: str) -> Optional[Dict]:
+    def get_zone_info(self, address: str) -> dict | None:
         """Get zone information for address"""
         try:
             # MCGM Building Proposal System
@@ -258,7 +250,7 @@ class BMCIntegration:
                 return response.json()
 
             return None
-        except:
+        except Exception:
             return None
 
 
@@ -271,9 +263,7 @@ class NOCASIntegration:
     def __init__(self):
         self.session = SESSION
 
-    def get_building_permissions(
-        self, survey_no: str, zone: str, area_sq_m: float
-    ) -> Optional[Dict]:
+    def get_building_permissions(self, survey_no: str, zone: str, area_sq_m: float) -> dict | None:
         """
         Get building permission details including max height
         Zone: Residential, Commercial, etc.
@@ -295,7 +285,7 @@ class NOCASIntegration:
             logger.error(f"NOCAS API error: {e}")
             return self._calculate_height(zone, area_sq_m)
 
-    def _calculate_height(self, zone: str, area_sq_m: float) -> Dict:
+    def _calculate_height(self, zone: str, area_sq_m: float) -> dict:
         """
         Calculate max building height based on DCPR rules
         """
@@ -326,11 +316,7 @@ class NOCASIntegration:
         # FSI determines floor area
         fsi = self._get_zone_fsi(zone)
         total_bua = area_sq_m * 10.764 * fsi
-        floors = (
-            int(total_bua / (area_sq_m * 10.764 / base_height * 3.5))
-            if area_sq_m > 0
-            else 0
-        )
+        floors = int(total_bua / (area_sq_m * 10.764 / base_height * 3.5)) if area_sq_m > 0 else 0
 
         return {
             "max_height_m": base_height,
@@ -353,7 +339,7 @@ class NOCASIntegration:
         }
         return fsi_map.get(zone, 2.5)
 
-    def check_noc_required(self, building_type: str, height: float) -> Dict:
+    def check_noc_required(self, building_type: str, height: float) -> dict:
         """Check what NOCs are required"""
         nocs = []
 
@@ -395,7 +381,7 @@ class MCGMIntegration:
     def __init__(self):
         self.session = SESSION
 
-    def submit_building_plan(self, application_data: Dict) -> Optional[Dict]:
+    def submit_building_plan(self, application_data: dict) -> dict | None:
         """
         Submit building plan to MCGM
         Requires: Approved plans, NOCs, property documents
@@ -418,7 +404,7 @@ class MCGMIntegration:
             logger.error(f"MCGM BPS error: {e}")
             return None
 
-    def get_application_status(self, application_no: str) -> Optional[Dict]:
+    def get_application_status(self, application_no: str) -> dict | None:
         """Check application status"""
         try:
             url = f"{self.BPS_URL}/api/applications/{application_no}/status"
@@ -429,10 +415,10 @@ class MCGMIntegration:
                 return response.json()
 
             return None
-        except:
+        except Exception:
             return None
 
-    def calculate_fees(self, plot_area: float, bua: float, scheme: str) -> Dict:
+    def calculate_fees(self, plot_area: float, bua: float, scheme: str) -> dict:
         """Calculate MCGM fees for building proposal"""
 
         # Basic scrutiny fees
@@ -474,7 +460,7 @@ class RERAIntegration:
     def __init__(self):
         self.session = SESSION
 
-    def check_builder_registration(self, rera_no: str) -> Optional[Dict]:
+    def check_builder_registration(self, rera_no: str) -> dict | None:
         """Check if builder has valid RERA registration"""
         try:
             url = f"{self.API_URL}/RegisteredProjects/Search"
@@ -485,10 +471,10 @@ class RERAIntegration:
                 return response.json()
 
             return None
-        except:
+        except Exception:
             return None
 
-    def get_project_details(self, project_code: str) -> Optional[Dict]:
+    def get_project_details(self, project_code: str) -> dict | None:
         """Get project details from RERA"""
         try:
             url = f"{self.API_URL}/ProjectDetails/{project_code}"
@@ -508,7 +494,7 @@ class RERAIntegration:
                 }
 
             return None
-        except:
+        except Exception:
             return None
 
 
@@ -528,7 +514,7 @@ class AggregatedPropertyData:
         district: str = "Mumbai Suburban",
         taluka: str = "Andheri",
         village: str = "",
-    ) -> Dict:
+    ) -> dict:
         """
         Get complete property data from all sources
         """
@@ -540,9 +526,7 @@ class AggregatedPropertyData:
         }
 
         # 1. Get from Bhulekh
-        bhulekh_data = self.bhulekh.search_property(
-            district, taluka, village or taluka, survey_no
-        )
+        bhulekh_data = self.bhulekh.search_property(district, taluka, village or taluka, survey_no)
         if bhulekh_data:
             result["data"]["bhulekh"] = bhulekh_data
             result["sources"].append("bhulekh")
@@ -563,7 +547,7 @@ class AggregatedPropertyData:
 
         return result
 
-    def generate_property_report(self, survey_no: str) -> Dict:
+    def generate_property_report(self, survey_no: str) -> dict:
         """Generate comprehensive property report"""
         complete_data = self.get_complete_data(survey_no)
 
@@ -599,9 +583,7 @@ class AggregatedPropertyData:
 def cmd_fetch_all(args):
     """Fetch data from all sources"""
     agg = AggregatedPropertyData()
-    data = agg.get_complete_data(
-        args.survey_no, args.district, args.taluka, args.village
-    )
+    data = agg.get_complete_data(args.survey_no, args.district, args.taluka, args.village)
 
     logger.info(f"\nProperty Data for {args.survey_no}:")
     logger.info(f"Sources: {', '.join(data['sources'])}")

@@ -6,15 +6,15 @@ import logging
 import uuid
 
 from fastapi import HTTPException
-from schemas import (
+
+from services.orchestrator.schemas import (
     ChatMessage,
     SessionCreate,
     SessionResponse,
     UserProfileResponse,
     UserProfileUpdate,
 )
-
-from services.redis import (
+from services.orchestrator.services.redis import (
     delete_session,
     get_session,
     get_user_profile,
@@ -35,7 +35,9 @@ class LegacyService:
     async def create_session(self, user_id: str, req: SessionCreate) -> SessionResponse:
         session_id = str(uuid.uuid4())
         if save_session(session_id, user_id, req.model_dump()):
-            return SessionResponse(session_id=session_id, status="created", message="Session created successfully")
+            return SessionResponse(
+                session_id=session_id, status="created", message="Session created successfully"
+            )
         raise HTTPException(500, "Failed to create session")
 
     async def list_sessions(self, user_id: str) -> dict:
@@ -54,7 +56,8 @@ class LegacyService:
             raise HTTPException(404, "Session not found")
 
         # Lazy import to avoid circular dependency
-        from agent import run_agent
+        from services.orchestrator.agent import run_agent
+
         result = await run_agent(data)
 
         if result.get("report_path"):
@@ -70,7 +73,8 @@ class LegacyService:
         for mod in req.modifications:
             data[mod["field"]] = mod["value"]
 
-        from agent import run_agent
+        from services.orchestrator.agent import run_agent
+
         result = await run_agent(data)
         save_session(session_id, user_id, data)
 
@@ -78,7 +82,7 @@ class LegacyService:
             "session_id": session_id,
             "message": req.message,
             "modifications": req.modifications,
-            "result": result
+            "result": result,
         }
 
     async def delete_session(self, session_id: str, user_id: str) -> dict:
@@ -93,7 +97,7 @@ class LegacyService:
             name=p.get("name"),
             email=p.get("email"),
             phone=p.get("phone"),
-            organization=p.get("organization")
+            organization=p.get("organization"),
         )
 
     async def update_user_profile(self, user_id: str, req: UserProfileUpdate) -> dict:
@@ -108,9 +112,9 @@ class LegacyService:
             {
                 "session_id": s.get("session_id"),
                 "report_path": s.get("data", {}).get("report_path"),
-                "created_at": s.get("created_at")
-            } for s in sessions if s.get("data", {}).get("report_path")
+                "created_at": s.get("created_at"),
+            }
+            for s in sessions
+            if s.get("data", {}).get("report_path")
         ]
         return {"reports": reports, "count": len(reports)}
-
-

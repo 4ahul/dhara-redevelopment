@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import io
 import re
-from typing import Optional
 
 from pypdf import PdfReader
 
@@ -54,6 +53,7 @@ def parse_dp_pdf(pdf_bytes: bytes) -> dict:
 # ---------------------------------------------------------------------------
 # DP 2034 parser
 # ---------------------------------------------------------------------------
+
 
 def _parse_dp_2034(text: str) -> dict:
     result: dict = {
@@ -151,16 +151,43 @@ def _parse_dp_2034(text: str) -> dict:
     else:
         result["proposed_road_widening"] = None
 
+    # Road width: extract numeric value from proposed_road_widening or RL traffic remarks
+    road_width_m = None
+    for source_text in [
+        result.get("proposed_road_widening") or "",
+        result.get("rl_remarks_traffic") or "",
+    ]:
+        m_rw = re.search(r"(\d+\.?\d*)\s*[Mm]\.?\b", source_text)
+        if m_rw:
+            try:
+                road_width_m = float(m_rw.group(1))
+                break
+            except ValueError:
+                pass
+    result["road_width_m"] = road_width_m
+
     # Reservations
-    m = re.search(r"Reservation\s+affecting\s+the\s+Land\s*\[as shown on plan\]\s*(.+?)(?:\n(?:SM NO|EP NO|Affected|Reservation abutting))", text, re.DOTALL)
+    m = re.search(
+        r"Reservation\s+affecting\s+the\s+Land\s*\[as shown on plan\]\s*(.+?)(?:\n(?:SM NO|EP NO|Affected|Reservation abutting))",
+        text,
+        re.DOTALL,
+    )
     if m:
         val = re.sub(r"\s+", " ", m.group(1)).strip()
         result["reservations_affecting"] = val
     else:
-        m2 = re.search(r"Reservation\s+affecting\s+the\s+Land\s*\[as shown on plan\]\s*(NO|NIL|YES)", text, re.IGNORECASE)
+        m2 = re.search(
+            r"Reservation\s+affecting\s+the\s+Land\s*\[as shown on plan\]\s*(NO|NIL|YES)",
+            text,
+            re.IGNORECASE,
+        )
         result["reservations_affecting"] = m2.group(1).strip() if m2 else None
 
-    m = re.search(r"Reservation\s+abutting\s+the\s+Land\s*\[as shown on plan\]\s*(.+?)(?:\n|Existing amenities)", text, re.DOTALL)
+    m = re.search(
+        r"Reservation\s+abutting\s+the\s+Land\s*\[as shown on plan\]\s*(.+?)(?:\n|Existing amenities)",
+        text,
+        re.DOTALL,
+    )
     if m:
         val = re.sub(r"\s+", " ", m.group(1)).strip()
         result["reservations_abutting"] = val
@@ -168,29 +195,60 @@ def _parse_dp_2034(text: str) -> dict:
         result["reservations_abutting"] = None
 
     # Existing amenities
-    m = re.search(r"Existing\s+amenities\s+affecting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(.+?)(?:\n(?:SM NO|EP NO|Affected|Existing amenities abutting|Corrections))", text, re.DOTALL)
+    m = re.search(
+        r"Existing\s+amenities\s+affecting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(.+?)(?:\n(?:SM NO|EP NO|Affected|Existing amenities abutting|Corrections))",
+        text,
+        re.DOTALL,
+    )
     if m:
         val = re.sub(r"\s+", " ", m.group(1)).strip()
         result["existing_amenities_affecting"] = val
     else:
-        m2 = re.search(r"Existing\s+amenities\s+affecting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(NO|NIL|YES)", text, re.IGNORECASE)
+        m2 = re.search(
+            r"Existing\s+amenities\s+affecting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(NO|NIL|YES)",
+            text,
+            re.IGNORECASE,
+        )
         result["existing_amenities_affecting"] = m2.group(1).strip() if m2 else None
 
-    m = re.search(r"Existing\s+amenities\s+abutting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(.+?)(?:\n|Whether|Corrections|Heritage)", text, re.DOTALL)
+    m = re.search(
+        r"Existing\s+amenities\s+abutting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(.+?)(?:\n|Whether|Corrections|Heritage)",
+        text,
+        re.DOTALL,
+    )
     if m:
         val = re.sub(r"\s+", " ", m.group(1)).strip()
         result["existing_amenities_abutting"] = val
     else:
-        m2 = re.search(r"Existing\s+amenities\s+abutting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(NO|NIL)", text, re.IGNORECASE)
+        m2 = re.search(
+            r"Existing\s+amenities\s+abutting\s+the\s+Land\s*\[as shown on\s*plan\]\s*(NO|NIL)",
+            text,
+            re.IGNORECASE,
+        )
         result["existing_amenities_abutting"] = m2.group(1).strip() if m2 else None
 
     # Heritage fields
     heritage_questions = [
-        ("heritage_building", r"Whether a listed Heritage building[/\s]*site:\s*(Yes|No)\s*/\s*(Yes|No)"),
-        ("heritage_precinct", r"Whether situated in a Heritage Precinct:\s*(Yes|No)\s*/\s*(Yes|No)"),
-        ("heritage_buffer", r"Whether situated in the buffer zone/Vista of a listed\s*heritage site:\s*(Yes|No)\s*/\s*(Yes|No)"),
-        ("archaeological_site", r"Whether a listed archaeological site \(ASI\):\s*(Yes|No)\s*/\s*(Yes|No)"),
-        ("archaeological_buffer", r"Whether situated in the buffer zone/Vista of a listed\s*archaeological site \(ASI\):\s*(Yes|No)\s*/\s*(Yes|No)"),
+        (
+            "heritage_building",
+            r"Whether a listed Heritage building[/\s]*site:\s*(Yes|No)\s*/\s*(Yes|No)",
+        ),
+        (
+            "heritage_precinct",
+            r"Whether situated in a Heritage Precinct:\s*(Yes|No)\s*/\s*(Yes|No)",
+        ),
+        (
+            "heritage_buffer",
+            r"Whether situated in the buffer zone/Vista of a listed\s*heritage site:\s*(Yes|No)\s*/\s*(Yes|No)",
+        ),
+        (
+            "archaeological_site",
+            r"Whether a listed archaeological site \(ASI\):\s*(Yes|No)\s*/\s*(Yes|No)",
+        ),
+        (
+            "archaeological_buffer",
+            r"Whether situated in the buffer zone/Vista of a listed\s*archaeological site \(ASI\):\s*(Yes|No)\s*/\s*(Yes|No)",
+        ),
     ]
     # The PDF prints "Yes / No" as both options; actual answer is typically inferred
     # from context. For now store the raw text.
@@ -199,7 +257,10 @@ def _parse_dp_2034(text: str) -> dict:
         result[key] = f"{m.group(1)} / {m.group(2)}" if m else None
 
     # Water pipeline: "Water pipeline near the plot (X.XX meters far) has NNN mm pipe diameter"
-    m = re.search(r"Water pipeline near the plot\s*\((\d+\.?\d*)\s*meters?\s*far\)\s*has\s*(\d+)\s*mm\s*pipe diameter", text)
+    m = re.search(
+        r"Water pipeline near the plot\s*\((\d+\.?\d*)\s*meters?\s*far\)\s*has\s*(\d+)\s*mm\s*pipe diameter",
+        text,
+    )
     if m:
         result["water_pipeline"] = {
             "distance_m": float(m.group(1)),
@@ -209,7 +270,10 @@ def _parse_dp_2034(text: str) -> dict:
         result["water_pipeline"] = None
 
     # Sewer line: "Sewer Manhole near the plot (Node No. NNNN, X.XX meters far) has invert level XX.XX meters"
-    m = re.search(r"Sewer Manhole near the plot\s*\(Node No\.\s*(\d+),\s*(\d+\.?\d*)\s*meters?\s*far\)\s*has\s*invert level\s*(\d+\.?\d*)\s*meters", text)
+    m = re.search(
+        r"Sewer Manhole near the plot\s*\(Node No\.\s*(\d+),\s*(\d+\.?\d*)\s*meters?\s*far\)\s*has\s*invert level\s*(\d+\.?\d*)\s*meters",
+        text,
+    )
     if m:
         result["sewer_line"] = {
             "node_no": m.group(1),
@@ -220,7 +284,10 @@ def _parse_dp_2034(text: str) -> dict:
         result["sewer_line"] = None
 
     # Drainage: "Drain Manhole near the plot (Node ID NNNN, X.XX meters far) has invert level XX.XX meters"
-    m = re.search(r"Drain Manhole near the plot\s*\(Node ID\s*(\d+),\s*(\d+\.?\d*)\s*meters?\s*far\)\s*has\s*invert level\s*(\d+\.?\d*)\s*meters", text)
+    m = re.search(
+        r"Drain Manhole near the plot\s*\(Node ID\s*(\d+),\s*(\d+\.?\d*)\s*meters?\s*far\)\s*has\s*invert level\s*(\d+\.?\d*)\s*meters",
+        text,
+    )
     if m:
         result["drainage"] = {
             "node_id": m.group(1),
@@ -231,7 +298,11 @@ def _parse_dp_2034(text: str) -> dict:
         result["drainage"] = None
 
     # Ground level: "minimum XX.XX meters and maximum YY.YY meters ground level ... (THD)"
-    m = re.search(r"minimum\s+(\d+\.?\d*)\s*meters?\s+and\s+maximum\s+(\d+\.?\d*)\s*meters?\s+ground level.*?(?:Town Hall Datum\s*\((\w+)\)|$)", text, re.DOTALL)
+    m = re.search(
+        r"minimum\s+(\d+\.?\d*)\s*meters?\s+and\s+maximum\s+(\d+\.?\d*)\s*meters?\s+ground level.*?(?:Town Hall Datum\s*\((\w+)\)|$)",
+        text,
+        re.DOTALL,
+    )
     if m:
         result["ground_level"] = {
             "min_m": float(m.group(1)),
@@ -242,15 +313,27 @@ def _parse_dp_2034(text: str) -> dict:
         result["ground_level"] = None
 
     # RL Remarks (Traffic)
-    m = re.search(r"REGULAR LINE REMARKS \(Traffic\):\s*(.+?)(?=REGULAR LINE REMARKS \(Survey\)|$)", text, re.DOTALL)
+    m = re.search(
+        r"REGULAR LINE REMARKS \(Traffic\):\s*(.+?)(?=REGULAR LINE REMARKS \(Survey\)|$)",
+        text,
+        re.DOTALL,
+    )
     result["rl_remarks_traffic"] = m.group(1).strip() if m else None
 
     # RL Remarks (Survey)
-    m = re.search(r"REGULAR LINE REMARKS \(Survey\):\s*(.+?)(?=Acc:|Note:|The land under reference|Natural Water Course|Pipeline|$)", text, re.DOTALL)
+    m = re.search(
+        r"REGULAR LINE REMARKS \(Survey\):\s*(.+?)(?=Acc:|Note:|The land under reference|Natural Water Course|Pipeline|$)",
+        text,
+        re.DOTALL,
+    )
     result["rl_remarks_survey"] = m.group(1).strip() if m else None
 
     # CRZ zone details
-    m = re.search(r"(?:falls under|falls within the Coastal Regulation Zone)\s*(.*?CRZ.*?)(?:Category|$)", text, re.DOTALL)
+    m = re.search(
+        r"(?:falls under|falls within the Coastal Regulation Zone)\s*(.*?CRZ.*?)(?:Category|$)",
+        text,
+        re.DOTALL,
+    )
     if m:
         result["crz_zone_details"] = re.sub(r"\s+", " ", m.group(0)).strip()
     else:
@@ -259,23 +342,47 @@ def _parse_dp_2034(text: str) -> dict:
         result["crz_zone_details"] = re.sub(r"\s+", " ", m2.group(0)).strip() if m2 else None
 
     # High voltage line
-    m = re.search(r"High\s+(?:Tension|Voltage)\s+Power\s+Lines?\s+.+?(?:company|$)", text, re.DOTALL | re.IGNORECASE)
+    m = re.search(
+        r"High\s+(?:Tension|Voltage)\s+Power\s+Lines?\s+.+?(?:company|$)",
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
     result["high_voltage_line"] = re.sub(r"\s+", " ", m.group(0)).strip() if m else None
 
     # Buffer SGNP
-    m = re.search(r"Buffer\s+line\s+of\s+SGNP.*?(?:mangrove|swamp).*?(?:\d{4})\.", text, re.DOTALL | re.IGNORECASE)
+    m = re.search(
+        r"Buffer\s+line\s+of\s+SGNP.*?(?:mangrove|swamp).*?(?:\d{4})\.",
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
     if not m:
-        m = re.search(r"(?:above land is affected by the Mangrove).*?(?:\d{4})\.", text, re.DOTALL | re.IGNORECASE)
+        m = re.search(
+            r"(?:above land is affected by the Mangrove).*?(?:\d{4})\.",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
     result["buffer_sgnp"] = re.sub(r"\s+", " ", m.group(0)).strip() if m else None
 
     # Flamingo ESZ
-    m = re.search(r"(?:Buffer Line of Flamingo ESZ|Flamingo Sanctuary).*?(?:construction works|$)\.", text, re.DOTALL | re.IGNORECASE)
+    m = re.search(
+        r"(?:Buffer Line of Flamingo ESZ|Flamingo Sanctuary).*?(?:construction works|$)\.",
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
     if not m:
-        m = re.search(r"Eco-sensitive zone of Thane Creek Flamingo.*?(?:construction works)\.", text, re.DOTALL | re.IGNORECASE)
+        m = re.search(
+            r"Eco-sensitive zone of Thane Creek Flamingo.*?(?:construction works)\.",
+            text,
+            re.DOTALL | re.IGNORECASE,
+        )
     result["flamingo_esz"] = re.sub(r"\s+", " ", m.group(0)).strip() if m else None
 
     # Corrections DCPR 2034
-    m = re.search(r"Corrections as per provisions of\s*DCPR 2034:\s*(.+?)(?:Modification|Realignment|Whether|EP NO|$)", text, re.DOTALL)
+    m = re.search(
+        r"Corrections as per provisions of\s*DCPR 2034:\s*(.+?)(?:Modification|Realignment|Whether|EP NO|$)",
+        text,
+        re.DOTALL,
+    )
     result["corrections_dcpr"] = re.sub(r"\s+", " ", m.group(1)).strip() if m else None
 
     # Modifications Section 37
@@ -292,6 +399,7 @@ def _parse_dp_2034(text: str) -> dict:
 # ---------------------------------------------------------------------------
 # SRDP 1991 parser
 # ---------------------------------------------------------------------------
+
 
 def _parse_srdp_1991(text: str) -> dict:
     result: dict = {
@@ -312,7 +420,11 @@ def _parse_srdp_1991(text: str) -> dict:
     result["applicant_name"] = m.group(1).strip() if m else None
 
     # CTS numbers: "C.T.S. No(s) 852,853,855 and 854 of VILE PARLE"
-    m = re.search(r"C\.T\.S\.\s*No\(?s?\)?\s*([\d,/\s]+(?:\s+and\s+\d+)?)\s+of\s+([A-Z][A-Z\s]+?)(?:\s+Village|\s*$)", text, re.MULTILINE)
+    m = re.search(
+        r"C\.T\.S\.\s*No\(?s?\)?\s*([\d,/\s]+(?:\s+and\s+\d+)?)\s+of\s+([A-Z][A-Z\s]+?)(?:\s+Village|\s*$)",
+        text,
+        re.MULTILINE,
+    )
     if m:
         raw_nums = m.group(1)
         nums = re.split(r"[,\s]+and\s+|[,\s]+", raw_nums)
@@ -351,37 +463,78 @@ def _parse_srdp_1991(text: str) -> dict:
         result["zone_code"] = None
 
     # Reservations
-    m = re.search(r"Reservations\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    m = re.search(
+        r"Reservations\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)",
+        text,
+        re.IGNORECASE,
+    )
     result["reservations_affecting"] = m.group(1).strip() if m else None
 
-    m = re.search(r"Reservations\s+abutting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    m = re.search(
+        r"Reservations\s+abutting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)",
+        text,
+        re.IGNORECASE,
+    )
     result["reservations_abutting"] = m.group(1).strip() if m else None
 
     # Designations
-    m = re.search(r"Designations\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    m = re.search(
+        r"Designations\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)",
+        text,
+        re.IGNORECASE,
+    )
     result["designations_affecting"] = m.group(1).strip() if m else None
 
-    m = re.search(r"Designations\s+abutting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    m = re.search(
+        r"Designations\s+abutting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)",
+        text,
+        re.IGNORECASE,
+    )
     result["designations_abutting"] = m.group(1).strip() if m else None
 
     # DP Roads
-    m = re.search(r"D\.P\.\s*Roads\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    m = re.search(
+        r"D\.P\.\s*Roads\s+affecting\s+the\s+land\[as shown on plan\]:\s*(.+?)(?:\n|$)",
+        text,
+        re.IGNORECASE,
+    )
     result["dp_roads"] = m.group(1).strip() if m else None
 
     # RL Remarks (Traffic)
-    m = re.search(r"REGULAR LINE REMARKS \(Traffic\):\s*(.+?)(?=REGULAR LINE REMARKS|You are also|$)", text, re.DOTALL)
+    m = re.search(
+        r"REGULAR LINE REMARKS \(Traffic\):\s*(.+?)(?=REGULAR LINE REMARKS|You are also|$)",
+        text,
+        re.DOTALL,
+    )
     result["rl_remarks_traffic"] = m.group(1).strip() if m else None
 
     # Fields that only exist in DP 2034 - set to None
     for key in [
-        "fp_no", "tps_name", "proposed_road", "proposed_road_widening",
-        "existing_amenities_affecting", "existing_amenities_abutting",
-        "heritage_building", "heritage_precinct", "heritage_buffer",
-        "archaeological_site", "archaeological_buffer",
-        "water_pipeline", "sewer_line", "drainage", "ground_level",
-        "rl_remarks_survey", "crz_zone_details", "high_voltage_line",
-        "buffer_sgnp", "flamingo_esz", "corrections_dcpr",
-        "modifications_sec37", "road_realignment", "ep_nos", "sm_nos",
+        "fp_no",
+        "tps_name",
+        "proposed_road",
+        "proposed_road_widening",
+        "existing_amenities_affecting",
+        "existing_amenities_abutting",
+        "heritage_building",
+        "heritage_precinct",
+        "heritage_buffer",
+        "archaeological_site",
+        "archaeological_buffer",
+        "water_pipeline",
+        "sewer_line",
+        "drainage",
+        "ground_level",
+        "rl_remarks_survey",
+        "crz_zone_details",
+        "high_voltage_line",
+        "buffer_sgnp",
+        "flamingo_esz",
+        "corrections_dcpr",
+        "modifications_sec37",
+        "road_realignment",
+        "ep_nos",
+        "sm_nos",
     ]:
         result[key] = None
 

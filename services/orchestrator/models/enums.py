@@ -27,10 +27,24 @@ class InviteStatus(enum.StrEnum):
 
 
 class ReportStatus(enum.StrEnum):
+    DRAFT = "draft"
     PENDING = "pending"
+    IN_PROGRESS = "in_progress"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    FINAL = "final"
     FAILED = "failed"
+
+
+class SocietyStatus(enum.StrEnum):
+    NEW = "new"
+    INVITATION_SENT = "invitation_sent"
+    REPORT_PENDING = "report_pending"
+    TENDER_PENDING = "tender_pending"
+    TENDER_PUBLISHED = "tender_published"
+    TENDER_REVIEW_PENDING = "tender_review_pending"
+    BUILDER_FINALIZED = "builder_finalized"
+    MANUAL_PROCESS = "manual_process"
 
 
 class TenderStatus(enum.StrEnum):
@@ -38,5 +52,3 @@ class TenderStatus(enum.StrEnum):
     OPEN = "open"
     CLOSED = "closed"
     AWARDED = "awarded"
-
-

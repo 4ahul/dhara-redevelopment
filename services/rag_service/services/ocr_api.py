@@ -4,19 +4,16 @@ OCR Document Upload and Processing API
 Handles property card and 7-12 extract uploads
 """
 
-import os
 import json
+import logging
 import re
 import uuid
-import base64
-import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, List
-from dataclasses import dataclass, asdict
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.responses import JSONResponse
+
 import uvicorn
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +45,7 @@ class ExtractedPropertyData:
     tenure: str = ""
 
     # Ownership
-    owners: List[str] = None
+    owners: list[str] = None
 
     # Metadata
     confidence: float = 0.0
@@ -106,7 +103,7 @@ class OCRProcessor:
 
         return result
 
-    def process_pdf(self, pdf_path: str) -> List[ExtractedPropertyData]:
+    def process_pdf(self, pdf_path: str) -> list[ExtractedPropertyData]:
         """Process PDF document (may contain multiple pages)"""
         from pypdf import PdfReader
 
@@ -186,7 +183,7 @@ class OCRProcessor:
                     result.plot_area_sq_m = float(area_str)
                     result.plot_area_sq_ft = result.plot_area_sq_m * 10.764
                     break
-                except:
+                except Exception:
                     pass
 
         # Road width
@@ -203,23 +200,17 @@ class OCRProcessor:
             result.zone_type = "Industrial"
 
         # Village
-        village_match = re.search(
-            r"Village\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|Taluka)", text, re.I
-        )
+        village_match = re.search(r"Village\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|Taluka)", text, re.I)
         if village_match:
             result.village = village_match.group(1).strip()
 
         # Taluka
-        taluka_match = re.search(
-            r"Taluka\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|District)", text, re.I
-        )
+        taluka_match = re.search(r"Taluka\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|District)", text, re.I)
         if taluka_match:
             result.taluka = taluka_match.group(1).strip()
 
         # District
-        district_match = re.search(
-            r"District\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|Pin)", text, re.I
-        )
+        district_match = re.search(r"District\s*[:\-]?\s*([A-Za-z\s]+?)(?:,|\n|Pin)", text, re.I)
         if district_match:
             result.district = district_match.group(1).strip()
 
@@ -291,7 +282,7 @@ async def process_property_card(file: UploadFile = File(...)):
             }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/ocr/7-12")
@@ -325,11 +316,11 @@ async def process_7_12(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/ocr/verify/{document_id}")
-async def verify_extracted_data(document_id: str, verified_data: Dict):
+async def verify_extracted_data(document_id: str, verified_data: dict):
     """
     Verify and correct extracted data
     """

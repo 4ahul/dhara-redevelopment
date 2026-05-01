@@ -4,14 +4,11 @@ Property Card OCR and Report Generator
 Extracts data from property cards and generates LandWise-style reports
 """
 
-import os
-import json
-import re
 import logging
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict
+import re
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +23,6 @@ except ImportError:
 
 TRACTOR_AVAILABLE = False
 try:
-    import traceback
-
     TTRACTOR_AVAILABLE = False
 except ImportError:
     pass
@@ -168,7 +163,7 @@ class PropertyCardOCR:
 
         for detection in result:
             text = detection[1].upper()
-            confidence = detection[2]
+            detection[2]
 
             # Extract survey number
             if "SURVEY" in text or "SY NO" in text or "CTS NO" in text:
@@ -177,9 +172,7 @@ class PropertyCardOCR:
                     card.survey_no = match.group(1)
 
             # Extract area
-            area_match = re.search(
-                r"(\d+[\.\d]*)\s*(sq\.?\s*m|sqm|sq\.?\s*ft|sqft)", text, re.I
-            )
+            area_match = re.search(r"(\d+[\.\d]*)\s*(sq\.?\s*m|sqm|sq\.?\s*ft|sqft)", text, re.I)
             if area_match and "AREA" in text:
                 if "sq.m" in text.lower() or "sqm" in text.lower():
                     card.plot_area_sq_m = float(area_match.group(1))
@@ -229,7 +222,7 @@ class PropertyCardOCR:
 
         return card
 
-    def extract_from_pdf(self, pdf_path: str) -> List[PropertyCard]:
+    def extract_from_pdf(self, pdf_path: str) -> list[PropertyCard]:
         """Extract property card data from PDF"""
         from pypdf import PdfReader
 
@@ -263,9 +256,7 @@ class PropertyCardOCR:
                 break
 
         # Area in sq.m
-        match = re.search(
-            r"(\d+[\.,]\d+)\s*(?:Sq\.?|Square)?\s*(?:Meter|M\.?)", text, re.I
-        )
+        match = re.search(r"(\d+[\.,]\d+)\s*(?:Sq\.?|Square)?\s*(?:Meter|M\.?)", text, re.I)
         if match:
             card.plot_area_sq_m = float(match.group(1).replace(",", ""))
 
@@ -407,19 +398,17 @@ class DCPRCalculator:
 
         return config
 
-    def get_applicable_schemes(
-        self, plot_area_sq_m: float, zone_type: str
-    ) -> List[str]:
+    def get_applicable_schemes(self, plot_area_sq_m: float, zone_type: str) -> list[str]:
         """Get applicable schemes for a property"""
         schemes = []
 
-        for scheme_id, scheme in self.schemes.items():
+        for scheme_id, _scheme in self.schemes.items():
             if plot_area_sq_m >= 500 or scheme_id in ["33(7B)", "33(11)"]:
                 schemes.append(scheme_id)
 
         return schemes
 
-    def query_dcpr(self, query: str, k: int = 5) -> List[str]:
+    def query_dcpr(self, query: str, k: int = 5) -> list[str]:
         """Query DCPR regulations using RAG"""
         if not self.rag_agent:
             return []
@@ -435,9 +424,7 @@ class ReportGenerator:
         self.template_dir = Path(__file__).parent / "templates"
         self.template_dir.mkdir(exist_ok=True)
 
-    def generate_scheme_comparison(
-        self, analysis: ProjectAnalysis, schemes: List[str]
-    ) -> str:
+    def generate_scheme_comparison(self, analysis: ProjectAnalysis, schemes: list[str]) -> str:
         """Generate scheme comparison table"""
         output = []
         output.append("=" * 80)
@@ -452,15 +439,15 @@ class ReportGenerator:
         col_widths = [40, 10] + [15] * len(schemes)
 
         # Print headers
-        header_line = " | ".join(h.ljust(w) for h, w in zip(headers, col_widths))
+        header_line = " | ".join(h.ljust(w) for h, w in zip(headers, col_widths, strict=False))
         output.append(header_line)
         output.append("-" * len(header_line))
 
         # Plot area
         row = ["Plot Area for FSI Calculation", "sq.m"]
-        for scheme in schemes:
+        for _scheme in schemes:
             row.append(f"{analysis.property_card.plot_area_sq_m:,.2f}")
-        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths)))
+        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths, strict=False)))
 
         # FSI Statement
         output.append("")
@@ -468,19 +455,15 @@ class ReportGenerator:
 
         # Basic FSI
         row = ["Zonal Basic FSI", "Ratio"]
-        for scheme in schemes:
-            row.append(
-                f"{DCPRCalculator().schemes.get(scheme, {}).get('basic_fsi', 0):.2f}"
-            )
-        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths)))
+        for _scheme in schemes:
+            row.append(f"{DCPRCalculator().schemes.get(_scheme, {}).get('basic_fsi', 0):.2f}")
+        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths, strict=False)))
 
         # Max Permissible
         row = ["Max Permissible FSI", "Ratio"]
-        for scheme in schemes:
-            row.append(
-                f"{DCPRCalculator().schemes.get(scheme, {}).get('max_fsi', 0):.2f}"
-            )
-        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths)))
+        for _scheme in schemes:
+            row.append(f"{DCPRCalculator().schemes.get(_scheme, {}).get('max_fsi', 0):.2f}")
+        output.append(" | ".join(r.ljust(w) for r, w in zip(row, col_widths, strict=False)))
 
         output.append("")
         return "\n".join(output)
@@ -499,15 +482,9 @@ class ReportGenerator:
         # Area Summary
         output.append("AREA SUMMARY (Saleable RERA Carpet)")
         output.append("-" * 40)
-        output.append(
-            f"Residential:    {analysis.revenue.residential_area_sqft:,.0f} sq.ft."
-        )
-        output.append(
-            f"Office:         {analysis.revenue.office_area_sqft:,.0f} sq.ft."
-        )
-        output.append(
-            f"Retail:         {analysis.revenue.retail_area_sqft:,.0f} sq.ft."
-        )
+        output.append(f"Residential:    {analysis.revenue.residential_area_sqft:,.0f} sq.ft.")
+        output.append(f"Office:         {analysis.revenue.office_area_sqft:,.0f} sq.ft.")
+        output.append(f"Retail:         {analysis.revenue.retail_area_sqft:,.0f} sq.ft.")
         output.append(f"Parking Slots:  {analysis.revenue.parking_slots}")
         output.append("")
 
@@ -522,23 +499,17 @@ class ReportGenerator:
         output.append(f"Residential:    ₹{residential_rev:,.2f} Cr")
 
         office_rev = (
-            analysis.revenue.office_area_sqft
-            * analysis.revenue.office_rate_per_sqft
-            / 10000000
+            analysis.revenue.office_area_sqft * analysis.revenue.office_rate_per_sqft / 10000000
         )
         output.append(f"Office:         ₹{office_rev:,.2f} Cr")
 
         retail_rev = (
-            analysis.revenue.retail_area_sqft
-            * analysis.revenue.retail_rate_per_sqft
-            / 10000000
+            analysis.revenue.retail_area_sqft * analysis.revenue.retail_rate_per_sqft / 10000000
         )
         output.append(f"Retail:         ₹{retail_rev:,.2f} Cr")
 
         parking_rev = (
-            analysis.revenue.parking_slots
-            * analysis.revenue.parking_rate_per_slot
-            / 10000000
+            analysis.revenue.parking_slots * analysis.revenue.parking_rate_per_slot / 10000000
         )
         output.append(f"Parking:        ₹{parking_rev:,.2f} Cr")
 
@@ -549,9 +520,7 @@ class ReportGenerator:
         # Cost Summary
         output.append("COST SUMMARY")
         output.append("-" * 40)
-        output.append(
-            f"Land/ Land Related Costs:  ₹{analysis.cost_breakdown.land_costs:,.2f} Cr"
-        )
+        output.append(f"Land/ Land Related Costs:  ₹{analysis.cost_breakdown.land_costs:,.2f} Cr")
         output.append(
             f"Approval Costs:           ₹{analysis.cost_breakdown.approval_costs:,.2f} Cr"
         )
@@ -601,107 +570,71 @@ class ReportGenerator:
         output.append("-" * 65)
 
         output.append("Scrutiny Fees:")
+        output.append("{:50} ₹{:>12,}".format("  Layout Scrutiny Fees", cb.scrutiny_fees_layout))
         output.append(
-            "{:50} ₹{:>12,}".format("  Layout Scrutiny Fees", cb.scrutiny_fees_layout)
+            "{:50} ₹{:>12,}".format("  Building Plan Scrutiny", cb.scrutiny_fees_building)
         )
-        output.append(
-            "{:50} ₹{:>12,}".format(
-                "  Building Plan Scrutiny", cb.scrutiny_fees_building
-            )
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format("  TDR Utilization Fees", cb.scrutiny_fees_tdr)
-        )
+        output.append("{:50} ₹{:>12,}".format("  TDR Utilization Fees", cb.scrutiny_fees_tdr))
 
         output.append("")
         output.append("Deposits:")
         output.append("{:50} ₹{:>12,}".format("  IOD Deposit", cb.iod_deposit))
-        output.append(
-            "{:50} ₹{:>12,}".format("  Debris Removal Deposit", cb.debris_removal)
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format("  Excavation Royalty", cb.excavation_royalty)
-        )
+        output.append("{:50} ₹{:>12,}".format("  Debris Removal Deposit", cb.debris_removal))
+        output.append("{:50} ₹{:>12,}".format("  Excavation Royalty", cb.excavation_royalty))
 
         output.append("")
         output.append("Premium Charges:")
+        output.append("{:50} ₹{:>12,}".format("  Premium FSI Charges", cb.premium_fsi_charges))
+        output.append("{:50} ₹{:>12,}".format("  Fungible FSI Charges", cb.fungible_fsi_charges))
         output.append(
-            "{:50} ₹{:>12,}".format("  Premium FSI Charges", cb.premium_fsi_charges)
+            "{:50} ₹{:>12,}".format("  Staircase/Lift Premium", cb.staircase_lift_premium)
         )
-        output.append(
-            "{:50} ₹{:>12,}".format("  Fungible FSI Charges", cb.fungible_fsi_charges)
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format(
-                "  Staircase/Lift Premium", cb.staircase_lift_premium
-            )
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format("  Open Space Deficiency", cb.open_space_deficiency)
-        )
+        output.append("{:50} ₹{:>12,}".format("  Open Space Deficiency", cb.open_space_deficiency))
 
         output.append("")
         output.append("Development Charges:")
-        output.append(
-            "{:50} ₹{:>12,}".format("  On Plot Area", cb.development_charges_plot)
-        )
+        output.append("{:50} ₹{:>12,}".format("  On Plot Area", cb.development_charges_plot))
         output.append("{:50} ₹{:>12,}".format("  On BUA", cb.development_charges_bua))
 
         output.append("")
         output.append("Cess & Other:")
+        output.append("{:50} ₹{:>12,}".format("  Development Cess", cb.development_cess))
+        output.append("{:50} ₹{:>12,}".format("  Labour Welfare Cess", cb.labour_welfare_cess))
         output.append(
-            "{:50} ₹{:>12,}".format("  Development Cess", cb.development_cess)
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format("  Labour Welfare Cess", cb.labour_welfare_cess)
-        )
-        output.append(
-            "{:50} ₹{:>12,}".format(
-                "  Infrastructure Charges", cb.infrastructure_charges
-            )
+            "{:50} ₹{:>12,}".format("  Infrastructure Charges", cb.infrastructure_charges)
         )
 
         output.append("-" * 65)
-        output.append(
-            "{:50} ₹{:>12,}".format("TOTAL APPROVAL COSTS", cb.approval_costs)
-        )
+        output.append("{:50} ₹{:>12,}".format("TOTAL APPROVAL COSTS", cb.approval_costs))
         output.append("")
 
         return "\n".join(output)
 
-    def export_to_pdf(
-        self, analysis: ProjectAnalysis, output_path: str, report_type: str = "all"
-    ):
+    def export_to_pdf(self, analysis: ProjectAnalysis, output_path: str, report_type: str = "all"):
         """Export report to PDF"""
         try:
-            from reportlab.lib.pagesizes import A4
             from reportlab.lib import colors
+            from reportlab.lib.pagesizes import A4
             from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.units import inch
             from reportlab.platypus import (
+                Paragraph,
                 SimpleDocTemplate,
+                Spacer,
                 Table,
                 TableStyle,
-                Paragraph,
-                Spacer,
             )
-            from reportlab.lib.units import inch
 
             doc = SimpleDocTemplate(output_path, pagesize=A4)
             elements = []
             styles = getSampleStyleSheet()
 
-            elements.append(
-                Paragraph(f"<b>{analysis.project_name}</b>", styles["Title"])
-            )
-            elements.append(
-                Paragraph(f"Scheme: {analysis.selected_scheme}", styles["Normal"])
-            )
+            elements.append(Paragraph(f"<b>{analysis.project_name}</b>", styles["Title"]))
+            elements.append(Paragraph(f"Scheme: {analysis.selected_scheme}", styles["Normal"]))
             elements.append(Spacer(1, 0.3 * inch))
 
             if report_type in ["financial", "all"]:
-                elements.append(
-                    Paragraph("<b>FINANCIAL SUMMARY</b>", styles["Heading1"])
-                )
+                elements.append(Paragraph("<b>FINANCIAL SUMMARY</b>", styles["Heading1"]))
                 elements.append(Spacer(1, 0.1 * inch))
 
                 rev = analysis.revenue
@@ -885,7 +818,7 @@ class PropertyCardWorkflow:
     def analyze_from_card(
         self,
         card: PropertyCard,
-        schemes: List[str] = None,
+        schemes: list[str] = None,
         revenue: RevenueBreakdown = None,
         costs: CostBreakdown = None,
         affordable_housing_pct: float = 0.0,
@@ -897,9 +830,7 @@ class PropertyCardWorkflow:
         analysis.project_name = f"Property Analysis - {card.survey_no}"
 
         if schemes is None:
-            schemes = self.calculator.get_applicable_schemes(
-                card.plot_area_sq_m, card.zone_type
-            )
+            schemes = self.calculator.get_applicable_schemes(card.plot_area_sq_m, card.zone_type)
 
         # Calculate for each scheme
         best_scheme = None
@@ -967,9 +898,7 @@ class PropertyCardWorkflow:
         )
 
         analysis.rera_carpet_sqft = (
-            revenue.residential_area_sqft
-            + revenue.office_area_sqft
-            + revenue.retail_area_sqft
+            revenue.residential_area_sqft + revenue.office_area_sqft + revenue.retail_area_sqft
         )
 
         return analysis
@@ -1038,9 +967,7 @@ class PropertyCardWorkflow:
         )
 
         # Construction costs
-        costs.construction_costs = (
-            revenue.residential_area_sqft * 35000
-        )  # ₹35,000 per sq.ft
+        costs.construction_costs = revenue.residential_area_sqft * 35000  # ₹35,000 per sq.ft
 
         # Sales & Marketing (3% of revenue)
         total_revenue = (
@@ -1057,8 +984,8 @@ class PropertyCardWorkflow:
         return costs
 
     def run_workflow(
-        self, input_path: str, output_dir: str, report_types: List[str] = None
-    ) -> Dict[str, str]:
+        self, input_path: str, output_dir: str, report_types: list[str] = None
+    ) -> dict[str, str]:
         """Run full workflow"""
         if report_types is None:
             report_types = ["scheme", "financial", "approval"]
@@ -1097,9 +1024,7 @@ class PropertyCardWorkflow:
                 output_path = output_dir / f"{prefix}_{report_type}.pdf"
 
                 try:
-                    self.generator.export_to_pdf(
-                        analysis, str(output_path), report_type
-                    )
+                    self.generator.export_to_pdf(analysis, str(output_path), report_type)
                     outputs[report_type] = str(output_path)
                     logger.info(f"Generated: {output_path}")
                 except Exception as e:
@@ -1173,7 +1098,7 @@ class LandWiseReportParser:
         return analysis
 
     @staticmethod
-    def parse_scheme_comparison(pdf_path: str) -> Dict:
+    def parse_scheme_comparison(pdf_path: str) -> dict:
         """Parse a LandWise Scheme Comparison PDF"""
         from pypdf import PdfReader
 

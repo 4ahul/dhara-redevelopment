@@ -1,11 +1,10 @@
 from pydantic import BaseModel
-from typing import Optional
 
 
 class SiteAnalysisRequest(BaseModel):
     address: str
-    ward: Optional[str] = None
-    plot_no: Optional[str] = None
+    ward: str | None = None
+    plot_no: str | None = None
 
 
 class SiteAnalysisResponse(BaseModel):
@@ -15,10 +14,10 @@ class SiteAnalysisResponse(BaseModel):
     area_type: str
     nearby_landmarks: list[str]
     place_id: str
-    zone_inference: Optional[str] = None
-    ward: Optional[str] = None
+    zone_inference: str | None = None
+    ward: str | None = None
     zone_source: str = "unavailable"
-    maps_url: Optional[str] = None
+    maps_url: str | None = None
 
 
 class HealthResponse(BaseModel):

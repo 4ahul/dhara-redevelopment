@@ -4,6 +4,7 @@
 # 5/63 cells: explicit overrides (see scripts/regen_mapping.py EXPLICIT dict).
 
 template: "FINAL TEMPLATE _ 33 (7)(B).xlsx"
+
 scheme: "33(7)(B)"
 version: 1
 generated_from_dossier: dossiers/33_7_B.dossier.json
@@ -16,31 +17,6 @@ cells:
     kind: black
     calc: report_header
     semantic_name: report_header_title
-
-  # CTS/FP and Village Labels (Top Right)
-  - cell: Details!M1
-    kind: black
-    calc: label_with_value
-    calc_args:
-      label: "Cts No. /FP No.:-"
-      path: cts_no
-    semantic_name: label_cts_fp
-
-  - cell: Details!M2
-    kind: black
-    calc: label_with_value
-    calc_args:
-      label: "Village :-"
-      path: village
-    semantic_name: label_village
-    transform: str
-
-  # Incentive FSI rule (Society Age > 30 years)
-  - cell: Details!B19
-    kind: black
-    calc: incentive_bua_33_7_b
-    semantic_name: incentive_bua_33_7_b
-    transform: float
 
   # Literal label prefix; real CTS/FP number lives in a yellow cell elsewhere
   # placeholder: 'Cts No. /FP No.:- 63'
@@ -61,6 +37,7 @@ cells:
       - manual_inputs.village
     fallback: ""
     transform: str
+    required: true
 
   - cell: Details!P4
     kind: black
@@ -70,6 +47,7 @@ cells:
       - plot_area_sqm
     fallback: 0
     transform: float
+    required: true
 
   - cell: Details!P7
     kind: black
@@ -80,10 +58,13 @@ cells:
     fallback: 0
     transform: float
 
+  # Existing total BUA from old plan OCR
   - cell: Details!P14
     kind: black
-    semantic_name: encroachment_area_sqm
-    from: manual_inputs.encroachment_area_sqm
+    semantic_name: existing_total_bua_sqft
+    sources:
+      - existing_bua_sqft
+      - manual_inputs.existing_total_bua_sqft
     fallback: 0
     transform: float
 
@@ -107,6 +88,7 @@ cells:
       - site_analysis.road_width_m
     fallback: 18.3
     transform: float
+    required: true
 
   - cell: Details!B19
     kind: black
@@ -115,11 +97,13 @@ cells:
     fallback: 0
     transform: float
 
-  # Old Set Back Area
+  # Old Set Back Area — from old plan OCR (setback_area_sqm)
   - cell: Details!N20
     kind: black
     semantic_name: old_setback_sqm
-    from: manual_inputs.old_setback_sqm
+    sources:
+      - old_setback_sqm
+      - manual_inputs.old_setback_sqm
     fallback: 0
     transform: float
 
@@ -211,10 +195,12 @@ cells:
     fallback: 100
     transform: float
 
-  # Sale Commercial MUN BUA
+  # Sale Commercial MUN BUA — direct user input takes priority; formula fallback uses commercial_percentage
   - cell: Details!J45
     kind: black
     semantic_name: commercial_bua
+    sources:
+      - manual_inputs.commercial_bua_sqft
     calc: commercial_bua_formula
     calc_args:
       total_fsi_cell: J31
@@ -242,6 +228,7 @@ cells:
     from: num_commercial
     fallback: 12
     transform: int
+    required: true
 
   # No. of shop( user input/ocr old plan ) only commerical
   - cell: Details!P49
@@ -250,6 +237,7 @@ cells:
     from: num_flats
     fallback: 138
     transform: int
+    required: true
 
 
   # Rent (M50)
@@ -291,31 +279,43 @@ cells:
       - premium.rr_open_land_sqm
     fallback: 128870
     transform: float
+    required: true
 
-  # Bank Gurantee
+  # Bank Guarantee Commercial — 15% of user input bankGuranteeCommercial
   - cell: Details!O54
     kind: black
-    semantic_name: completion_months_commercial
-    from: manual_inputs.completion_months_commercial
-    fallback: 36
+    semantic_name: bank_guarantee_commercial
+    calc: bank_guarantee_from_input
+    calc_args:
+      source_path: manual_inputs.bankGuranteeCommercial
+    fallback: 0
     transform: float
 
-  # Calculate 15% annually of user input
+  # Bank Guarantee Residential — 15% of user input bankGuranteeResidential
   - cell: Details!Q54
     kind: black
-    semantic_name: completion_months_residential
-    from: manual_inputs.completion_months_residential
-    fallback: 36
+    semantic_name: bank_guarantee_residential
+    calc: bank_guarantee_from_input
+    calc_args:
+      source_path: manual_inputs.bankGuranteeResidential
+    fallback: 0
     transform: float
 
+  # Completion months commercial — from permissible height (≤9f=18m, ≤20f=36m, else 48m)
+  - cell: Details!O55
+    kind: black
+    semantic_name: completion_months_commercial_height
+    calc: completion_months_from_height
+    fallback: 36
+    transform: int
 
-  # Note: - Per floor is 3mtr min - Calcuate no of floors as per
+  # Completion months residential — same formula
   - cell: Details!Q55
     kind: black
-    semantic_name: completion_months_residential_2
-    from: manual_inputs.completion_months_residential
+    semantic_name: completion_months_residential_height
+    calc: completion_months_from_height
     fallback: 36
-    transform: float
+    transform: int
 
   # I3 to R/C
   - cell: Details!O58
@@ -325,61 +325,61 @@ cells:
     fallback: 0
     transform: float
 
-  # OPEN SPACE DEFICIENCY
+  # OPEN SPACE DEFICIENCY — staircase ratio from existing BUA
   - cell: Details!N62
     kind: black
     semantic_name: staircase_ratio
-    from: manual_inputs.staircase_ratio
+    calc: staircase_ratio_from_bua
     fallback: 0.25
     transform: float
 
-  # STAIRCASE
+  # STAIRCASE — OSD ratio from permissible height
   - cell: Details!N63
     kind: black
     semantic_name: osd_ratio
-    from: manual_inputs.osd_ratio
-    fallback: 0.4
+    calc: osd_ratio_from_height
+    fallback: 0.18
     transform: float
 
-  # CONSTRUCTION AREA
+  # CONSTRUCTION AREA — multiplier from permissible height
   - cell: Details!O64
     kind: black
-    semantic_name: completion_months_commercial_2
-    from: manual_inputs.completion_months_commercial
-    fallback: 0
+    semantic_name: construction_rate
+    calc: construction_rate_from_height
+    fallback: 1.40
     transform: float
 
-  # PODIUM CONST AREA
+  # PODIUM CONST AREA — ratio from plot area (≤1000=0, ≤2500=60%, ≤5000=40%, else 20%)
   - cell: Details!N65
     kind: black
-    semantic_name: basement_ratio
-    from: manual_inputs.basement_ratio
-    fallback: 0.6
+    semantic_name: podium_ratio
+    calc: podium_ratio_from_plot
+    fallback: 0.0
     transform: float
 
-  # 1000mtr plot area= no podium  2500mtr plot are = 60% 5000 = 
+  # BASEMENT COUNT — from plot area + height (≤1000=0; else 2 if height>57.13)
   - cell: Details!O65
     kind: black
     semantic_name: basement_count
-    from: manual_inputs.basement_count
-    fallback: 2
+    calc: basement_count_from_plot
+    fallback: 0
     transform: int
 
-  # BASEMENT CONST AREA
+  # BASEMENT CONST AREA — user Yes/No basementRequired × plot-area ratio
   - cell: Details!N66
     kind: black
-    semantic_name: podium_ratio
-    from: manual_inputs.podium_ratio
-    fallback: 0.6
+    semantic_name: basement_ratio
+    calc: basement_ratio_from_plot
+    fallback: 0.0
     transform: float
 
-  # Take user input first : Yes/No BASED on Yes follow condition
+  # BASEMENT FLOORS — user Yes/No basementRequired × plot-area count
   - cell: Details!O66
     kind: black
-    semantic_name: deposit_commercial
-    from: manual_inputs.deposit_commercial
+    semantic_name: basement_floors
+    calc: basement_floors_from_plot
     fallback: 0
-    transform: float
+    transform: int
 
   - cell: Construction Cost!D8
     kind: yellow
@@ -412,6 +412,24 @@ cells:
     fallback: 2000
     transform: float
 
+  # MCGM Payments C214 — hardcoded 65% rate (expires 15 days after report generation)
+  - cell: MCGM PAYMENTS!C214
+    kind: red
+    semantic_name: rr_land_65pct_c214
+    const: 65
+    expires_in_days: 15
+    alert_days_before: 3
+    transform: float
+
+  # MCGM Payments C219 — same hardcoded 65% rate (expires 15 days after report generation)
+  - cell: MCGM PAYMENTS!C219
+    kind: red
+    semantic_name: rr_land_65pct_c219
+    const: 65
+    expires_in_days: 15
+    alert_days_before: 3
+    transform: float
+
   # Conditional note re: nalla (stormwater drain) — typically blank
   # placeholder: 'If nalla touching & coming inside the lot then check dp map see blue area then 5'
   - cell: MCGM PAYMENTS!B327
@@ -421,106 +439,128 @@ cells:
     fallback: ""
     transform: str
 
-  # 79A Cost/Acquisition
+  # 79A Cost/Acquisition — user input field costAcquisition79a
   - cell: SUMMARY 1!I98
     kind: yellow
     semantic_name: cost_79a_acquisition
-    from: manual_inputs.cost_79a_acquisition
+    sources:
+      - manual_inputs.costAcquisition79a
+      - manual_inputs.cost_79a_acquisition
     fallback: 0
     transform: float
 
-  # Ground Floor
+  # Ground Floor — saleAreaBreakup.groundFloor
   - cell: Profit & Loss Statement!C19
     kind: yellow
     semantic_name: commercial_gf_area
-    from: manual_inputs.commercial_gf_area
+    sources:
+      - manual_inputs.saleAreaBreakup.groundFloor.area
+      - manual_inputs.commercial_gf_area
     fallback: 0
     transform: float
 
-  # Ground Floor
   - cell: Profit & Loss Statement!D19
     kind: yellow
     semantic_name: sale_rate_commercial_gf
     sources:
+      - manual_inputs.saleAreaBreakup.groundFloor.rate
       - ready_reckoner.sale_rate_commercial_gf
       - financial.sale_rate_commercial_gf
     fallback: 75000
     transform: float
+    required: true
 
-  # 1st Floor
+  # 1st Floor — saleAreaBreakup.firstFloor
   - cell: Profit & Loss Statement!C20
     kind: yellow
     semantic_name: commercial_1f_area
-    from: manual_inputs.commercial_1f_area
+    sources:
+      - manual_inputs.saleAreaBreakup.firstFloor.area
+      - manual_inputs.commercial_1f_area
     fallback: 0
     transform: float
 
-  # 1st Floor
   - cell: Profit & Loss Statement!D20
     kind: yellow
     semantic_name: sale_rate_commercial_1f
-    from: financial.sale_rate_commercial_1f
+    sources:
+      - manual_inputs.saleAreaBreakup.firstFloor.rate
+      - financial.sale_rate_commercial_1f
     fallback: 60000
     transform: float
 
-  # 2nd Floor
+  # 2nd Floor — saleAreaBreakup.secondFloor
   - cell: Profit & Loss Statement!C21
     kind: yellow
     semantic_name: commercial_2f_area
-    from: manual_inputs.commercial_2f_area
+    sources:
+      - manual_inputs.saleAreaBreakup.secondFloor.area
+      - manual_inputs.commercial_2f_area
     fallback: 0
     transform: float
 
-  # 2nd Floor
   - cell: Profit & Loss Statement!D21
     kind: yellow
     semantic_name: sale_rate_commercial_2f
-    from: financial.sale_rate_commercial_2f
+    sources:
+      - manual_inputs.saleAreaBreakup.secondFloor.rate
+      - financial.sale_rate_commercial_2f
     fallback: 0
     transform: float
 
-  # Other Floors
+  # Other Floors — saleAreaBreakup.otherFloors
   - cell: Profit & Loss Statement!C22
     kind: yellow
-    semantic_name: commercial_1f_area_2
-    from: manual_inputs.commercial_1f_area
+    semantic_name: commercial_other_area
+    sources:
+      - manual_inputs.saleAreaBreakup.otherFloors.area
+      - manual_inputs.commercial_other_area
     fallback: 0
     transform: float
 
   - cell: Profit & Loss Statement!D22
     kind: yellow
     semantic_name: sale_rate_commercial_other
-    from: financial.sale_rate_commercial_other
+    sources:
+      - manual_inputs.saleAreaBreakup.otherFloors.rate
+      - financial.sale_rate_commercial_other
     fallback: 0
     transform: float
 
+  # Residential sale rate — user input salableResidentialRatePerSqFt > RR fallback
   - cell: Profit & Loss Statement!D28
     kind: yellow
     semantic_name: sale_rate_residential
     sources:
+      - manual_inputs.salableResidentialRatePerSqFt
       - ready_reckoner.sale_rate_residential
       - financial.sale_rate_residential
       - sale_rate_per_sqft
     fallback: 50000
     transform: float
+    required: true
 
-  # Cars to sell
+  # Cars to sell = DCPR 2034 total parking ÷ 2 (user override via manual_inputs.parking_units_for_sale)
   - cell: Profit & Loss Statement!C30
     kind: black
     semantic_name: parking_units_for_sale
-    from: manual_inputs.parking_units_for_sale
-    fallback: 75
+    sources:
+      - manual_inputs.parking_units_for_sale
+    calc: dcpr_parking_for_sale
+    fallback: 10
     transform: int
 
-  # Calcuate Car parking no /2
+  # Car parking rate — user input carsToSellRatePerCar > RR fallback
   - cell: Profit & Loss Statement!D30
     kind: yellow
     semantic_name: parking_price_per_unit
     sources:
+      - manual_inputs.carsToSellRatePerCar
       - ready_reckoner.parking_price_per_unit
       - financial.parking_price_per_unit
     fallback: 1200000
     transform: float
+    required: true
 
   # --- EXPIRY TRACKING ---
   - cell: Details!J55

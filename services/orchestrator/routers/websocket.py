@@ -3,11 +3,11 @@
 import asyncio
 import logging
 
-from core.dependencies import get_agent_service
-from core.security import decode_token
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
-from services.agent_service import AgentService
+from ..core.dependencies import get_agent_service
+from ..core.security import decode_token
+from ..services.agent_service import AgentService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["WebSocket"])
@@ -27,14 +27,16 @@ async def ws_pmc(
     websocket: WebSocket,
     session_id: str,
     token: str = Query(""),
-    service: AgentService = Depends(get_agent_service)
+    service: AgentService = Depends(get_agent_service),
 ):
     if not _auth_ws(token):
         await websocket.close(code=4001, reason="Auth required")
         return
 
     await service.mgr.connect(session_id, websocket)
-    await service.mgr.send(websocket, {"type": "status", "status": "connected", "session_id": session_id})
+    await service.mgr.send(
+        websocket, {"type": "status", "status": "connected", "session_id": session_id}
+    )
 
     try:
         while True:
@@ -44,11 +46,15 @@ async def ws_pmc(
             elif data.get("action") == "start":
                 sd = data.get("data", {})
                 if not sd.get("society_name"):
-                    await service.mgr.send(websocket, {"type": "error", "message": "Missing society_name"})
+                    await service.mgr.send(
+                        websocket, {"type": "error", "message": "Missing society_name"}
+                    )
                     continue
                 asyncio.create_task(service.run_agent_ws(session_id, sd))
             else:
-                await service.mgr.send(websocket, {"type": "error", "message": f"Unknown action: {data.get('action')}"})
+                await service.mgr.send(
+                    websocket, {"type": "error", "message": f"Unknown action: {data.get('action')}"}
+                )
     except WebSocketDisconnect:
         service.mgr.disconnect(session_id, websocket)
 
@@ -58,7 +64,7 @@ async def ws_admin(
     websocket: WebSocket,
     session_id: str,
     token: str = Query(""),
-    service: AgentService = Depends(get_agent_service)
+    service: AgentService = Depends(get_agent_service),
 ):
     payload = _auth_ws(token)
     if not payload:
@@ -69,7 +75,9 @@ async def ws_admin(
         return
 
     await service.mgr.connect(session_id, websocket)
-    await service.mgr.send(websocket, {"type": "status", "status": "connected", "session_id": session_id})
+    await service.mgr.send(
+        websocket, {"type": "status", "status": "connected", "session_id": session_id}
+    )
 
     try:
         while True:
@@ -79,12 +87,14 @@ async def ws_admin(
             elif data.get("action") == "start":
                 sd = data.get("data", {})
                 if not sd.get("society_name"):
-                    await service.mgr.send(websocket, {"type": "error", "message": "Missing society_name"})
+                    await service.mgr.send(
+                        websocket, {"type": "error", "message": "Missing society_name"}
+                    )
                     continue
                 asyncio.create_task(service.run_agent_ws(session_id, sd))
             else:
-                await service.mgr.send(websocket, {"type": "error", "message": f"Unknown action: {data.get('action')}"})
+                await service.mgr.send(
+                    websocket, {"type": "error", "message": f"Unknown action: {data.get('action')}"}
+                )
     except WebSocketDisconnect:
         service.mgr.disconnect(session_id, websocket)
-
-

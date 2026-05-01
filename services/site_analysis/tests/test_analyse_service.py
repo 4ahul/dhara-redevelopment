@@ -1,5 +1,6 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 
 @pytest.mark.unit
@@ -18,14 +19,19 @@ class TestSiteAnalysisService:
             "lng": 72.8246606,
             "formatted_address": "Sanjay Society, Swatantryaveer Savarkar Rd, Century Bazaar, Prabhadevi, Mumbai, Maharashtra 400025, India",
             "area_type": "Predominantly Commercial",
-            "nearby_landmarks": ["SyndicateBank Mumbai Prabhadevi Branch", "Marshalls Wallcoverings"],
+            "nearby_landmarks": [
+                "SyndicateBank Mumbai Prabhadevi Branch",
+                "Marshalls Wallcoverings",
+            ],
             "place_id": "ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
             "maps_url": "https://www.google.com/maps/search/?api=1&query=19.0133378,72.8246606&query_place_id=ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
         }
         mock_zone = {"ward": "G/S", "zone": "R"}
 
-        with patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode), \
-             patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=mock_zone):
+        with (
+            patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode),
+            patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=mock_zone),
+        ):
             result = await svc.analyse("Sanjay CHS, Prabhadevi, Mumbai")
 
         assert result["lat"] == 19.0133378
@@ -42,7 +48,8 @@ class TestSiteAnalysisService:
     async def test_analyse_fails_when_geocoding_fails(self):
         """Test that SiteAnalysisUnavailableError is raised when geocoding fails"""
         from services.site_analysis.services.analyse import (
-            SiteAnalysisService, SiteAnalysisUnavailableError,
+            SiteAnalysisService,
+            SiteAnalysisUnavailableError,
         )
 
         svc = SiteAnalysisService()
@@ -63,13 +70,18 @@ class TestSiteAnalysisService:
             "lng": 72.8246606,
             "formatted_address": "Sanjay Society, Swatantryaveer Savarkar Rd, Century Bazaar, Prabhadevi, Mumbai, Maharashtra 400025, India",
             "area_type": "Predominantly Commercial",
-            "nearby_landmarks": ["SyndicateBank Mumbai Prabhadevi Branch", "Marshalls Wallcoverings"],
+            "nearby_landmarks": [
+                "SyndicateBank Mumbai Prabhadevi Branch",
+                "Marshalls Wallcoverings",
+            ],
             "place_id": "ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
             "maps_url": "https://www.google.com/maps/search/?api=1&query=19.0133378,72.8246606&query_place_id=ChIJ7yeIUb7O5zsRR3GZw9zK2W4",
         }
 
-        with patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode), \
-             patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=None):
+        with (
+            patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=mock_geocode),
+            patch.object(svc, "_query_mcgm_zone", new_callable=AsyncMock, return_value=None),
+        ):
             result = await svc.analyse("Sanjay CHS, Prabhadevi, Mumbai")
 
         assert result["zone_inference"] is None

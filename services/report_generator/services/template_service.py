@@ -3,30 +3,19 @@ Template service for loading Excel feasibility templates
 and managing dynamic input fields (yellow cells).
 """
 
-import openpyxl
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
-import os
-import sys
+from pathlib import Path
 
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
+import openpyxl
 
-from core.config import settings, resolve_scheme_key
-from services.cell_mapper import cell_mapper
+from ..core.config import resolve_scheme_key, settings
+from .cell_mapper import cell_mapper
 
 # Testing override: all report generation must use this single template file.
 # Remove to restore per-scheme template selection from SCHEME_TEMPLATE_MAP.
-_FORCED_TEMPLATE_NAME: Optional[str] = (
-    "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
-)
+_FORCED_TEMPLATE_NAME: str | None = "FINAL TEMPLATE _ 33 (7)(B).xlsx"
 
 
 @dataclass
@@ -43,14 +32,12 @@ class TemplateField:
 
 class TemplateService:
     def __init__(self):
-        self._cache: Dict[str, openpyxl.Workbook] = {}
-        self._field_cache: Dict[str, List[TemplateField]] = {}
+        self._cache: dict[str, openpyxl.Workbook] = {}
+        self._field_cache: dict[str, list[TemplateField]] = {}
         # Cache of label indexes per (scheme_key)
-        self._label_index_cache: Dict[str, Dict[str, any]] = {}
+        self._label_index_cache: dict[str, dict[str, any]] = {}
 
-    def get_template_for_scheme(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> Path:
+    def get_template_for_scheme(self, scheme: str, redevelopment_type: str = "CLUBBING") -> Path:
         """Get template file path for given scheme + redevelopment type.
 
         Args:
@@ -141,7 +128,7 @@ class TemplateService:
 
     def get_yellow_fields(
         self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> List[TemplateField]:
+    ) -> list[TemplateField]:
         """Get all yellow (input) cells from template for given scheme."""
         key = resolve_scheme_key(scheme, redevelopment_type)
         if key in self._field_cache:
@@ -188,9 +175,7 @@ class TemplateService:
         s = " ".join(s.split())
         return s
 
-    def _build_label_index(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ):
+    def _build_label_index(self, scheme: str, redevelopment_type: str = "CLUBBING"):
         """Build an index to resolve manual label-based inputs to cells.
 
         Returns a dict with:
@@ -202,8 +187,8 @@ class TemplateService:
             return self._label_index_cache[key]
 
         fields = self.get_yellow_fields(scheme, redevelopment_type)
-        by_sheet_label: Dict[str, str] = {}
-        by_label: Dict[str, List[Tuple[str, str]]] = {}
+        by_sheet_label: dict[str, str] = {}
+        by_label: dict[str, list[tuple[str, str]]] = {}
         for f in fields:
             norm = self._normalize_label(f.label or f.cell)
             k = f"{f.sheet}|{norm}"
@@ -214,9 +199,7 @@ class TemplateService:
         self._label_index_cache[key] = out
         return out
 
-    def get_template_sheets(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> List[str]:
+    def get_template_sheets(self, scheme: str, redevelopment_type: str = "CLUBBING") -> list[str]:
         """Get list of sheets to copy (up to P&L)."""
         template_path = self.get_template_for_scheme(scheme, redevelopment_type)
         wb = self._load_workbook(template_path)
@@ -228,14 +211,14 @@ class TemplateService:
             return wb.sheetnames[:8]
 
     def apply_values(
-        self, scheme: str, values: Dict[str, any], redevelopment_type: str = "CLUBBING"
+        self, scheme: str, values: dict[str, any], redevelopment_type: str = "CLUBBING"
     ) -> bytes:
         """Apply user values to template and return as bytes."""
         template_path = self.get_template_for_scheme(scheme, redevelopment_type)
         wb = openpyxl.load_workbook(template_path, data_only=False)
 
         # ── Formula Integrity Fix ───────────────────────────────────────────
-        # We no longer delete extra sheets because templates often have 
+        # We no longer delete extra sheets because templates often have
         # hidden calculation sheets or Named Ranges that formulas depend on.
         # ────────────────────────────────────────────────────────────────────
 
@@ -251,9 +234,7 @@ class TemplateService:
         output.seek(0)
         return output.getvalue()
 
-    def zero_yellow_fields_in_place(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> int:
+    def zero_yellow_fields_in_place(self, scheme: str, redevelopment_type: str = "CLUBBING") -> int:
         """Set all yellow input cells in the template to 0 and save in place.
 
         Returns:
@@ -288,10 +269,10 @@ class TemplateService:
     def generate_full_report(
         self,
         scheme: str,
-        all_data: Dict[str, any],
-        output_path: Optional[str] = None,
+        all_data: dict[str, any],
+        output_path: str | None = None,
         redevelopment_type: str = "CLUBBING",
-    ) -> Tuple[bytes, str]:
+    ) -> tuple[bytes, str]:
         """Generate full feasibility report using template.
 
         Args:
@@ -360,7 +341,7 @@ class TemplateService:
             file_path = output_path
         else:
             # Generate temp path
-            from core.config import OUTPUT_DIR
+            from ..core.config import OUTPUT_DIR
 
             safe_name = all_data.get("society_name", "report").replace(" ", "_")
             output_path = str(

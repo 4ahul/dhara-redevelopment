@@ -1,5 +1,4 @@
-from feasibility.calcs import noc_flags  # registers
-from feasibility.calc_registry import get
+from services.report_generator.feasibility.calc_registry import get
 
 
 def test_noc_required():

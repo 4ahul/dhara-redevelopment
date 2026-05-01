@@ -12,12 +12,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pymilvus import (
-    connections,
-    utility,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
 
 
@@ -190,9 +190,7 @@ def main():
                 elapsed = time.time() - file_start
                 rate = file_indexed / elapsed if elapsed > 0 else 0
                 eta = (len(chunks) - file_indexed) / rate if rate > 0 else 0
-                print(
-                    f"  {file_indexed}/{len(chunks)} chunks  ({rate:.1f}/s  ETA {eta:.0f}s)"
-                )
+                print(f"  {file_indexed}/{len(chunks)} chunks  ({rate:.1f}/s  ETA {eta:.0f}s)")
             except Exception as e:
                 print(f"  [ERROR] Embedding batch {i}: {e}")
                 continue

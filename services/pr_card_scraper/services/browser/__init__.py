@@ -1,15 +1,14 @@
-import logging
 import asyncio
+import logging
 import os
 import time
-from typing import Optional
 
-from .base import BaseBrowser
-from .mahabhumi import MahabhumiFormHandler
-from .extractor import ImageExtractor
 from ..captcha_solver import CaptchaSolver
 from ..data_extractor import DataExtractor
-from ..validator import validate_location, ValidationError
+from ..validator import ValidationError, validate_location
+from .base import BaseBrowser
+from .extractor import ImageExtractor
+from .mahabhumi import MahabhumiFormHandler
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +158,9 @@ class MahabhumiScraper:
                     img_resp = await img_page.goto(image_url, wait_until="load", timeout=30000)
                     if img_resp and img_resp.ok:
                         image_bytes = await img_resp.body()
-                        logger.info(f"Successfully downloaded image from direct URL ({len(image_bytes):,} bytes)")
+                        logger.info(
+                            f"Successfully downloaded image from direct URL ({len(image_bytes):,} bytes)"
+                        )
                     else:
                         logger.warning("Direct navigation failed, falling back to capture")
                         image_bytes = None
@@ -223,9 +224,12 @@ class MahabhumiScraper:
             await page.close()
 
     async def _solve_captcha_loop(
-        self, form_handler: MahabhumiFormHandler, extractor: ImageExtractor,
-        on_captcha, form_kwargs: dict = None
-    ) -> Optional[dict]:
+        self,
+        form_handler: MahabhumiFormHandler,
+        extractor: ImageExtractor,
+        on_captcha,
+        form_kwargs: dict = None,
+    ) -> dict | None:
         """
         Auto-solve CAPTCHA with 3-tier strategy:
           Tier 1: LLM Vision (Gemini Flash → GPT-4o) — ~90% first-try accuracy
@@ -275,7 +279,9 @@ class MahabhumiScraper:
 
             # Try the best candidate (LLM result is first)
             captcha_text = candidates[0]
-            logger.info("Trying CAPTCHA: %r (attempt %d/%d)", captcha_text, attempt + 1, max_attempts)
+            logger.info(
+                "Trying CAPTCHA: %r (attempt %d/%d)", captcha_text, attempt + 1, max_attempts
+            )
             try:
                 submitted_this_round = True
                 await form_handler.submit_form(captcha_text)
@@ -408,6 +414,7 @@ async def _click_view_link(page) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 # Backward-compatibility shims (used by router.py)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def create_browser_service(headless: bool = True):
     return BaseBrowser(headless=headless)

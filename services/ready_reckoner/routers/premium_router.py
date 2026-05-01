@@ -1,9 +1,17 @@
 from fastapi import APIRouter
-from schemas import PremiumRequest, PremiumResponse
-from services.premium_service import premium_service
+
+from dhara_shared.schemas import InternalServiceResponse
+
+from ..schemas import PremiumRequest
+from ..services.premium_service import premium_service
 
 router = APIRouter()
 
-@router.post("/calculate", response_model=PremiumResponse)
+
+@router.post("/calculate", response_model=InternalServiceResponse)
 async def get_premium_calculation(req: PremiumRequest):
-    return premium_service.calculate_premiums(req)
+    try:
+        result = premium_service.calculate_premiums(req)
+        return InternalServiceResponse(status="success", data=result.model_dump())
+    except Exception as e:
+        return InternalServiceResponse(status="error", error=str(e))

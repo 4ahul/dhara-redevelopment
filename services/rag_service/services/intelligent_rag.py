@@ -4,23 +4,22 @@ Enhanced Intelligent RAG System with Dynamic Knowledge Graph
 Builds knowledge graph from DCPR document parsing
 """
 
+import dataclasses
+import hashlib
+import json
+import logging
 import os
 import re
-import json
+import threading
+import time
 import uuid
 import warnings
-import time
-import threading
-import hashlib
-import dataclasses
-import logging
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple, Set, Any
-from collections import defaultdict, OrderedDict
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import OrderedDict, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures._base import TimeoutError
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ except ImportError:
     qmodels = None
 
 try:
-    from pymilvus import connections, Collection
+    from pymilvus import Collection, connections
 except ImportError:
     connections = None
     Collection = None
@@ -177,14 +176,14 @@ DCPR_ANSWER_RULES = """MANDATORY ANSWER RULES:
 class QueryContext:
     original_query: str
     intent: str
-    entities: List[str]
-    clauses: List[str]
+    entities: list[str]
+    clauses: list[str]
     topic: str
-    subtopics: List[str]
+    subtopics: list[str]
     is_compound: bool
-    compound_parts: List[str]
-    location: Optional[str] = None
-    units: Dict[str, str] = field(default_factory=dict)
+    compound_parts: list[str]
+    location: str | None = None
+    units: dict[str, str] = field(default_factory=dict)
     needs_market_data: bool = False
     needs_regulatory_data: bool = True
     is_technical: bool = False
@@ -195,9 +194,9 @@ class SearchResult:
     query: str
     text: str
     score: float
-    clauses: List[str]
-    tables: List[str]
-    relevance_tags: List[str]
+    clauses: list[str]
+    tables: list[str]
+    relevance_tags: list[str]
     source: str = ""
     page: int = 0
     language: str = "en"
@@ -210,22 +209,22 @@ class SearchResult:
 class ClauseInfo:
     clause_id: str
     text: str
-    related_clauses: Set[str] = field(default_factory=set)
-    tables: Set[str] = field(default_factory=set)
-    topics: Set[str] = field(default_factory=set)
+    related_clauses: set[str] = field(default_factory=set)
+    tables: set[str] = field(default_factory=set)
+    topics: set[str] = field(default_factory=set)
 
 
 class DynamicKnowledgeGraph:
     """Dynamically builds knowledge graph from DCPR document"""
 
     def __init__(self):
-        self.clauses: Dict[str, ClauseInfo] = {}
-        self.tables: Dict[str, str] = {}
-        self.topic_to_clauses: Dict[str, Set[str]] = defaultdict(set)
-        self.clause_relationships: Dict[str, List[str]] = defaultdict(list)
+        self.clauses: dict[str, ClauseInfo] = {}
+        self.tables: dict[str, str] = {}
+        self.topic_to_clauses: dict[str, set[str]] = defaultdict(set)
+        self.clause_relationships: dict[str, list[str]] = defaultdict(list)
         self._initialized = False
 
-    def build_from_chunks(self, chunks: List[str]):
+    def build_from_chunks(self, chunks: list[str]):
         """Extract knowledge graph from ALL document chunks"""
         if self._initialized:
             return
@@ -234,9 +233,7 @@ class DynamicKnowledgeGraph:
             r"(?:Clause|Regulation|Rule|Sub-section|धारा|नियम|कलम|उपधारा)\s*(\d+(?:\([\w]+\))?)",
             re.IGNORECASE,
         )
-        table_pattern = re.compile(
-            r"(?:Table|तालिका)\s*(?:No\.?\s*)?(\d+[a-zA-Z]?)", re.IGNORECASE
-        )
+        table_pattern = re.compile(r"(?:Table|तालिका)\s*(?:No\.?\s*)?(\d+[a-zA-Z]?)", re.IGNORECASE)
 
         cross_ref_pattern = re.compile(
             r"(?:Clause|Regulation|Table|धारा|नियम|तालिका)\s*(\d+(?:\([\w]+\))?)[,;\s]*(?:and|&|,|आणि|तथा)\s*(?:Clause|Regulation|Table|धारा|नियम|तालिका)?\s*(\d+(?:\([\w]+\))?)",
@@ -251,25 +248,15 @@ class DynamicKnowledgeGraph:
             cross_refs = cross_ref_pattern.findall(chunk)
 
             for clause in clauses_in_chunk:
-                clause_key = (
-                    f"Clause {clause}" if not clause.startswith("Clause") else clause
-                )
+                clause_key = f"Clause {clause}" if not clause.startswith("Clause") else clause
                 if clause_key not in self.clauses:
-                    self.clauses[clause_key] = ClauseInfo(
-                        clause_id=clause_key, text=chunk[:500]
-                    )
+                    self.clauses[clause_key] = ClauseInfo(clause_id=clause_key, text=chunk[:500])
 
-                self.clauses[clause_key].tables.update(
-                    [f"Table {t}" for t in tables_in_chunk]
-                )
+                self.clauses[clause_key].tables.update([f"Table {t}" for t in tables_in_chunk])
 
                 for ref1, ref2 in cross_refs:
-                    ref1_key = (
-                        f"Clause {ref1}" if not ref1.startswith("Clause") else ref1
-                    )
-                    ref2_key = (
-                        f"Clause {ref2}" if not ref2.startswith("Clause") else ref2
-                    )
+                    ref1_key = f"Clause {ref1}" if not ref1.startswith("Clause") else ref1
+                    ref2_key = f"Clause {ref2}" if not ref2.startswith("Clause") else ref2
                     self.clauses[clause_key].related_clauses.add(ref1_key)
                     self.clauses[clause_key].related_clauses.add(ref2_key)
                     self.clause_relationships[ref1_key].append(ref2_key)
@@ -281,17 +268,13 @@ class DynamicKnowledgeGraph:
                     self.tables[table_key] = chunk[:500]
 
             if (i + 1) % 500 == 0:
-                logger.info(
-                    f"  KG Progress: {i + 1}/{total} chunks, {len(self.clauses)} clauses"
-                )
+                logger.info(f"  KG Progress: {i + 1}/{total} chunks, {len(self.clauses)} clauses")
 
         self._extract_topics(chunks)
         self._initialized = True
-        logger.info(
-            f"  KG Complete: {len(self.clauses)} clauses, {len(self.tables)} tables"
-        )
+        logger.info(f"  KG Complete: {len(self.clauses)} clauses, {len(self.tables)} tables")
 
-    def _extract_topics(self, chunks: List[str]):
+    def _extract_topics(self, chunks: list[str]):
         """Extract topics from chunks using keyword clustering"""
         topic_keywords = {
             "FSI": [
@@ -347,7 +330,7 @@ class DynamicKnowledgeGraph:
             "Loading": ["loading", "unloading", "bay", "लोडिंग", "उतरणी"],
         }
 
-        for i, chunk in enumerate(chunks):
+        for _i, chunk in enumerate(chunks):
             chunk_lower = chunk.lower()
             for clause in list(self.clauses.keys()):
                 if clause in chunk:
@@ -356,12 +339,10 @@ class DynamicKnowledgeGraph:
                             self.clauses[clause].topics.add(topic)
                             self.topic_to_clauses[topic].add(clause)
 
-    def get_related(self, clause_or_term: str) -> List[str]:
+    def get_related(self, clause_or_term: str) -> list[str]:
         """Get related clauses for a given clause or term"""
         clause_key = (
-            clause_or_term
-            if clause_or_term.startswith("Clause")
-            else f"Clause {clause_or_term}"
+            clause_or_term if clause_or_term.startswith("Clause") else f"Clause {clause_or_term}"
         )
         related = set()
 
@@ -373,11 +354,11 @@ class DynamicKnowledgeGraph:
         related.discard(clause_key)
         return list(related)[:15]
 
-    def get_clauses_by_topic(self, topic: str) -> List[str]:
+    def get_clauses_by_topic(self, topic: str) -> list[str]:
         """Get all clauses related to a topic"""
         return list(self.topic_to_clauses.get(topic, set()))
 
-    def get_clause_info(self, clause_id: str) -> Optional[ClauseInfo]:
+    def get_clause_info(self, clause_id: str) -> ClauseInfo | None:
         return self.clauses.get(
             clause_id if clause_id.startswith("Clause") else f"Clause {clause_id}"
         )
@@ -388,7 +369,7 @@ class ConversationMemory:
 
     def __init__(self, session_id: str = ""):
         self.session_id = session_id
-        self.messages: List[Dict] = []
+        self.messages: list[dict] = []
         self.query_count = 0
         # Try to restore from Redis if session_id is provided
         if session_id:
@@ -418,7 +399,7 @@ class ConversationMemory:
         )
         self._persist_to_redis()
 
-    def get_history(self, last_k: int = 10) -> List[Dict]:
+    def get_history(self, last_k: int = 10) -> list[dict]:
         return self.messages[-last_k * 2 :]
 
     def get_context_for_query(self, current_query: str) -> str:
@@ -441,12 +422,12 @@ class SessionManager:
 
     _sessions: OrderedDict = OrderedDict()
     _lock = threading.Lock()
-    _knowledge_graph: Optional[DynamicKnowledgeGraph] = None
-    _chunks: List[str] = []
+    _knowledge_graph: DynamicKnowledgeGraph | None = None
+    _chunks: list[str] = []
     _MAX_SESSIONS: int = int(os.environ.get("MAX_RAG_SESSIONS", "200"))
 
     @classmethod
-    def initialize_knowledge_graph(cls, chunks: List[str]):
+    def initialize_knowledge_graph(cls, chunks: list[str]):
         """Initialize knowledge graph from document chunks"""
         if cls._knowledge_graph is None:
             cls._knowledge_graph = DynamicKnowledgeGraph()
@@ -482,9 +463,7 @@ class SessionManager:
         return cls._knowledge_graph
 
     @classmethod
-    def get_or_create_session(
-        cls, session_id: Optional[str] = None
-    ) -> Tuple["SessionRAG", str]:
+    def get_or_create_session(cls, session_id: str | None = None) -> tuple["SessionRAG", str]:
         with cls._lock:
             if session_id and session_id in cls._sessions:
                 # LRU touch: move to most-recently-used end
@@ -508,7 +487,7 @@ class SessionManager:
             return False
 
     @classmethod
-    def list_sessions(cls) -> List[Dict]:
+    def list_sessions(cls) -> list[dict]:
         with cls._lock:
             return [
                 {"session_id": sid, "query_count": rag.query_count}
@@ -591,9 +570,7 @@ class SessionRAG:
             try:
                 import json
 
-                client.setex(
-                    key, ttl if ttl is not None else cls._CACHE_TTL, json.dumps(value)
-                )
+                client.setex(key, ttl if ttl is not None else cls._CACHE_TTL, json.dumps(value))
             except Exception:
                 pass
 
@@ -622,12 +599,8 @@ class SessionRAG:
         try:
             api_key = os.environ.get("OPENAI_API_KEY", "")
             if api_key and api_key.startswith("sk-"):
-                embedding_model = os.environ.get(
-                    "EMBEDDING_MODEL", "text-embedding-3-small"
-                )
-                cls._embeddings = OpenAIEmbeddings(
-                    model=embedding_model, api_key=api_key
-                )
+                embedding_model = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
+                cls._embeddings = OpenAIEmbeddings(model=embedding_model, api_key=api_key)
                 cls._embeddings.embed_query("test")
                 logger.info(f"[OK] Shared embeddings pre-warmed ({embedding_model})")
         except Exception as e:
@@ -671,20 +644,14 @@ class SessionRAG:
         if cls._reranker is None and not cls._reranker_checked:
             cls._reranker_checked = True
             if CrossEncoder is None:
-                logger.warning(
-                    "Reranker warning: sentence-transformers package missing"
-                )
+                logger.warning("Reranker warning: sentence-transformers package missing")
                 return
             try:
-                logger.info(
-                    "Loading multilingual reranker (BAAI/bge-reranker-v2-m3)..."
-                )
+                logger.info("Loading multilingual reranker (BAAI/bge-reranker-v2-m3)...")
                 # Try multilingual reranker first (best for en/mr/hi)
                 try:
                     cls._reranker = CrossEncoder("BAAI/bge-reranker-v2-m3")
-                    logger.info(
-                        "[OK] Multilingual reranker loaded (bge-reranker-v2-m3)"
-                    )
+                    logger.info("[OK] Multilingual reranker loaded (bge-reranker-v2-m3)")
                 except Exception:
                     # Fallback to English-only
                     cls._reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
@@ -713,14 +680,8 @@ class SessionRAG:
         ddg_enabled = os.environ.get("ENABLE_DDG", "true").lower() == "true"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            serp_future = (
-                executor.submit(self._search_serpapi, query, api_key)
-                if api_key
-                else None
-            )
-            ddg_future = (
-                executor.submit(self._search_duckduckgo, query) if ddg_enabled else None
-            )
+            serp_future = executor.submit(self._search_serpapi, query, api_key) if api_key else None
+            ddg_future = executor.submit(self._search_duckduckgo, query) if ddg_enabled else None
 
             # Get SerpApi results (primary)
             serp_text, serp_sources = "", []
@@ -759,9 +720,7 @@ class SessionRAG:
                     text = block.get("text", "")
                     if text:
                         snippets.append(text[:500])
-                        sources.append(
-                            {"title": "Google AI", "url": "", "snippet": text[:200]}
-                        )
+                        sources.append({"title": "Google AI", "url": "", "snippet": text[:200]})
 
             if "reconstructed_markdown" in results:
                 markdown = results["reconstructed_markdown"]
@@ -791,9 +750,7 @@ class SessionRAG:
                 "kl": "in-en",  # India region
                 "kd": "-1",
             }
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
             # Try the lite version which is easier to parse
             response = requests.get(
@@ -804,9 +761,7 @@ class SessionRAG:
             )
 
             if response.status_code != 200:
-                logger.warning(
-                    f"[Web search] DuckDuckGo returned {response.status_code}"
-                )
+                logger.warning(f"[Web search] DuckDuckGo returned {response.status_code}")
                 return "", []
 
             # Parse results from HTML
@@ -827,9 +782,7 @@ class SessionRAG:
                         if href.startswith("http") and "duckduckgo" not in href:
                             self.current["url"] = href
                             self.capture = "title"
-                    elif (
-                        tag == "td" and attrs_dict.get("class", "") == "result-snippet"
-                    ):
+                    elif tag == "td" and attrs_dict.get("class", "") == "result-snippet":
                         self.capture = "snippet"
 
                 def handle_data(self, data):
@@ -893,7 +846,6 @@ class SessionRAG:
 
                 if use_lite:
                     # Milvus Lite initialization
-                    from milvus_lite import MilvusClient
                     db_path = os.path.join(os.environ.get("DATA_DIR", "data"), "milvus_local.db")
                     logger.info(f"Using Milvus Lite with DB: {db_path}")
                     # Map 'default' alias to the local file for LangChain compatibility
@@ -925,7 +877,7 @@ class SessionRAG:
                 SessionRAG._vs_failed = True
         return SessionRAG._vectorstore
 
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding(self, text: str) -> list[float]:
         """Get embedding vector with LRU in-process cache + Redis overflow."""
         key = hashlib.sha256(text.encode()).hexdigest()[:16]
 
@@ -960,7 +912,7 @@ class SessionRAG:
         query: str,
         k: int = 10,
         doc_type_filter: str = None,
-        precomputed_vector: List[float] = None,
+        precomputed_vector: list[float] = None,
     ):
         """Search local Milvus with full metadata schema."""
         try:
@@ -968,9 +920,7 @@ class SessionRAG:
                 return []
 
             query_vec = (
-                precomputed_vector
-                if precomputed_vector is not None
-                else self._get_embedding(query)
+                precomputed_vector if precomputed_vector is not None else self._get_embedding(query)
             )
 
             # HNSW search params
@@ -1027,12 +977,12 @@ class SessionRAG:
             if "dimension" in err_msg.lower() or "size(byte)" in err_msg:
                 return []
             if "not exist" in err_msg.lower():
-                logger.warning(f"[SEARCH] Schema error: collection may need reindexing")
+                logger.warning("[SEARCH] Schema error: collection may need reindexing")
                 return []
             logger.warning(f"[SEARCH] Error: {err_msg[:100]}")
             return []
 
-    def _fast_analyze_query(self, question: str) -> Optional[QueryContext]:
+    def _fast_analyze_query(self, question: str) -> QueryContext | None:
         """Fast rule-based analysis for common technical queries - no LLM needed."""
         import re
 
@@ -1042,9 +992,7 @@ class SessionRAG:
         units = {}
 
         # Area extraction
-        area_match = re.search(
-            r"(\d+(?:\.\d+)?)\s*(sq\.?\s*ft|sqr?\s*ft|sq\.?\s*m|sqm)", q
-        )
+        area_match = re.search(r"(\d+(?:\.\d+)?)\s*(sq\.?\s*ft|sqr?\s*ft|sq\.?\s*m|sqm)", q)
         if area_match:
             value = float(area_match.group(1))
             unit = area_match.group(2)
@@ -1088,9 +1036,7 @@ class SessionRAG:
         location = "Mumbai"
         if any(loc in q for loc in ["mumbai", "navi mumbai", "thane", "nagpur"]):
             location = next(
-                loc.title()
-                for loc in ["mumbai", "navi mumbai", "thane", "nagpur"]
-                if loc in q
+                loc.title() for loc in ["mumbai", "navi mumbai", "thane", "nagpur"] if loc in q
             )
 
         # Determine intent
@@ -1156,7 +1102,9 @@ class SessionRAG:
             fast_context = self._fast_analyze_query(question)
             if fast_context:
                 # Cache the fast result
-                qctx_key = f"qctx:{hashlib.sha256(question.lower().strip().encode()).hexdigest()[:16]}"
+                qctx_key = (
+                    f"qctx:{hashlib.sha256(question.lower().strip().encode()).hexdigest()[:16]}"
+                )
                 self._set_in_cache(qctx_key, dataclasses.asdict(fast_context), ttl=7200)
                 return fast_context
 
@@ -1256,27 +1204,21 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             elif isinstance(units, str):
                 try:
                     units = json.loads(units)
-                except:
+                except Exception:
                     units = {}
             elif not isinstance(units, dict):
                 units = {}
 
             result = QueryContext(
                 original_query=question,
-                intent=str(data.get("intent", "explain"))
-                if data.get("intent")
-                else "explain",
+                intent=str(data.get("intent", "explain")) if data.get("intent") else "explain",
                 entities=entities,
                 clauses=[],
-                topic=str(data.get("topic", "general"))
-                if data.get("topic")
-                else "general",
+                topic=str(data.get("topic", "general")) if data.get("topic") else "general",
                 subtopics=subtopics,
                 is_compound=bool(data.get("is_compound", False)),
                 compound_parts=compound_parts,
-                location=str(data.get("location", "Mumbai"))
-                if data.get("location")
-                else "Mumbai",
+                location=str(data.get("location", "Mumbai")) if data.get("location") else "Mumbai",
                 units=units,
                 needs_market_data=bool(data.get("needs_market_data", False)),
                 needs_regulatory_data=bool(data.get("needs_regulatory_data", True)),
@@ -1315,11 +1257,10 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
                 is_technical=False,
             )
 
-    def _expand_queries(self, context: QueryContext) -> List[str]:
+    def _expand_queries(self, context: QueryContext) -> list[str]:
         """Expand query for better retrieval using location, units, and language."""
         queries = [context.original_query]
 
-        location = context.location or "Mumbai"
         reg_type = "DCPR 2034"
 
         # Detect if query is in Devanagari script
@@ -1351,11 +1292,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             }
             eng_terms = []
             for dev, eng in devanagari_to_english.items():
-                query_str = (
-                    str(context.original_query).lower()
-                    if context.original_query
-                    else ""
-                )
+                query_str = str(context.original_query).lower() if context.original_query else ""
                 if dev in query_str:
                     eng_terms.append(eng)
             if eng_terms:
@@ -1401,9 +1338,18 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         # authoritative minimum-size-and-width table for WC, bathroom,
         # kitchen, habitable room, and classroom queries.
         dim_keywords = (
-            "toilet", "bathroom", "water closet", "w.c", "urinal",
-            "kitchen", "habitable room", "minimum size", "minimum width",
-            "minimum dimension", "room size", "room dimension",
+            "toilet",
+            "bathroom",
+            "water closet",
+            "w.c",
+            "urinal",
+            "kitchen",
+            "habitable room",
+            "minimum size",
+            "minimum width",
+            "minimum dimension",
+            "room size",
+            "room dimension",
         )
         qs = str(context.original_query or "").lower()
         if any(kw in qs for kw in dim_keywords):
@@ -1447,8 +1393,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         return queries[:8]
 
     def _multi_search(
-        self, queries: List[str], context: QueryContext, k: int
-    ) -> List[SearchResult]:
+        self, queries: list[str], context: QueryContext, k: int
+    ) -> list[SearchResult]:
         """Search multiple queries with batched embedding and combine results."""
         all_results = []
         seen_texts = set()
@@ -1456,8 +1402,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         unique_queries = list(dict.fromkeys(queries))  # preserve order, deduplicate
 
         # Pre-compute embeddings: check cache per query, batch-embed all misses in one API call
-        query_vecs: Dict[str, List[float]] = {}
-        misses: List[str] = []
+        query_vecs: dict[str, list[float]] = {}
+        misses: list[str] = []
         for q in unique_queries:
             key = hashlib.sha256(q.encode()).hexdigest()[:16]
             with SessionRAG._embed_cache_lock:
@@ -1478,7 +1424,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         if misses and SessionRAG._embeddings is not None:
             try:
                 vecs = SessionRAG._embeddings.embed_documents(misses)
-                for q, vec in zip(misses, vecs):
+                for q, vec in zip(misses, vecs, strict=False):
                     query_vecs[q] = vec
                     key = hashlib.sha256(q.encode()).hexdigest()[:16]
                     self._set_in_cache(f"emb:{key}", vec, ttl=86400)
@@ -1491,9 +1437,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
 
         for query in queries:
             try:
-                results = self._search_local(
-                    query, k=k, precomputed_vector=query_vecs.get(query)
-                )
+                results = self._search_local(query, k=k, precomputed_vector=query_vecs.get(query))
                 for rank, r in enumerate(results):
                     if r.text and r.text not in seen_texts:
                         seen_texts.add(r.text)
@@ -1507,8 +1451,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         # Reciprocal Rank Fusion (RRF) - combines results from multiple queries
         # A chunk appearing in multiple query results gets higher score
         K_RRF = 60
-        rrf_scores: Dict[str, float] = {}
-        text_to_result: Dict[str, SearchResult] = {}
+        rrf_scores: dict[str, float] = {}
+        text_to_result: dict[str, SearchResult] = {}
 
         for r in all_results:
             if r.text not in text_to_result:
@@ -1516,8 +1460,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
 
         # Calculate RRF scores based on rank position in each query's results
         for r in all_results:
-            rank = getattr(r, 'rank_in_query', 0)
-            query_key = r.query if hasattr(r, 'query') else 'unknown'
+            rank = getattr(r, "rank_in_query", 0)
+            r.query if hasattr(r, "query") else "unknown"
             rrf_scores[r.text] = rrf_scores.get(r.text, 0) + 1.0 / (rank + K_RRF)
 
         # Combine cosine scores with RRF (0.6 cosine + 0.4 RRF)
@@ -1530,13 +1474,11 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             combined_results.append((combined_score, r))
 
         combined_results.sort(key=lambda x: x[0], reverse=True)
-        fused_results = [r for _, r in combined_results[:k * 2]]
+        fused_results = [r for _, r in combined_results[: k * 2]]
 
         return fused_results
 
-    def _rerank_results(
-        self, question: str, results: List[SearchResult]
-    ) -> List[SearchResult]:
+    def _rerank_results(self, question: str, results: list[SearchResult]) -> list[SearchResult]:
         """Re-rank results using cross-encoder with pre-filtering and timeout guard."""
         if not self._reranker or not results:
             return results
@@ -1565,7 +1507,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             logger.error(f"Rerank error: {e}", exc_info=True)
             return results
 
-    def query(self, question: str, k: int = 20) -> Dict:
+    def query(self, question: str, k: int = 20) -> dict:
         """Main query method with parallel RAG + web search retrieval."""
         question = str(question)
         start_time = time.time()
@@ -1575,9 +1517,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         logger.info(f"[QUERY] Processing: {question}")
 
         # Check cache first (Redis or in-memory fallback)
-        cache_key = (
-            f"query:{hashlib.sha256(question.lower().strip().encode()).hexdigest()}"
-        )
+        cache_key = f"query:{hashlib.sha256(question.lower().strip().encode()).hexdigest()}"
 
         # Try Redis cache first
         cached_result = self._get_from_cache(cache_key)
@@ -1594,9 +1534,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         # 1. Analyze Query
         thought_process.append("Analyzing query intent and extracting entities...")
         context = self._analyze_query(question, history_context)
-        thought_process.append(
-            f"Detected intent: {context.intent}, Topic: {context.topic}"
-        )
+        thought_process.append(f"Detected intent: {context.intent}, Topic: {context.topic}")
 
         # 2. Parallel Retrieval: RAG + Web Search concurrently
         search_queries = self._expand_queries(context)
@@ -1615,29 +1553,23 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             rag_future = executor.submit(self._multi_search, search_queries, context, k)
 
             # Web search (only if enabled)
-            web_future = (
-                executor.submit(self._search_web, question) if web_enabled else None
-            )
+            web_future = executor.submit(self._search_web, question) if web_enabled else None
 
             # Proactive enhanced web search for market/investment data
             enhanced_web_query = f"{context.location} {context.topic} property rates price per sqft 2025 2026 investment commercial IT parks yields"
             enhanced_web_future = (
-                executor.submit(self._search_web, enhanced_web_query)
-                if web_enabled
-                else None
+                executor.submit(self._search_web, enhanced_web_query) if web_enabled else None
             )
 
             # Specific yield search
-            yield_query = f"{context.location} commercial property rental yields percentage IT companies 2025"
-            yield_future = (
-                executor.submit(self._search_web, yield_query) if web_enabled else None
+            yield_query = (
+                f"{context.location} commercial property rental yields percentage IT companies 2025"
             )
+            yield_future = executor.submit(self._search_web, yield_query) if web_enabled else None
 
             # Wait for local RAG
             local_results = rag_future.result()
-            thought_process.append(
-                f"Retrieved {len(local_results)} local candidate chunks."
-            )
+            thought_process.append(f"Retrieved {len(local_results)} local candidate chunks.")
 
             # Collect all web results
             web_context = ""
@@ -1646,9 +1578,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             # 1. Main web search result
             if web_enabled and web_future:
                 try:
-                    main_web_text, main_web_srcs = web_future.result(
-                        timeout=WEB_SEARCH_TIMEOUT
-                    )
+                    main_web_text, main_web_srcs = web_future.result(timeout=WEB_SEARCH_TIMEOUT)
                     if main_web_text:
                         web_context += main_web_text + "\n\n"
                         web_sources.extend(main_web_srcs)
@@ -1664,18 +1594,14 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
                     if enh_web_text:
                         web_context += enh_web_text + "\n\n"
                         web_sources.extend(enh_web_srcs)
-                        thought_process.append(
-                            "Enhanced market data retrieved via web."
-                        )
+                        thought_process.append("Enhanced market data retrieved via web.")
                 except Exception:
                     pass
 
             # 3. Yield search result
             if web_enabled and yield_future:
                 try:
-                    yld_web_text, yld_web_srcs = yield_future.result(
-                        timeout=WEB_SEARCH_TIMEOUT
-                    )
+                    yld_web_text, yld_web_srcs = yield_future.result(timeout=WEB_SEARCH_TIMEOUT)
                     if yld_web_text:
                         web_context += yld_web_text + "\n\n"
                         web_sources.extend(yld_web_srcs)
@@ -1683,18 +1609,12 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
                     pass
 
             if web_enabled and web_sources:
-                logger.info(
-                    f"\n[Web Search] Found {len(web_sources)} total sources (Parallelized)"
-                )
-                thought_process.append(
-                    f"Web search completed. Found {len(web_sources)} sources."
-                )
+                logger.info(f"\n[Web Search] Found {len(web_sources)} total sources (Parallelized)")
+                thought_process.append(f"Web search completed. Found {len(web_sources)} sources.")
             elif web_enabled:
                 thought_process.append("Web search returned no results or timed out.")
             else:
-                thought_process.append(
-                    "Web search disabled via ENABLE_WEB_SEARCH setting."
-                )
+                thought_process.append("Web search disabled via ENABLE_WEB_SEARCH setting.")
 
         # 3. Re-rank combined results (local + web)
         if self._reranker and (local_results or web_context):
@@ -1718,7 +1638,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             reranked = self._rerank_results(question, all_for_rerank)
             # Split back: local ones keep their metadata, web ones stay at bottom
             local_results = [r for r in reranked if r.result_type == "local"]
-            web_reranked = [r for r in reranked if r.result_type == "web"]
+            [r for r in reranked if r.result_type == "web"]
 
         # 4. Synthesis & Comparison
         thought_process.append("Synthesizing information from sources...")
@@ -1731,8 +1651,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         )
 
         confidence = self._calculate_confidence(local_results, synthesis)
-        all_clauses = list(set([c for r in local_results for c in r.clauses]))
-        all_tables = list(set([t for r in local_results for t in r.tables]))
+        all_clauses = list({c for r in local_results for c in r.clauses})
+        all_tables = list({t for r in local_results for t in r.tables})
         suggestions = self._generate_suggestions(question, context, all_clauses)
 
         self._memory.add("user", question)
@@ -1741,7 +1661,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         total_time = time.time() - start_time
         logger.info(f"[QUERY COMPLETE] Total time: {total_time:.2f}s")
 
-        return {
+        results = {
             "query": question,
             "answer": answer,
             "session_id": self.session_id,
@@ -1778,8 +1698,8 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
         return results
 
     def _synthesize_all(
-        self, question: str, local_results: List, web_context: str, context: Dict
-    ) -> Dict:
+        self, question: str, local_results: list, web_context: str, context: dict
+    ) -> dict:
         # Extract query parameters for conditional lookups
         import re
 
@@ -1872,9 +1792,7 @@ Return JSON:
         context = self._analyze_query(question, history_context)
         t2 = time.time()
         logger.debug(f"[TIMING] Query analysis: {t2 - t1:.2f}s")
-        thought_steps.append(
-            f"Identified intent: {context.intent}, topic: {context.topic}"
-        )
+        thought_steps.append(f"Identified intent: {context.intent}, topic: {context.topic}")
         yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
 
         # 2. Expand queries
@@ -1905,9 +1823,7 @@ Return JSON:
             # RAG search (only if not cached)
             rag_future = None
             if cached_local is None:
-                rag_future = executor.submit(
-                    self._multi_search, search_queries, context, k
-                )
+                rag_future = executor.submit(self._multi_search, search_queries, context, k)
 
             # Web search (only if enabled)
             if web_enabled:
@@ -1919,7 +1835,9 @@ Return JSON:
                 enhanced_future = executor.submit(self._search_web, enhanced_web_query)
 
                 # Specific yield search
-                yield_query = f"{context.location} commercial property rental yields percentage 2025"
+                yield_query = (
+                    f"{context.location} commercial property rental yields percentage 2025"
+                )
                 yield_future = executor.submit(self._search_web, yield_query)
             else:
                 web_future = None
@@ -1929,15 +1847,13 @@ Return JSON:
             # Get RAG results
             if cached_local is not None:
                 local_results = cached_local
-                logger.debug(f"[TIMING] Multi-search RAG: cached (0.00s)")
+                logger.debug("[TIMING] Multi-search RAG: cached (0.00s)")
             else:
                 t4 = time.time()
                 local_results = rag_future.result()
                 t5 = time.time()
                 logger.debug(f"[TIMING] Multi-search RAG: {t5 - t4:.2f}s")
-                logger.info(
-                    f"[RAG] Retrieved {len(local_results)} chunks from vector store"
-                )
+                logger.info(f"[RAG] Retrieved {len(local_results)} chunks from vector store")
                 # Cache the results briefly
                 with SessionRAG._search_cache_lock:
                     if len(SessionRAG._search_cache) >= SessionRAG._SEARCH_CACHE_MAX:
@@ -1975,9 +1891,7 @@ Return JSON:
                 except Exception as e:
                     logger.warning(f"[Web Search] Error: {e}")
             else:
-                thought_steps.append(
-                    "Web search disabled via ENABLE_WEB_SEARCH setting."
-                )
+                thought_steps.append("Web search disabled via ENABLE_WEB_SEARCH setting.")
 
         # 4. Rerank combined results
         # Skip reranking if: reranker not loaded OR technical query with high score
@@ -1990,7 +1904,7 @@ Return JSON:
         if not self._reranker:
             pass
         elif skip_rerank:
-            logger.debug(f"[TIMING] Reranking: skipped (technical query, high score)")
+            logger.debug("[TIMING] Reranking: skipped (technical query, high score)")
         elif local_results:
             thought_steps.append("Reranking results...")
             yield json.dumps({"type": "thought_process", "steps": thought_steps}) + "\n"
@@ -2043,7 +1957,7 @@ Return JSON:
             "suggestions": self._generate_suggestions(
                 question,
                 context,
-                list(set([c for r in local_results for c in r.clauses])),
+                list({c for r in local_results for c in r.clauses}),
             ),
             "thought_process": thought_steps,
         }
@@ -2052,11 +1966,11 @@ Return JSON:
     def _generate_dynamic_answer(
         self,
         question: str,
-        local_results: List[SearchResult],
+        local_results: list[SearchResult],
         web_context: str,
-        synthesis: Dict,
+        synthesis: dict,
         context: QueryContext,
-        web_sources: List[Dict] = None,
+        web_sources: list[dict] = None,
     ) -> str:
         """Generate answer with proper citations from source metadata."""
         # Build context with source metadata for each result. Keep per-doc text
@@ -2090,9 +2004,7 @@ Return JSON:
                 web_citations.append(f"[Web {i + 1}] {title} - {url}")
 
         all_citations = citations + web_citations
-        citations_text = (
-            "\n".join(all_citations) if all_citations else "No sources available"
-        )
+        "\n".join(all_citations) if all_citations else "No sources available"
 
         # Different prompts for different query types
         is_comparison = any(
@@ -2110,9 +2022,7 @@ Return JSON:
             ]
         )
         # If it's technical, ALWAYS use the technical consultant persona, even if market data is needed
-        is_market_analysis = (
-            context.needs_market_data or context.intent == "feasibility_analysis"
-        )
+        is_market_analysis = context.needs_market_data or context.intent == "feasibility_analysis"
 
         if context.is_technical or context.intent == "technical_lookup":
             # Technical Regulatory Query (Like Google AI Search)
@@ -2223,11 +2133,11 @@ EXTRA:
     def _stream_dynamic_answer(
         self,
         question: str,
-        local_results: List[SearchResult],
+        local_results: list[SearchResult],
         web_context: str,
-        synthesis: Dict,
+        synthesis: dict,
         context: QueryContext,
-        web_sources: List[Dict] = None,
+        web_sources: list[dict] = None,
     ):
         # Build context with source metadata so the model can cite inline.
         # Keep per-doc text long enough for DCPR tables.
@@ -2246,9 +2156,7 @@ EXTRA:
                 citations.append(f"[Doc {i + 1}] {r.source}{page_info}")
 
         # Different prompts for feasibility vs regulatory queries
-        is_market_analysis = (
-            context.needs_market_data or context.intent == "feasibility_analysis"
-        )
+        is_market_analysis = context.needs_market_data or context.intent == "feasibility_analysis"
 
         if context.is_technical or context.intent == "technical_lookup":
             # Technical Regulatory Query (Streaming)
@@ -2302,9 +2210,7 @@ EXTRA (feasibility formatting):
             applicable_regs = synthesis.get("applicable_regulations", [])
             query_params = synthesis.get("key_parameters", {})
 
-            regs_str = (
-                ", ".join(applicable_regs) if applicable_regs else "See documents below"
-            )
+            regs_str = ", ".join(applicable_regs) if applicable_regs else "See documents below"
             area_str = query_params.get("area", "Not specified")
             road_str = query_params.get("road_width", "9m (standard default)")
             loc_str = query_params.get("location", "Mumbai (default)")
@@ -2356,9 +2262,7 @@ EXTRA:
         except Exception as e:
             yield f"\n\n[Streaming Error]: {str(e)}"
 
-    def _calculate_confidence(
-        self, results: List[SearchResult], synthesis: Dict = None
-    ) -> float:
+    def _calculate_confidence(self, results: list[SearchResult], synthesis: dict = None) -> float:
         if not results:
             return 0.0
 
@@ -2373,11 +2277,11 @@ EXTRA:
         count_factor = min(relevant_count / 5, 1.0) * 0.15
 
         # Number of unique clauses found
-        total_clauses = len(set(c for r in results for c in r.clauses))
+        total_clauses = len({c for r in results for c in r.clauses})
         clause_factor = min(total_clauses / 10, 1.0) * 0.15
 
         # Number of tables found
-        total_tables = len(set(t for r in results for t in r.tables))
+        total_tables = len({t for r in results for t in r.tables})
         table_factor = min(total_tables / 3, 1.0) * 0.1
 
         # Check if answer has specific values
@@ -2400,8 +2304,8 @@ EXTRA:
         return round(min(confidence, 1.0), 2)
 
     def _generate_suggestions(
-        self, question: str, context: QueryContext, clauses: List[str]
-    ) -> List[str]:
+        self, question: str, context: QueryContext, clauses: list[str]
+    ) -> list[str]:
         return [
             f"What are the requirements under {clauses[0]}?"
             if clauses
@@ -2418,38 +2322,33 @@ EXTRA:
 class IntelligentRAG:
     """Main RAG class with session support"""
 
-    def __init__(self, session_id: Optional[str] = None):
+    def __init__(self, session_id: str | None = None):
         # We still have a default session if provided
         self._default_session_id = session_id
 
-    def query(
-        self, question: str, k: int = 10, session_id: Optional[str] = None
-    ) -> Dict:
+    def query(self, question: str, k: int = 10, session_id: str | None = None) -> dict:
         # Use provided session_id or fall back to default
         question = str(question)
         sid = session_id or self._default_session_id
         session, _ = SessionManager.get_or_create_session(sid)
         return session.query(question, k)
 
-    def stream_query(
-        self, question: str, k: int = 10, session_id: Optional[str] = None
-    ):
+    def stream_query(self, question: str, k: int = 10, session_id: str | None = None):
         """Streaming version of the query method"""
         question = str(question)
         sid = session_id or self._default_session_id
         session, _ = SessionManager.get_or_create_session(sid)
 
         # Start the generator
-        for chunk in session.stream_query(question, k):
-            yield chunk
+        yield from session.stream_query(question, k)
 
-    def reset_memory(self, session_id: Optional[str] = None):
+    def reset_memory(self, session_id: str | None = None):
         sid = session_id or self._default_session_id
         session, _ = SessionManager.get_or_create_session(sid)
         session.reset_memory()
 
     @classmethod
-    def list_sessions(cls) -> List[Dict]:
+    def list_sessions(cls) -> list[dict]:
         return SessionManager.list_sessions()
 
     @classmethod
@@ -2457,7 +2356,7 @@ class IntelligentRAG:
         return SessionManager.delete_session(session_id)
 
     @classmethod
-    def get_knowledge_graph_stats(cls) -> Dict:
+    def get_knowledge_graph_stats(cls) -> dict:
         kg = SessionManager.get_knowledge_graph()
         return {
             "clauses": len(kg.clauses) if kg else 0,
@@ -2466,7 +2365,7 @@ class IntelligentRAG:
         }
 
 
-def format_result(result: Dict) -> str:
+def format_result(result: dict) -> str:
     output = ["=" * 70, f"QUERY: {result['query']}", "=" * 70]
     output.append(f"**Confidence:** {result.get('confidence', 0):.0%}")
     output.append(f"**Session:** {result.get('session_id', 'N/A')}")
@@ -2481,9 +2380,7 @@ def format_result(result: Dict) -> str:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="DCPR RAG with Dynamic Knowledge Graph"
-    )
+    parser = argparse.ArgumentParser(description="DCPR RAG with Dynamic Knowledge Graph")
     parser.add_argument("question", help="Your question")
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--session", type=str, default=None)

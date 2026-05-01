@@ -4,16 +4,15 @@ WhatsApp Business API Integration
 For receiving compliance updates from government groups
 """
 
+import json
+import logging
 import os
 import re
-import json
-import time
-import logging
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Optional
-from dataclasses import dataclass, asdict
+
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -73,9 +72,7 @@ class WhatsAppIntegration:
     def __init__(self):
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
-        self.verify_token = os.getenv(
-            "WHATSAPP_WEBHOOK_VERIFY_TOKEN", "dhara_verify_token"
-        )
+        self.verify_token = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "dhara_verify_token")
 
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -123,7 +120,7 @@ class WhatsAppIntegration:
         conn.commit()
         conn.close()
 
-    def _init_compliance_patterns(self) -> List[tuple]:
+    def _init_compliance_patterns(self) -> list[tuple]:
         """Initialize regex patterns for compliance detection"""
         return [
             # MahaRERA patterns
@@ -189,7 +186,7 @@ class WhatsAppIntegration:
 
     def process_message(
         self, message: str, sender: str = "", sender_name: str = "", timestamp: str = ""
-    ) -> Optional[ComplianceUpdate]:
+    ) -> ComplianceUpdate | None:
         """Process a message and extract compliance if found"""
 
         for pattern, category, urgency in self.compliance_patterns:
@@ -207,11 +204,7 @@ class WhatsAppIntegration:
 
                 # Extract date
                 date_match = re.search(r"\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}", message)
-                date = (
-                    date_match.group(0)
-                    if date_match
-                    else datetime.now().strftime("%Y-%m-%d")
-                )
+                date = date_match.group(0) if date_match else datetime.now().strftime("%Y-%m-%d")
 
                 # Extract URL if present
                 url_match = re.search(r"https?://[^\s]+", message)
@@ -249,8 +242,8 @@ class WhatsAppIntegration:
 
         c.execute(
             """
-            INSERT OR REPLACE INTO messages 
-            (message_id, sender, sender_name, message, timestamp, group_name, 
+            INSERT OR REPLACE INTO messages
+            (message_id, sender, sender_name, message, timestamp, group_name,
              is_compliance, compliance_category, processed)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -277,8 +270,8 @@ class WhatsAppIntegration:
 
         c.execute(
             """
-            INSERT INTO compliance_updates 
-            (title, description, source, date, category, urgency, 
+            INSERT INTO compliance_updates
+            (title, description, source, date, category, urgency,
              action_required, url, raw_text)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -309,7 +302,7 @@ class WhatsAppIntegration:
         """
         count = 0
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Pattern for WhatsApp export format
@@ -323,10 +316,8 @@ class WhatsAppIntegration:
             # Parse timestamp
             timestamp_str = f"{date_str} {time_str} {ampm or ''}"
             try:
-                timestamp = datetime.strptime(
-                    timestamp_str.strip(), "%m/%d/%Y %I:%M %p"
-                )
-            except:
+                timestamp = datetime.strptime(timestamp_str.strip(), "%m/%d/%Y %I:%M %p")
+            except Exception:
                 timestamp = datetime.now()
 
             # Create message
@@ -355,7 +346,7 @@ class WhatsAppIntegration:
 
         return count
 
-    def get_pending_compliances(self, days: int = 7) -> List[ComplianceUpdate]:
+    def get_pending_compliances(self, days: int = 7) -> list[ComplianceUpdate]:
         """Get recent compliance updates"""
         conn = sqlite3.connect(str(DB_PATH))
         c = conn.cursor()
@@ -364,7 +355,7 @@ class WhatsAppIntegration:
 
         c.execute(
             """
-            SELECT title, description, source, date, category, urgency, 
+            SELECT title, description, source, date, category, urgency,
                    action_required, url, raw_text
             FROM compliance_updates
             WHERE created_at >= ?
@@ -392,7 +383,7 @@ class WhatsAppIntegration:
         conn.close()
         return results
 
-    def get_action_required(self) -> List[ComplianceUpdate]:
+    def get_action_required(self) -> list[ComplianceUpdate]:
         """Get compliances requiring action"""
         return [c for c in self.get_pending_compliances() if c.action_required]
 
@@ -412,9 +403,7 @@ class WhatsAppIntegration:
                 "text": {"body": message},
             }
 
-            response = requests.post(
-                url, headers=self.headers, json=payload, timeout=30
-            )
+            response = requests.post(url, headers=self.headers, json=payload, timeout=30)
 
             if response.status_code == 200:
                 return response.json()
@@ -424,9 +413,7 @@ class WhatsAppIntegration:
         except Exception as e:
             return {"error": str(e)}
 
-    def send_template(
-        self, to: str, template_name: str, components: dict = None
-    ) -> dict:
+    def send_template(self, to: str, template_name: str, components: dict = None) -> dict:
         """Send WhatsApp template message"""
         if not self.phone_number_id or not self.access_token:
             return {"error": "WhatsApp API not configured"}
@@ -444,9 +431,7 @@ class WhatsAppIntegration:
             if components:
                 payload["template"]["components"] = components
 
-            response = requests.post(
-                url, headers=self.headers, json=payload, timeout=30
-            )
+            response = requests.post(url, headers=self.headers, json=payload, timeout=30)
 
             if response.status_code == 200:
                 return response.json()
@@ -507,7 +492,7 @@ def main():
             logger.info(f"{i}. [{u.category.upper()}] {u.title[:60]}")
             logger.info(f"   Date: {u.date} | Urgency: {u.urgency}")
             if u.action_required:
-                logger.warning(f"   ⚠️ ACTION REQUIRED")
+                logger.warning("   ⚠️ ACTION REQUIRED")
             logger.info("")
 
     elif args.cmd == "send":

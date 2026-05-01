@@ -1,34 +1,43 @@
-# DP Remarks Report Service - MCGM Development Plan 2034
+# DP Remarks Service
 
-Microservice for retrieving Development Plan (DP) zone information and regulatory remarks for Mumbai properties.
+Automated discovery and extraction of MCGM Development Plan (DP) 2034 remarks.
 
-## Purpose
+## 📂 Service Structure
 
-Queries MCGM (Municipal Corporation of Greater Mumbai) Development Plan 2034 ArcGIS services to determine:
-- DP Zone classification (Residential, Commercial, Industrial, etc.)
-- Zoning regulations and permissible uses
-- FSI (Floor Space Index) norms
-- Building height restrictions
-
-## Architecture
-
-+-----------------------------------------------------------------------------+
-|                             FastAPI Entry Point                             |
-|                              (main.py : 8008)                               |
-+-------------------------------+-----------------------------------------------+
-
-## Local Development
-
-### Setup
-```bash
-cd services/dp_remarks_report
-uv venv .venv --python 3.11
-uv sync
-.venv\Scripts\python.exe main.py
+```text
+├── core/             # Configuration and App settings
+├── routers/          # FastAPI API Endpoints
+├── schemas/          # Pydantic models
+├── services/         # Business logic (Playwright & PDF Parsing)
+└── main.py           # Application entry point
 ```
 
-## Docker
+## 🚀 Isolated Execution (Local Dev)
 
-```bash
-docker compose up -d dp_remarks_report
-```
+To run this service in isolation for development:
+
+1. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Sync Dependencies**
+   ```bash
+   uv sync
+   uv run playwright install chromium
+   ```
+
+3. **Launch Service**
+   ```bash
+   uv run python main.py
+   ```
+The API will be available at `http://localhost:8008`.
+
+## 🎯 Features
+- **PDF Automation:** Navigates the MCGM portal to generate official DP Remark PDFs.
+- **Data Extraction:** Parses PDF content for constraints (road width, NOCs).
+
+## 🛠️ Tech Stack
+- **Playwright**
+- **pypdf**
+- **dhara_shared**

@@ -12,6 +12,7 @@ T = TypeVar("T")
 
 class PaginationParams(BaseModel):
     """Query parameters for paginated endpoints."""
+
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
     sort_by: str | None = Field(default=None, description="Field to sort by")
@@ -20,6 +21,7 @@ class PaginationParams(BaseModel):
 
 class PaginatedResponse(BaseModel):
     """Wrapper for paginated list responses."""
+
     items: list = []
     total: int = 0
     page: int = 1
@@ -29,22 +31,25 @@ class PaginatedResponse(BaseModel):
 
 class SearchParams(BaseModel):
     """Query parameters for search endpoints."""
+
     q: str = Field(min_length=1, max_length=500, description="Search query")
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
-    entity_type: str | None = Field(default=None, description="Filter by entity type: society, report, user, enquiry")
+    entity_type: str | None = Field(
+        default=None, description="Filter by entity type: society, report, user, enquiry"
+    )
 
 
 class MessageResponse(BaseModel):
     """Generic message response."""
+
     status: str
     message: str
 
 
 class ErrorResponse(BaseModel):
     """Standard error response."""
+
     status: str = "error"
     detail: str
     code: str | None = None
-
-

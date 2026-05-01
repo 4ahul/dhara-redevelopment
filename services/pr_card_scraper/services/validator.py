@@ -13,8 +13,6 @@ district/taluka/village names pass through so that newly-added or
 misspelled names can still be attempted by the fuzzy matcher.
 """
 
-from typing import Optional
-
 # ---------------------------------------------------------------------------
 # Static knowledge: talukas known to belong to each district.
 # Keys are lowercase English. Values are sets of lowercase English taluka names.
@@ -37,17 +35,45 @@ DISTRICT_TALUKAS: dict[str, set[str]] = {
         "shirur",
     },
     "nashik": {
-        "nashik", "niphad", "sinnar", "dindori", "igatpuri", "trimbakeshwar",
-        "peint", "surgana", "kalwan", "chandwad", "nandgaon", "malegaon",
-        "baglan", "yeola", "deola",
+        "nashik",
+        "niphad",
+        "sinnar",
+        "dindori",
+        "igatpuri",
+        "trimbakeshwar",
+        "peint",
+        "surgana",
+        "kalwan",
+        "chandwad",
+        "nandgaon",
+        "malegaon",
+        "baglan",
+        "yeola",
+        "deola",
     },
     "thane": {
-        "thane", "kalyan", "ulhasnagar", "bhiwandi", "murbad", "shahapur",
-        "ambarnath", "titwala",
+        "thane",
+        "kalyan",
+        "ulhasnagar",
+        "bhiwandi",
+        "murbad",
+        "shahapur",
+        "ambarnath",
+        "titwala",
     },
     "nagpur": {
-        "nagpur", "kamthi", "hingna", "narkhed", "katol", "saoner",
-        "ramtek", "mouda", "parseoni", "umred", "kuhi", "bhiwapur",
+        "nagpur",
+        "kamthi",
+        "hingna",
+        "narkhed",
+        "katol",
+        "saoner",
+        "ramtek",
+        "mouda",
+        "parseoni",
+        "umred",
+        "kuhi",
+        "bhiwapur",
         "mauda",
     },
 }
@@ -66,10 +92,11 @@ INVALID_VILLAGE_IN_TALUKA: dict[tuple[str, str], set[str]] = {
 
 class ValidationError(ValueError):
     """Raised when a District/Taluka/Village combination is provably invalid."""
+
     pass
 
 
-def validate_location(district: str, taluka: str, village: Optional[str] = None) -> None:
+def validate_location(district: str, taluka: str, village: str | None = None) -> None:
     """
     Check that the district/taluka (and optionally village) combination is valid.
     Raises ValidationError with a descriptive message if provably wrong.

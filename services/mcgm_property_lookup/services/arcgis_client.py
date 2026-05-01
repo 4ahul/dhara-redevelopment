@@ -6,7 +6,6 @@ Falls back gracefully — the browser scraper is the authoritative fallback.
 
 import json
 import logging
-from typing import Optional
 
 import httpx
 
@@ -28,11 +27,11 @@ class ArcGISClient:
     """Queries the MCGM ArcGIS feature service directly via httpx."""
 
     # Class-level URL cache so discovery runs only once per process lifetime.
-    _layer_url: Optional[str] = None
+    _layer_url: str | None = None
 
     # ── Discovery ─────────────────────────────────────────────────────────────
 
-    async def discover_layer_url(self, http: httpx.AsyncClient) -> Optional[str]:
+    async def discover_layer_url(self, http: httpx.AsyncClient) -> str | None:
         """Fetch the ArcGIS WebApp config JSON and extract the property feature layer URL.
 
         The app config lists operational layers. We walk them to find the one
@@ -63,7 +62,7 @@ class ArcGISClient:
         logger.warning("Could not find a matching property feature layer in app config")
         return None
 
-    async def _probe_layer(self, layer_url: str, http: httpx.AsyncClient) -> Optional[str]:
+    async def _probe_layer(self, layer_url: str, http: httpx.AsyncClient) -> str | None:
         """Check whether a layer URL exposes WARD + FP_NO fields."""
         # Normalise: strip trailing /FeatureServer/0 variant paths for probing
         base = layer_url.rstrip("/")
@@ -89,7 +88,7 @@ class ArcGISClient:
         village: str,
         cts_no: str,
         http: httpx.AsyncClient,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Query the feature layer for a specific property."""
         layer_url = ArcGISClient._layer_url
         if not layer_url:

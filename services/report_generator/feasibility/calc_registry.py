@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Callable, Any, Dict
+from collections.abc import Callable
+from typing import Any
 
-_REGISTRY: Dict[str, Callable[..., Any]] = {}
+_REGISTRY: dict[str, Callable[..., Any]] = {}
 
 
 def register(name: str):
@@ -13,6 +14,7 @@ def register(name: str):
             raise ValueError(f"Duplicate calc: {name}")
         _REGISTRY[name] = fn
         return fn
+
     return deco
 
 

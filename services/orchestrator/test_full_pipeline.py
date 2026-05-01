@@ -1,4 +1,6 @@
 import asyncio
+
+# noqa: E402
 import json
 import os
 import sys
@@ -10,11 +12,13 @@ if orch_path not in sys.path:
 
 # Mock env vars if needed
 os.environ["REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql+asyncpg://redevelopment:redevelopment@localhost:5432/redevelopment")
+os.environ["DATABASE_URL"] = os.getenv(
+    "DATABASE_URL", "postgresql+asyncpg://redevelopment:redevelopment@localhost:5432/redevelopment"
+)
 
 # Import the runner
-from agent.llm_client import get_llm_client
-from agent.runner import run_agent, set_llm_client
+from services.orchestrator.agent.llm_client import get_llm_client  # noqa: E402
+from services.orchestrator.agent.runner import run_agent, set_llm_client  # noqa: E402
 
 
 async def test_full_pipeline():
@@ -26,7 +30,7 @@ async def test_full_pipeline():
         "address": "Dhiraj Kunj, 40-41, Bajaj Road, Vile Parle West, Mumbai, Maharashtra 400056",
         "cts_no": "854",
         "ward": "K/W",
-        "village": "VILE PARLE"
+        "village": "VILE PARLE",
     }
 
     # Initialize LLM Client
@@ -52,9 +56,9 @@ async def test_full_pipeline():
     except Exception as e:
         print(f"\n❌ Pipeline failed: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(test_full_pipeline())
-
-

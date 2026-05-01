@@ -2,10 +2,12 @@ import os
 
 os.environ["HF_TOKEN"] = "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"
 
-from .intelligent_rag import IntelligentRAG
-import pandas as pd
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+
+from .intelligent_rag import IntelligentRAG
 
 rag = IntelligentRAG()
 
@@ -50,9 +52,7 @@ for i, q in enumerate(questions, 1):
         print(f"✓ {r['confidence']:.0%}")
     except Exception as e:
         print(f"✗ {str(e)[:30]}")
-        results.append(
-            {"Q_No": i, "Question": q, "Answer": f"Error: {str(e)}", "Confidence": "0%"}
-        )
+        results.append({"Q_No": i, "Question": q, "Answer": f"Error: {str(e)}", "Confidence": "0%"})
 
 df = pd.DataFrame(results)
 Path("data").mkdir(exist_ok=True)

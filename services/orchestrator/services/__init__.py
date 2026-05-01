@@ -10,9 +10,14 @@ from .society_service import SocietyService
 from .team_service import TeamService
 
 __all__ = [
-    "AdminService", "AgentService", "AuthService", "FeasibilityService",
-    "LandingService", "LegacyService", "ProfileService", "SearchService",
-    "SocietyService", "TeamService"
+    "AdminService",
+    "AgentService",
+    "AuthService",
+    "FeasibilityService",
+    "LandingService",
+    "LegacyService",
+    "ProfileService",
+    "SearchService",
+    "SocietyService",
+    "TeamService",
 ]
-
-

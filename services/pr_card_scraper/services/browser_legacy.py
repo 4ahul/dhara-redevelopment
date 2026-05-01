@@ -9,32 +9,33 @@ Selection strategy:
   3. Villages   — AJAX-loaded; same fuzzy approach
 """
 
+import base64
 import difflib
+import io
 import json
 import logging
-import re
-import time
-import io
 import os
-import base64
-import requests
-from typing import Optional, List, Tuple
-from unidecode import unidecode
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import (
-    TimeoutException,
-    NoSuchElementException,
-    NoAlertPresentException,
-)
-from PIL import Image
-from services.captcha_solver import CaptchaSolver
 
 # Platform-aware Chrome binary path — only set if the path actually exists
 import platform as _platform
+import re
+import time
+
+import requests
+from PIL import Image
+from selenium import webdriver
+from selenium.common.exceptions import (
+    NoAlertPresentException,
+    NoSuchElementException,
+    TimeoutException,
+)
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from unidecode import unidecode
+
+from .captcha_solver import CaptchaSolver
 
 if _platform.system() == "Windows":
     _chrome_candidates = [
@@ -53,9 +54,7 @@ if _platform.system() == "Windows":
             "chrome.exe",
         ),
     ]
-    CHROMIUM_BINARY_PATH = next(
-        (p for p in _chrome_candidates if os.path.exists(p)), None
-    )
+    CHROMIUM_BINARY_PATH = next((p for p in _chrome_candidates if os.path.exists(p)), None)
 else:
     CHROMIUM_BINARY_PATH = (
         "/usr/bin/google-chrome" if os.path.exists("/usr/bin/google-chrome") else None
@@ -209,9 +208,7 @@ class SeleniumBrowserService:
         # Patch navigator.webdriver to avoid bot detection
         self.driver.execute_cdp_cmd(
             "Page.addScriptToEvaluateOnNewDocument",
-            {
-                "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-            },
+            {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
         )
 
         logger.info("Browser started with CDP network logging")
@@ -281,9 +278,9 @@ class MahabhumiScraperSelenium:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str],
+        survey_no_part1: str | None,
         mobile: str,
-        property_uid: Optional[str],
+        property_uid: str | None,
         language: str,
         record_of_right: str = "Property Card",
         property_uid_known: bool = False,
@@ -351,13 +348,13 @@ class MahabhumiScraperSelenium:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str],
+        survey_no_part1: str | None,
         mobile: str,
-        property_uid: Optional[str],
+        property_uid: str | None,
         record_of_right: str = "Property Card",
         language: str = "EN",
         property_uid_known: bool = False,
-        captcha_override: Optional[str] = None,
+        captcha_override: str | None = None,
     ) -> dict:
 
         wait = WebDriverWait(driver, 20)
@@ -390,9 +387,7 @@ class MahabhumiScraperSelenium:
 
         # -- Step 2: District ------------------------------------------------
         logger.info(f"Step 2: Selecting district '{district}'")
-        wait.until(
-            EC.presence_of_element_located((By.ID, "ContentPlaceHolder1_ddlMainDist"))
-        )
+        wait.until(EC.presence_of_element_located((By.ID, "ContentPlaceHolder1_ddlMainDist")))
         self._select_district(driver, district)
         self._wait_ajax(driver, 4)
 
@@ -413,9 +408,7 @@ class MahabhumiScraperSelenium:
         try:
             # rbtnSearchType_0 is Survey Number
             search_type_radio = wait.until(
-                EC.element_to_be_clickable(
-                    (By.ID, "ContentPlaceHolder1_rbtnSearchType_0")
-                )
+                EC.element_to_be_clickable((By.ID, "ContentPlaceHolder1_rbtnSearchType_0"))
             )
             driver.execute_script("arguments[0].click();", search_type_radio)
             self._wait_ajax(driver, 2)
@@ -454,9 +447,7 @@ class MahabhumiScraperSelenium:
 
         try:
             survey_dd = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located(
-                    (By.ID, "ContentPlaceHolder1_ddlsurveyno")
-                )
+                EC.presence_of_element_located((By.ID, "ContentPlaceHolder1_ddlsurveyno"))
             )
             survey_select = Select(survey_dd)
             if len(survey_select.options) > 1:
@@ -506,9 +497,7 @@ class MahabhumiScraperSelenium:
         )
 
         if not captcha_text:
-            captcha_image_bytes = captcha_image_bytes or self._capture_captcha_image(
-                driver
-            )
+            captcha_image_bytes = captcha_image_bytes or self._capture_captcha_image(driver)
             return {
                 "status": "captcha_required",
                 "captcha_image": captcha_image_bytes,
@@ -528,9 +517,7 @@ class MahabhumiScraperSelenium:
 
         alert_text = self._dismiss_alert(driver)
 
-        if alert_text and (
-            "correct" in alert_text.lower() or "invalid" in alert_text.lower()
-        ):
+        if alert_text and ("correct" in alert_text.lower() or "invalid" in alert_text.lower()):
             logger.info("CAPTCHA rejected, trying variants...")
             success = False
             for variant in captcha_variants[1:]:
@@ -595,9 +582,7 @@ class MahabhumiScraperSelenium:
             # Also check if navigated to a result URL
             try:
                 url = driver.current_url
-                if any(
-                    kw in url.lower() for kw in ["result", "propertycard", "showimage"]
-                ):
+                if any(kw in url.lower() for kw in ["result", "propertycard", "showimage"]):
                     logger.info(f"Result page ready — URL changed to: {url}")
                     time.sleep(1)
                     return
@@ -606,9 +591,7 @@ class MahabhumiScraperSelenium:
 
             time.sleep(0.5)
 
-        logger.warning(
-            f"Result page wait timed out after {timeout}s — proceeding anyway"
-        )
+        logger.warning(f"Result page wait timed out after {timeout}s — proceeding anyway")
         time.sleep(2)  # last-resort settle
 
     def _capture_pr_card_image(self, driver) -> dict:
@@ -625,9 +608,7 @@ class MahabhumiScraperSelenium:
 
         # --- Strategy 1: JS interceptor captured URLs -----------------------
         try:
-            captured_urls = driver.execute_script(
-                "return window.__capturedImageUrls || [];"
-            )
+            captured_urls = driver.execute_script("return window.__capturedImageUrls || [];")
             image_url = self._pick_best_image_url(captured_urls)
             if image_url:
                 logger.info(f"Found PR card URL via JS interceptor: {image_url}")
@@ -701,7 +682,7 @@ class MahabhumiScraperSelenium:
             "image_url": None,
         }
 
-    def _find_result_img_src(self, driver) -> Optional[str]:
+    def _find_result_img_src(self, driver) -> str | None:
         """
         Search multiple candidate element IDs and CSS selectors for the result image src.
         Returns the first non-empty src found, or None.
@@ -740,7 +721,7 @@ class MahabhumiScraperSelenium:
         """)
         return src or None
 
-    def _pick_best_image_url(self, urls: list) -> Optional[str]:
+    def _pick_best_image_url(self, urls: list) -> str | None:
         """From a list of captured URLs, return the most likely PR card image URL."""
         if not urls:
             return None
@@ -772,9 +753,7 @@ class MahabhumiScraperSelenium:
 
         return candidates[0] if candidates else None
 
-    def _find_image_url_from_network_logs(
-        self, driver
-    ) -> Tuple[Optional[str], Optional[str]]:
+    def _find_image_url_from_network_logs(self, driver) -> tuple[str | None, str | None]:
         """
         Parse CDP performance logs to find image request URLs.
         Returns (image_url, request_id) or (None, None).
@@ -783,7 +762,7 @@ class MahabhumiScraperSelenium:
         try:
             logs = driver.get_log("performance")
             # (priority_score, url, request_id)
-            candidates: List[Tuple[int, str, Optional[str]]] = []
+            candidates: list[tuple[int, str, str | None]] = []
 
             priority_keywords = [
                 "showimage",
@@ -812,16 +791,11 @@ class MahabhumiScraperSelenium:
                                 score += 2
                             if any(kw in url_lower for kw in priority_keywords):
                                 score += 5
-                            if any(
-                                url_lower.endswith(ext)
-                                for ext in [".png", ".jpg", ".jpeg"]
-                            ):
+                            if any(url_lower.endswith(ext) for ext in [".png", ".jpg", ".jpeg"]):
                                 score += 1
                             if score > 0:
                                 candidates.append((score, url, request_id))
-                                logger.info(
-                                    f"CDP image response (score={score}): {url}"
-                                )
+                                logger.info(f"CDP image response (score={score}): {url}")
 
                     elif method == "Network.requestWillBeSent":
                         url = params.get("request", {}).get("url", "")
@@ -830,9 +804,7 @@ class MahabhumiScraperSelenium:
                             url_lower = url.lower()
                             if any(kw in url_lower for kw in priority_keywords):
                                 candidates.append((4, url, request_id))
-                            elif any(
-                                kw in url_lower for kw in ["image", ".png", ".jpg"]
-                            ):
+                            elif any(kw in url_lower for kw in ["image", ".png", ".jpg"]):
                                 candidates.append((1, url, request_id))
 
                 except Exception:
@@ -851,15 +823,13 @@ class MahabhumiScraperSelenium:
             logger.error(f"CDP network log parsing failed: {e}")
             return None, None
 
-    def _get_image_bytes_from_cdp(self, driver, request_id: str) -> Optional[bytes]:
+    def _get_image_bytes_from_cdp(self, driver, request_id: str) -> bytes | None:
         """
         Retrieve image bytes directly from Chrome's network cache via CDP.
         Uses Network.getResponseBody — no additional HTTP request needed.
         """
         try:
-            result = driver.execute_cdp_cmd(
-                "Network.getResponseBody", {"requestId": request_id}
-            )
+            result = driver.execute_cdp_cmd("Network.getResponseBody", {"requestId": request_id})
             body = result.get("body", "")
             if not body:
                 return None
@@ -874,12 +844,10 @@ class MahabhumiScraperSelenium:
                 return data
             return None
         except Exception as e:
-            logger.debug(
-                f"CDP getResponseBody unavailable (will fall back to download): {e}"
-            )
+            logger.debug(f"CDP getResponseBody unavailable (will fall back to download): {e}")
             return None
 
-    def _fetch_image_bytes(self, driver, url: str) -> Optional[bytes]:
+    def _fetch_image_bytes(self, driver, url: str) -> bytes | None:
         """Download image from URL using the browser's current session cookies."""
         try:
             cookies = {c["name"]: c["value"] for c in driver.get_cookies()}
@@ -911,7 +879,7 @@ class MahabhumiScraperSelenium:
     # CAPTCHA helpers                                                      #
     # ------------------------------------------------------------------ #
 
-    def _resolve_captcha(self, driver, captcha_override: Optional[str]):
+    def _resolve_captcha(self, driver, captcha_override: str | None):
         """
         Returns (captcha_text, variants_list, captcha_image_bytes).
         captcha_text is None if resolution failed and manual input is needed.
@@ -959,7 +927,7 @@ class MahabhumiScraperSelenium:
             logger.error(f"CAPTCHA extraction error: {e}")
             return []
 
-    def _capture_captcha_image(self, driver) -> Optional[bytes]:
+    def _capture_captcha_image(self, driver) -> bytes | None:
         """Crop the CAPTCHA from the page using element bounding rect (accurate positioning)."""
         try:
             # Try to get element position from DOM first
@@ -1032,9 +1000,7 @@ class MahabhumiScraperSelenium:
             logger.info(f"District '{district_english}' → value '{value}'")
         else:
             logger.warning(f"District '{district_english}' not in map, trying fuzzy…")
-            self._select_by_fuzzy(
-                driver, "ContentPlaceHolder1_ddlMainDist", district_english
-            )
+            self._select_by_fuzzy(driver, "ContentPlaceHolder1_ddlMainDist", district_english)
 
     def _select_by_fuzzy(self, driver, element_id: str, query: str):
         """
@@ -1042,7 +1008,7 @@ class MahabhumiScraperSelenium:
         unidecode romanisation) and select the best match using a real Selenium click
         so ASP.NET ViewState is properly committed.
         """
-        options: List[Tuple[str, str]] = driver.execute_script(
+        options: list[tuple[str, str]] = driver.execute_script(
             "return Array.from(document.getElementById(arguments[0]).options)"
             ".map(o => [o.value, o.text.trim()]);",
             element_id,
@@ -1085,16 +1051,12 @@ class MahabhumiScraperSelenium:
                 ((v, t) for v, t in options if v and t != "--निवडा--"), (None, None)
             )
             if best_value:
-                logger.warning(
-                    f"No match for '{query}' in {element_id}, fell back to '{fb_text}'"
-                )
+                logger.warning(f"No match for '{query}' in {element_id}, fell back to '{fb_text}'")
 
         if best_value:
             sel = Select(driver.find_element(By.ID, element_id))
             sel.select_by_value(best_value)
-            logger.info(
-                f"Fuzzy matched '{query}' → value '{best_value}' (score {best_score:.2f})"
-            )
+            logger.info(f"Fuzzy matched '{query}' → value '{best_value}' (score {best_score:.2f})")
 
     @staticmethod
     def _norm(text: str) -> str:
@@ -1193,15 +1155,13 @@ class MahabhumiScraperSelenium:
         logger.info("Custom overlay dismissed")
 
         if is_maintenance:
-            logger.warning(
-                "Site maintenance overlay detected — dismissing and proceeding anyway"
-            )
+            logger.warning("Site maintenance overlay detected — dismissing and proceeding anyway")
 
     def _wait_ajax(self, driver, seconds: float):
         """Simple sleep for AJAX-heavy pages; keeps code readable."""
         time.sleep(seconds)
 
-    def _dismiss_alert(self, driver) -> Optional[str]:
+    def _dismiss_alert(self, driver) -> str | None:
         """Accept any JS alert and return its text (or None if no alert)."""
         try:
             alert = driver.switch_to.alert

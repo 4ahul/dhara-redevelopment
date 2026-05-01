@@ -1,57 +1,55 @@
-FROM python:3.11-slim
+# ─── BUILDER ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dhara_shared and install it
+COPY dhara_shared/ /build/dhara_shared/
+RUN uv pip install --system /build/dhara_shared
+
+# Install service dependencies
+COPY services/pr_card_scraper/pyproject.toml /build/services/pr_card_scraper/
+RUN uv pip install --system --no-sources -r /build/services/pr_card_scraper/pyproject.toml
+
+# ─── RUNTIME ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-# Copy pyproject.toml first so it's available for installation
-COPY pyproject.toml .
-
+# Install runtime dependencies (Playwright requires these)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    wget \
-    gnupg \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    libpq-dev \
-    libglib2.0-0 \
-    libnss3 \
-    libnspr4 \
-    libdbus-1-3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/trusted.gpg.d/google.gpg \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+    bash \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 \
+    libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
+    libcairo2 libasound2 libxshmfence1 fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv playwright
-
-# Install dependencies from pyproject.toml
-RUN uv pip install --system .
-
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# Install Playwright browsers
 RUN playwright install chromium
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY main.py .
-COPY mock_scraper.py .
+# Copy ALL installed packages from builder (where uv placed them)
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Service code
+COPY services/__init__.py /app/services/
+COPY services/pr_card_scraper/ /app/services/pr_card_scraper/
+COPY services/pr_card_scraper/entrypoint.sh /app/entrypoint.sh
 
-# Force Python to look at the local folder
+RUN chmod +x /app/entrypoint.sh
+
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8005"]
+EXPOSE 8005
+
+CMD ["uvicorn", "services.pr_card_scraper.main:app", "--host", "0.0.0.0", "--port", "8005"]

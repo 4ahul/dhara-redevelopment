@@ -1,1 +1,1 @@
-from .height_service import height_service
+from .height_service import height_service as height_service

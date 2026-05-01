@@ -9,10 +9,10 @@ number formats, multiple sheets.
 
 from datetime import datetime
 from pathlib import Path
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 # ── Color palette (Dhara AI Branding: Navy + Gold + White) ──────────────────
 NAVY = "0C2C65"
@@ -390,9 +390,7 @@ def build_financial(ws, data: dict):
         )
         ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=6)
         cell = ws.cell(row=r, column=2, value=section_title)
-        cell.font = _font(
-            bold=True, color=WHITE if is_total else NAVY, size=12 if is_total else 11
-        )
+        cell.font = _font(bold=True, color=WHITE if is_total else NAVY, size=12 if is_total else 11)
         cell.fill = _fill(NAVY if is_total else GOLD)
         cell.border = _border()
         ws.row_dimensions[r].height = 22
@@ -563,15 +561,11 @@ def build_site_analysis(ws, data: dict):
                 ("Road Width Proposed (m)", dp.get("road_width_proposed", "")),
                 (
                     "Allowed Uses",
-                    ", ".join(dp.get("allowed_uses", []))
-                    if dp.get("allowed_uses")
-                    else "",
+                    ", ".join(dp.get("allowed_uses", [])) if dp.get("allowed_uses") else "",
                 ),
                 (
                     "Restrictions",
-                    "; ".join(dp.get("restrictions", []))
-                    if dp.get("restrictions")
-                    else "",
+                    "; ".join(dp.get("restrictions", [])) if dp.get("restrictions") else "",
                 ),
                 ("DP Remarks", dp.get("remarks", "")),
             ],

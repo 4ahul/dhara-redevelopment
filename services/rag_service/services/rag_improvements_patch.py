@@ -55,17 +55,20 @@ ROOT CAUSES DIAGNOSED
 """
 
 import re
-from typing import List, Dict, Optional
 from collections import defaultdict
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FIX 1 + 3 + 4: _search_local  — higher ef, bigger limit, table boost
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _search_local_patched(self, query: str, k: int = 20,
-                          doc_type_filter: str = None,
-                          precomputed_vector: List[float] = None):
+
+def _search_local_patched(
+    self,
+    query: str,
+    k: int = 20,
+    doc_type_filter: str = None,
+    precomputed_vector: list[float] = None,
+):
     """
     Patched version of SessionRAG._search_local.
 
@@ -79,9 +82,7 @@ def _search_local_patched(self, query: str, k: int = 20,
             return []
 
         query_vec = (
-            precomputed_vector
-            if precomputed_vector is not None
-            else self._get_embedding(query)
+            precomputed_vector if precomputed_vector is not None else self._get_embedding(query)
         )
 
         # ── FIX 3: higher ef for better HNSW recall ──────────────────────
@@ -101,7 +102,12 @@ def _search_local_patched(self, query: str, k: int = 20,
             limit=fetch_k,
             expr=expr,
             output_fields=[
-                "text", "source", "page", "language", "doc_type", "chunk_type",
+                "text",
+                "source",
+                "page",
+                "language",
+                "doc_type",
+                "chunk_type",
             ],
         )
 
@@ -119,7 +125,7 @@ def _search_local_patched(self, query: str, k: int = 20,
                     raw_score = min(raw_score + 0.03, 1.0)
 
                 output.append(
-                    SearchResult(      # noqa – imported from intelligent_rag
+                    SearchResult(  # noqa – imported from intelligent_rag
                         query=query,
                         text=entity.get("text", ""),
                         score=raw_score,
@@ -141,11 +147,13 @@ def _search_local_patched(self, query: str, k: int = 20,
             return []
         if "not exist" in err_msg.lower():
             import logging
+
             logging.getLogger(__name__).warning(
                 "[SEARCH] Schema error: collection may need reindexing"
             )
             return []
         import logging
+
         logging.getLogger(__name__).warning(f"[SEARCH] Error: {err_msg[:100]}")
         return []
 
@@ -154,9 +162,13 @@ def _search_local_patched(self, query: str, k: int = 20,
 # FIX 5 + 6: _multi_search  — RRF fusion + bigger query cap
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _multi_search_patched(self, queries: List[str],
-                          context,       # QueryContext
-                          k: int) -> list:
+
+def _multi_search_patched(
+    self,
+    queries: list[str],
+    context,  # QueryContext
+    k: int,
+) -> list:
     """
     Patched version of SessionRAG._multi_search.
 
@@ -166,17 +178,19 @@ def _multi_search_patched(self, queries: List[str],
       appear in multiple query results rank higher
     - Returns top k*2 (capped at 24)
     """
-    import hashlib, logging
+    import hashlib
+    import logging
+
     logger = logging.getLogger(__name__)
 
-    seen_texts: Dict[str, dict] = {}      # text → best SearchResult
-    query_ranks: Dict[str, List[int]] = defaultdict(list)  # text → [rank in each query]
+    seen_texts: dict[str, dict] = {}  # text → best SearchResult
+    query_ranks: dict[str, list[int]] = defaultdict(list)  # text → [rank in each query]
 
     unique_queries = list(dict.fromkeys(queries))[:8]  # FIX 6: cap at 8
 
     # Pre-compute embeddings (same batching logic as original)
-    query_vecs: Dict[str, List[float]] = {}
-    misses: List[str] = []
+    query_vecs: dict[str, list[float]] = {}
+    misses: list[str] = []
 
     for q in unique_queries:
         key = hashlib.sha256(q.encode()).hexdigest()[:16]
@@ -198,7 +212,7 @@ def _multi_search_patched(self, queries: List[str],
     if misses and self.__class__._embeddings is not None:
         try:
             vecs = self.__class__._embeddings.embed_documents(misses)
-            for q, vec in zip(misses, vecs):
+            for q, vec in zip(misses, vecs, strict=False):
                 query_vecs[q] = vec
                 key = hashlib.sha256(q.encode()).hexdigest()[:16]
                 self._set_in_cache(f"emb:{key}", vec, ttl=86400)
@@ -212,9 +226,7 @@ def _multi_search_patched(self, queries: List[str],
     # Per-query search; record per-text ranks for RRF
     for query in unique_queries:
         try:
-            results = self._search_local(
-                query, k=k, precomputed_vector=query_vecs.get(query)
-            )
+            results = self._search_local(query, k=k, precomputed_vector=query_vecs.get(query))
             for rank, r in enumerate(results):
                 if not r.text:
                     continue
@@ -255,13 +267,14 @@ def _multi_search_patched(self, queries: List[str],
 # FIX 2 + 1: _generate_dynamic_answer  — wider context, no table truncation
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _generate_dynamic_answer_patched(
     self,
     question: str,
     local_results: list,
     web_context: str,
     synthesis: dict,
-    context,                 # QueryContext
+    context,  # QueryContext
     web_sources: list = None,
 ) -> str:
     """
@@ -274,7 +287,7 @@ def _generate_dynamic_answer_patched(
     """
     # ── FIX 2: wider per-doc window, more docs ────────────────────────────
     CHUNK_LIMIT = 2500
-    DOC_COUNT   = 12
+    DOC_COUNT = 12
 
     local_text = "\n\n".join(
         [
@@ -297,20 +310,21 @@ def _generate_dynamic_answer_patched(
     if web_sources:
         for i, s in enumerate(web_sources[:5]):
             title = s.get("title", "Unknown")[:40]
-            url   = s.get("url", "")
+            url = s.get("url", "")
             web_citations.append(f"[Web {i + 1}] {title} - {url}")
 
-    citations_text = "\n".join(citations + web_citations) or "No sources available"
+    "\n".join(citations + web_citations) or "No sources available"
 
-    is_comparison    = any(w in question.lower()
-                           for w in ["best", "top", "compare", "areas", "hubs",
-                                     "list", "recommend", "vs", "versus"])
-    is_market_analysis = (context.needs_market_data or
-                          context.intent == "feasibility_analysis")
+    is_comparison = any(
+        w in question.lower()
+        for w in ["best", "top", "compare", "areas", "hubs", "list", "recommend", "vs", "versus"]
+    )
+    is_market_analysis = context.needs_market_data or context.intent == "feasibility_analysis"
 
     # Import DCPR_ANSWER_RULES from the module (it is a module-level constant)
     import sys
-    _mod = sys.modules.get(__name__)          # works when called as a method
+
+    _mod = sys.modules.get(__name__)  # works when called as a method
     DCPR_RULES = getattr(_mod, "DCPR_ANSWER_RULES", "")
 
     if context.is_technical or context.intent == "technical_lookup":
@@ -429,8 +443,10 @@ EXTRA:
 # FIX 1: _synthesize_all  — pass full text, not 500-char snippets
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _synthesize_all_patched(self, question: str, local_results: list,
-                             web_context: str, context) -> dict:
+
+def _synthesize_all_patched(
+    self, question: str, local_results: list, web_context: str, context
+) -> dict:
     """
     Patched version of SessionRAG._synthesize_all.
 
@@ -445,9 +461,9 @@ def _synthesize_all_patched(self, question: str, local_results: list,
     road_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meter)", question.lower())
 
     query_params = {
-        "area_sqft":    float(area_match.group(1)) if area_match else None,
+        "area_sqft": float(area_match.group(1)) if area_match else None,
         "road_width_m": float(road_match.group(1)) if road_match else None,
-        "location":     "mumbai" if "mumbai" in question.lower() else None,
+        "location": "mumbai" if "mumbai" in question.lower() else None,
     }
 
     # ── FIX 1: 10 docs, 1200 chars each (was 5 docs × 500 chars) ──────────
@@ -494,17 +510,19 @@ INSTRUCTIONS:
 """
     try:
         kwargs = {
-            "model":       self._model,
-            "messages":    [{"role": "user", "content": prompt}],
+            "model": self._model,
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
         }
         if self._use_openai:
             kwargs["response_format"] = {"type": "json_object"}
         response = self.client.chat.completions.create(**kwargs)
         import json
+
         return json.loads(response.choices[0].message.content)
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"Synthesis error: {e}", exc_info=True)
         return {
             "comparison": "Error in synthesis",

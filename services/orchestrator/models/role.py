@@ -1,8 +1,9 @@
-from db.base import Base
-from db.mixins import TimestampMixin, UUIDMixin
 from sqlalchemy import Boolean, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+
+from services.orchestrator.db.base import Base
+from services.orchestrator.db.mixins import TimestampMixin, UUIDMixin
 
 
 class Role(Base, UUIDMixin, TimestampMixin):
@@ -13,5 +14,3 @@ class Role(Base, UUIDMixin, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     permissions: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-

@@ -13,7 +13,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-
 class LLMClient(ABC):
     """Base class for LLM clients."""
 
@@ -105,14 +104,16 @@ class OpenAICompatibleClient(LLMClient):
                 if "type" in t and "function" in t:
                     wrapped.append(t)  # already wrapped
                 else:
-                    wrapped.append({
-                        "type": "function",
-                        "function": {
-                            "name": t["name"],
-                            "description": t.get("description", ""),
-                            "parameters": t.get("parameters", t.get("input_schema", {})),
-                        },
-                    })
+                    wrapped.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": t["name"],
+                                "description": t.get("description", ""),
+                                "parameters": t.get("parameters", t.get("input_schema", {})),
+                            },
+                        }
+                    )
             payload["tools"] = wrapped
 
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -133,9 +134,8 @@ class AnthropicClient(LLMClient):
 
     def __init__(self, api_key: str = None, model: str = None):
         import anthropic
-        self.client = anthropic.AsyncAnthropic(
-            api_key=api_key or os.getenv("ANTHROPIC_API_KEY")
-        )
+
+        self.client = anthropic.AsyncAnthropic(api_key=api_key or os.getenv("ANTHROPIC_API_KEY"))
         self.model = model or os.getenv("ANTHROPIC_MODEL", "claude-opus-4-6")
 
     async def chat(
@@ -168,8 +168,7 @@ class AnthropicClient(LLMClient):
                     and anthropic_messages[-1]["role"] == "user"
                     and isinstance(anthropic_messages[-1]["content"], list)
                     and any(
-                        b.get("type") == "tool_result"
-                        for b in anthropic_messages[-1]["content"]
+                        b.get("type") == "tool_result" for b in anthropic_messages[-1]["content"]
                     )
                 ):
                     anthropic_messages[-1]["content"].append(block)
@@ -195,12 +194,14 @@ class AnthropicClient(LLMClient):
                             args = json.loads(args)
                         except Exception:
                             args = {}
-                    parts.append({
-                        "type": "tool_use",
-                        "id": tc.get("id", f"tu_{os.urandom(4).hex()}"),
-                        "name": fn.get("name", ""),
-                        "input": args,
-                    })
+                    parts.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.get("id", f"tu_{os.urandom(4).hex()}"),
+                            "name": fn.get("name", ""),
+                            "input": args,
+                        }
+                    )
 
                 if not parts:
                     parts.append({"type": "text", "text": ""})
@@ -238,14 +239,16 @@ class AnthropicClient(LLMClient):
         text_parts = []
         for block in response.content:
             if block.type == "tool_use":
-                tool_calls_out.append({
-                    "id": block.id,
-                    "type": "tool_use",
-                    "function": {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
-                    },
-                })
+                tool_calls_out.append(
+                    {
+                        "id": block.id,
+                        "type": "tool_use",
+                        "function": {
+                            "name": block.name,
+                            "arguments": json.dumps(block.input),
+                        },
+                    }
+                )
             elif hasattr(block, "text") and block.text:
                 text_parts.append({"type": "text", "text": block.text})
 
@@ -257,7 +260,9 @@ class AnthropicClient(LLMClient):
                         "content": text_parts,
                         "tool_calls": tool_calls_out,
                     },
-                    "finish_reason": "tool_use" if tool_calls_out else (response.stop_reason or "end_turn"),
+                    "finish_reason": "tool_use"
+                    if tool_calls_out
+                    else (response.stop_reason or "end_turn"),
                 }
             ]
         }
@@ -286,7 +291,6 @@ class GeminiClient(LLMClient):
             # Fallback to a very safe model name
             self.client = genai.GenerativeModel(model_name="gemini-3-flash-preview")
 
-
     async def chat(
         self,
         messages: list[dict],
@@ -310,12 +314,9 @@ class GeminiClient(LLMClient):
                 except Exception:
                     res_data = {"raw": content}
 
-                parts.append({
-                    "function_response": {
-                        "name": msg.get("name", ""),
-                        "response": res_data
-                    }
-                })
+                parts.append(
+                    {"function_response": {"name": msg.get("name", ""), "response": res_data}}
+                )
             elif isinstance(content, list):
                 for p in content:
                     if p.get("type") == "text":
@@ -323,7 +324,14 @@ class GeminiClient(LLMClient):
                     elif p.get("type") == "tool_use":
                         parts.append({"function_call": {"name": p["name"], "args": p["input"]}})
                     elif p.get("type") == "tool_result":
-                        parts.append({"function_response": {"name": p.get("name", ""), "response": json.loads(p.get("content", "{}"))}})
+                        parts.append(
+                            {
+                                "function_response": {
+                                    "name": p.get("name", ""),
+                                    "response": json.loads(p.get("content", "{}")),
+                                }
+                            }
+                        )
             elif isinstance(content, str) and content:
                 parts.append({"text": content})
 
@@ -334,7 +342,12 @@ class GeminiClient(LLMClient):
                 parts = list(msg["_gemini_raw_parts"])
             elif msg.get("tool_calls"):
                 for tc in msg["tool_calls"]:
-                    fc_part = {"function_call": {"name": tc["function"]["name"], "args": json.loads(tc["function"]["arguments"])}}
+                    fc_part = {
+                        "function_call": {
+                            "name": tc["function"]["name"],
+                            "args": json.loads(tc["function"]["arguments"]),
+                        }
+                    }
                     if tc.get("thought_signature"):
                         fc_part["thought_signature"] = tc["thought_signature"]
                     parts.append(fc_part)
@@ -346,11 +359,13 @@ class GeminiClient(LLMClient):
         gemini_tools = []
         if tools:
             for tool in tools:
-                gemini_tools.append({
-                    "name": tool["name"],
-                    "description": tool["description"],
-                    "parameters": tool.get("input_schema", tool.get("parameters", {}))
-                })
+                gemini_tools.append(
+                    {
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "parameters": tool.get("input_schema", tool.get("parameters", {})),
+                    }
+                )
 
         final_tools = [{"function_declarations": gemini_tools}] if gemini_tools else None
 
@@ -362,6 +377,7 @@ class GeminiClient(LLMClient):
         try:
             import asyncio as _asyncio
             import functools as _functools
+
             response = await _asyncio.to_thread(
                 _functools.partial(
                     self.client.generate_content,
@@ -396,12 +412,9 @@ class GeminiClient(LLMClient):
                     tc_entry = {
                         "id": f"call_{os.urandom(8).hex()}",
                         "type": "function",
-                        "function": {
-                            "name": fn.name,
-                            "arguments": json.dumps(args_clean)
-                        }
+                        "function": {"name": fn.name, "arguments": json.dumps(args_clean)},
                     }
-                    if hasattr(part, 'thought_signature') and part.thought_signature:
+                    if hasattr(part, "thought_signature") and part.thought_signature:
                         tc_entry["thought_signature"] = part.thought_signature
                     tool_calls.append(tc_entry)
 
@@ -414,24 +427,22 @@ class GeminiClient(LLMClient):
                         "tool_calls": tool_calls,
                         "_gemini_raw_parts": raw_parts,  # preserve for thought_signature
                     },
-                    "finish_reason": "tool_use" if tool_calls else "stop"
+                    "finish_reason": "tool_use" if tool_calls else "stop",
                 }
             ]
         }
 
-
     @staticmethod
     def _proto_to_dict(obj):
         """Recursively convert protobuf MapComposite / RepeatedComposite to plain Python."""
-        if hasattr(obj, 'keys'):  # MapComposite or dict-like
+        if hasattr(obj, "keys"):  # MapComposite or dict-like
             return {k: GeminiClient._proto_to_dict(v) for k, v in obj.items()}
-        if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes)):
+        if hasattr(obj, "__iter__") and not isinstance(obj, (str, bytes)):
             return [GeminiClient._proto_to_dict(v) for v in obj]
         return obj
 
     def get_model_name(self) -> str:
         return self.model_name
-
 
 
 def get_llm_client() -> LLMClient:
@@ -442,21 +453,29 @@ def get_llm_client() -> LLMClient:
     3. OLLAMA_BASE_URL  → OllamaClient
     4. OPENAI_BASE_URL  → OpenAICompatibleClient
     """
-    from core.config import settings
+    # Use os.getenv directly so tests can clear environment variables effectively
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    ollama_url = os.getenv("OLLAMA_BASE_URL")
+    ollama_model = os.getenv("OLLAMA_MODEL")
+    openai_url = os.getenv("OPENAI_BASE_URL")
+    openai_model = os.getenv("OPENAI_MODEL")
 
-    if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your_"):
-        logger.info("Using GeminiClient (model: %s)", settings.GEMINI_MODEL or "gemini-3.1-pro-preview")
-        return GeminiClient(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
+    if gemini_key and not gemini_key.startswith("your_"):
+        logger.info("Using GeminiClient")
+        return GeminiClient(
+            api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+        )
 
-    if settings.ANTHROPIC_API_KEY and not settings.ANTHROPIC_API_KEY.startswith("sk-ant-your-"):
+    if anthropic_key and not anthropic_key.startswith("sk-ant-your-"):
         logger.info("Using AnthropicClient")
-        return AnthropicClient(api_key=settings.ANTHROPIC_API_KEY)
+        return AnthropicClient(api_key=anthropic_key)
 
-    if os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_MODEL"):
+    if ollama_url or ollama_model:
         logger.info("Using OllamaClient")
         return OllamaClient()
 
-    if os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_MODEL"):
+    if openai_url or openai_model:
         logger.info("Using OpenAICompatibleClient")
         return OpenAICompatibleClient()
 
@@ -470,5 +489,3 @@ def get_llm_client() -> LLMClient:
 async def create_llm_client() -> LLMClient:
     client = get_llm_client()
     return client
-
-

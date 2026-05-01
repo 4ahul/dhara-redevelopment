@@ -3,10 +3,11 @@ MCGM Property Lookup — PostgreSQL Storage
 Stores lookup results for async polling and caching.
 """
 
+import asyncio as _asyncio
+import functools as _functools
 import json
 import logging
 import uuid
-from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -19,7 +20,7 @@ class StorageService:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self._init_db()
+        # Schema is managed by Alembic
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -94,7 +95,9 @@ class StorageService:
             conn.commit()
             cur.close()
             conn.close()
-            logger.info("Created lookup: %s (ward=%s village=%s cts=%s)", lookup_id, ward, village, cts_no)
+            logger.info(
+                "Created lookup: %s (ward=%s village=%s cts=%s)", lookup_id, ward, village, cts_no
+            )
             return lookup_id
         except Exception as e:
             logger.error("Failed to create lookup: %s", e)
@@ -104,16 +107,16 @@ class StorageService:
         self,
         lookup_id: str,
         status: str,
-        tps_name: Optional[str] = None,
-        fp_no: Optional[str] = None,
-        centroid_lat: Optional[float] = None,
-        centroid_lng: Optional[float] = None,
-        area_sqm: Optional[float] = None,
-        geometry_wgs84: Optional[list] = None,
-        nearby_properties: Optional[list] = None,
-        map_screenshot: Optional[bytes] = None,
-        raw_data: Optional[dict] = None,
-        error_message: Optional[str] = None,
+        tps_name: str | None = None,
+        fp_no: str | None = None,
+        centroid_lat: float | None = None,
+        centroid_lng: float | None = None,
+        area_sqm: float | None = None,
+        geometry_wgs84: list | None = None,
+        nearby_properties: list | None = None,
+        map_screenshot: bytes | None = None,
+        raw_data: dict | None = None,
+        error_message: str | None = None,
     ):
         """Update a lookup record with results or error."""
         try:
@@ -161,7 +164,7 @@ class StorageService:
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
-    def get_lookup(self, lookup_id: str) -> Optional[dict]:
+    def get_lookup(self, lookup_id: str) -> dict | None:
         """Fetch a lookup record (without binary map_screenshot blob)."""
         try:
             conn = self._get_connection()
@@ -185,7 +188,7 @@ class StorageService:
             logger.error("Failed to get lookup %s: %s", lookup_id, e)
             return None
 
-    def get_screenshot(self, lookup_id: str) -> Optional[bytes]:
+    def get_screenshot(self, lookup_id: str) -> bytes | None:
         """Return the map screenshot bytes for a completed lookup."""
         try:
             conn = self._get_connection()
@@ -202,11 +205,6 @@ class StorageService:
             logger.error("Failed to get screenshot for %s: %s", lookup_id, e)
             return None
 
-
-import asyncio as _asyncio
-import functools as _functools
-
-
 class AsyncStorageService(StorageService):
     """
     Async-safe wrapper around StorageService.
@@ -214,9 +212,7 @@ class AsyncStorageService(StorageService):
     """
 
     async def create_lookup(self, ward: str, village: str, cts_no: str) -> str:
-        return await _asyncio.to_thread(
-            StorageService.create_lookup, self, ward, village, cts_no
-        )
+        return await _asyncio.to_thread(StorageService.create_lookup, self, ward, village, cts_no)
 
     async def update_lookup(self, **kwargs) -> None:
         return await _asyncio.to_thread(

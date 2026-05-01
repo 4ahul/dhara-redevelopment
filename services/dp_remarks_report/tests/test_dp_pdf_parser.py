@@ -3,7 +3,7 @@
 import os
 import unittest
 
-from services.dp_pdf_parser import parse_dp_pdf
+from services.dp_remarks_report.services.dp_pdf_parser import parse_dp_pdf
 
 TEST_DOCS = os.path.join(os.path.dirname(__file__), "..", "..", "..", "test_docs")
 SAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "sample")
@@ -222,8 +222,9 @@ class TestFormatDetection(unittest.TestCase):
 
     def test_unknown_format(self):
         # Minimal valid PDF with blank content
-        from pypdf import PdfWriter
         import io
+
+        from pypdf import PdfWriter
 
         writer = PdfWriter()
         writer.add_blank_page(width=72, height=72)

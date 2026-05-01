@@ -1,7 +1,7 @@
 import pytest
-from feasibility.calcs import financial_derivations  # registers
-from feasibility.calc_registry import get
-from feasibility.exceptions import MissingData
+
+from services.report_generator.feasibility.calc_registry import get
+from services.report_generator.feasibility.exceptions import MissingData
 
 
 def test_bank_guarantee_15pct():

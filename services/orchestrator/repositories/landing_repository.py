@@ -4,9 +4,10 @@ Landing Page CRUD Operations — Repository for CMS-style content.
 
 from collections.abc import Sequence
 
-from models.landing import LandingPageContent
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.orchestrator.models.landing import LandingPageContent
 
 
 async def list_active_landing_content(db: AsyncSession) -> Sequence[LandingPageContent]:
@@ -18,6 +19,7 @@ async def list_active_landing_content(db: AsyncSession) -> Sequence[LandingPageC
     )
     return (await db.execute(stmt)).scalars().all()
 
+
 async def create_landing_content(db: AsyncSession, data: dict) -> LandingPageContent:
     """Initialize a new landing page section."""
     entry = LandingPageContent(**data)
@@ -25,5 +27,3 @@ async def create_landing_content(db: AsyncSession, data: dict) -> LandingPageCon
     await db.flush()
     await db.refresh(entry)
     return entry
-
-

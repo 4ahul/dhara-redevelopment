@@ -19,7 +19,7 @@ dependencies = [
     "pybreaker>=1.4.0",
     "sqlalchemy[asyncio]>=2.0.30",
     "asyncpg>=0.30.0",
-    "alembic>=1.14.0",
+    "alembic>=1.13.0",
     "greenlet>=3.0.0",
     "cloudinary>=1.41.0",
     "aiofiles>=24.1.0",
@@ -29,6 +29,11 @@ dependencies = [
     "bcrypt==4.0.1",
     "passlib[bcrypt]>=1.7.4",
     "tenacity>=8.5.0",
+    "psycopg2-binary>=2.9.0",
+    "dhara_shared",
+    "arq>=0.28.0",
+    "beautifulsoup4>=4.12.0",
+    "python-dateutil>=2.9.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -38,3 +43,6 @@ include = ["core*", "agent*", "db*", "models*", "routers*", "schemas*", "service
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }

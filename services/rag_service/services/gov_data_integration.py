@@ -4,14 +4,11 @@ Government Data Integration - Hybrid Mode
 API when available, OCR/Document Upload when API fails
 """
 
-import os
 import json
-import base64
 import logging
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
-from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +70,7 @@ class GovernmentDataIntegration:
     def _check_api_connectivity(self) -> bool:
         """Check if government APIs are reachable"""
         import socket
+
         import requests
 
         sites = [
@@ -85,14 +83,14 @@ class GovernmentDataIntegration:
             try:
                 socket.create_connection((host, port), timeout=3)
                 return True
-            except:
+            except Exception:
                 continue
 
         # Check if we can reach any government site
         try:
             r = requests.get("https://www.maharashtra.gov.in", timeout=5)
             return r.status_code == 200
-        except:
+        except Exception:
             return False
 
     def get_property_data(
@@ -137,20 +135,20 @@ class GovernmentDataIntegration:
 
     def _fetch_from_apis(
         self, survey_no: str, district: str, taluka: str, village: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Fetch from government APIs"""
         # This would call the actual API integrations
         # For now, return None since APIs aren't reachable
         return None
 
-    def _merge_api_data(self, result: PropertyData, api_data: Dict) -> PropertyData:
+    def _merge_api_data(self, result: PropertyData, api_data: dict) -> PropertyData:
         """Merge API data into result"""
         for key, value in api_data.items():
             if hasattr(result, key):
                 setattr(result, key, value)
         return result
 
-    def _load_saved_data(self, survey_no: str) -> Optional[PropertyData]:
+    def _load_saved_data(self, survey_no: str) -> PropertyData | None:
         """Load previously verified data"""
         safe_id = survey_no.replace("/", "_")
         file_path = self.saved_data_dir / f"{safe_id}.json"
@@ -171,9 +169,7 @@ class GovernmentDataIntegration:
         file_path = self.saved_data_dir / f"{safe_id}.json"
         file_path.write_text(json.dumps(asdict(data), indent=2, default=str))
 
-    def process_uploaded_document(
-        self, file_path: str, doc_type: str
-    ) -> Optional[Dict]:
+    def process_uploaded_document(self, file_path: str, doc_type: str) -> dict | None:
         """
         Process uploaded document (Property Card, 7/12, etc.)
         Uses OCR to extract data
@@ -219,7 +215,7 @@ class GovernmentDataIntegration:
 
         return None
 
-    def _parse_7_12(self, file_path: str) -> Dict:
+    def _parse_7_12(self, file_path: str) -> dict:
         """Parse 7/12 extract document"""
         from pypdf import PdfReader
 
@@ -243,9 +239,7 @@ class GovernmentDataIntegration:
             result["survey_no"] = survey_match.group(1)
 
         # Parse area
-        area_match = re.search(
-            r"(\d+[\.,]?\d*)\s*(Sq\.?\s*m|Hectare|Acre|Guntha)", text, re.I
-        )
+        area_match = re.search(r"(\d+[\.,]?\d*)\s*(Sq\.?\s*m|Hectare|Acre|Guntha)", text, re.I)
         if area_match:
             area_str = area_match.group(1).replace(",", "")
             area_type = area_match.group(2).lower()
@@ -262,7 +256,7 @@ class GovernmentDataIntegration:
 
         return result
 
-    def manual_entry(self, data: Dict) -> PropertyData:
+    def manual_entry(self, data: dict) -> PropertyData:
         """Create property data from manual entry"""
         result = PropertyData(
             survey_no=data.get("survey_no", ""),
@@ -298,14 +292,10 @@ class WhatsAppComplianceReader:
     """
 
     def __init__(self):
-        self.compliance_file = (
-            DATA_DIR / "data_sources" / "compliance" / "regulations.json"
-        )
+        self.compliance_file = DATA_DIR / "data_sources" / "compliance" / "regulations.json"
         self.compliance_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def parse_message(
-        self, message: str, sender: str = "", timestamp: str = ""
-    ) -> Optional[Dict]:
+    def parse_message(self, message: str, sender: str = "", timestamp: str = "") -> dict | None:
         """
         Parse WhatsApp message for compliance updates
         """
@@ -379,7 +369,7 @@ class WhatsAppComplianceReader:
         else:
             return "general"
 
-    def add_compliance(self, compliance: Dict) -> bool:
+    def add_compliance(self, compliance: dict) -> bool:
         """Add compliance to database"""
         try:
             if self.compliance_file.exists():
@@ -395,20 +385,22 @@ class WhatsAppComplianceReader:
             data.append(compliance)
             self.compliance_file.write_text(json.dumps(data, indent=2))
             return True
-        except:
+        except Exception:
             return False
 
     def import_from_chat_export(self, chat_file: str) -> int:
         """Import compliances from WhatsApp chat export file"""
         try:
-            with open(chat_file, "r", encoding="utf-8") as f:
+            with open(chat_file, encoding="utf-8") as f:
                 content = f.read()
 
             # Parse WhatsApp export format
             # Format: "12/31/2024, 10:30 AM - Sender: Message"
             import re
 
-            pattern = r"(\d{1,2}/\d{1,2}/\d{2,4}),?\s*(\d{1,2}:\d{2}\s*(?:AM|PM))?\s*-\s*([^:]+):\s*(.+)"
+            pattern = (
+                r"(\d{1,2}/\d{1,2}/\d{2,4}),?\s*(\d{1,2}:\d{2}\s*(?:AM|PM))?\s*-\s*([^:]+):\s*(.+)"
+            )
 
             matches = re.findall(pattern, content, re.MULTILINE)
 
@@ -431,8 +423,8 @@ class WhatsAppComplianceReader:
 # API Endpoints for Data Integration
 def add_data_endpoints(app):
     """Add data integration endpoints to FastAPI app"""
-    from fastapi import HTTPException, UploadFile, File, Form
-    from typing import Optional
+
+    from fastapi import File, Form, HTTPException, UploadFile
 
     integration = GovernmentDataIntegration()
     whatsapp_reader = WhatsAppComplianceReader()
@@ -449,7 +441,7 @@ def add_data_endpoints(app):
             data = integration.get_property_data(survey_no, district, taluka, village)
             return asdict(data)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/api/property/{survey_no}/upload")
     async def upload_property_document(
@@ -480,10 +472,10 @@ def add_data_endpoints(app):
                     "message": "Could not extract data from document",
                 }
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/api/property/{survey_no}/manual")
-    async def manual_property_entry(survey_no: str, data: Dict):
+    async def manual_property_entry(survey_no: str, data: dict):
         """Manual property data entry"""
         try:
             data["survey_no"] = survey_no
@@ -491,16 +483,14 @@ def add_data_endpoints(app):
             integration.save_verified_data(result)
             return asdict(result)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/api/compliance/whatsapp")
     async def import_whatsapp_compliance(chat_file: UploadFile = File(...)):
         """Import compliances from WhatsApp chat export"""
         try:
             # Save chat file
-            chat_path = (
-                UPLOADS_DIR / f"chat_{datetime.now().strftime('%Y%m%d%H%M')}.txt"
-            )
+            chat_path = UPLOADS_DIR / f"chat_{datetime.now().strftime('%Y%m%d%H%M')}.txt"
             content = await chat_file.read()
             chat_path.write_bytes(content)
 
@@ -513,21 +503,19 @@ def add_data_endpoints(app):
                 "file": str(chat_path),
             }
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.get("/api/compliance/pending")
     async def get_pending_compliances():
         """Get compliances that need review"""
         try:
-            compliance_file = (
-                DATA_DIR / "data_sources" / "compliance" / "regulations.json"
-            )
+            compliance_file = DATA_DIR / "data_sources" / "compliance" / "regulations.json"
             if compliance_file.exists():
                 data = json.loads(compliance_file.read_text())
                 pending = [c for c in data if c.get("requires_action", False)]
                 return pending
             return []
-        except:
+        except Exception:
             return []
 
     return app
@@ -543,9 +531,7 @@ if __name__ == "__main__":
     logger.info("")
 
     # Get property data
-    data = integration.get_property_data(
-        "123/456", "Mumbai Suburban", "Andheri", "Andheri"
-    )
+    data = integration.get_property_data("123/456", "Mumbai Suburban", "Andheri", "Andheri")
 
     logger.info(f"Survey No: {data.survey_no}")
     logger.info(f"Fetch Method: {data.fetch_method}")

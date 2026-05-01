@@ -14,18 +14,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from langchain_ollama import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pymilvus import (
-    connections,
-    utility,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings
 from pypdf import PdfReader
-
 
 BATCH_SIZE = 20  # chunks per Ollama embedding call
 CHUNK_SIZE = 800  # characters per chunk
@@ -93,9 +92,7 @@ def main():
 
     print(f"\nConnecting to Milvus at {host}:{port}...")
     if token:
-        connections.connect(
-            alias="default", host=host, port=port, token=token, secure=True
-        )
+        connections.connect(alias="default", host=host, port=port, token=token, secure=True)
     else:
         connections.connect(alias="default", host=host, port=port)
     print("[OK] Connected")
@@ -110,9 +107,7 @@ def main():
         FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
         FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=DIM),
     ]
-    collection = Collection(
-        "documents", CollectionSchema(fields, "DCPR document embeddings")
-    )
+    collection = Collection("documents", CollectionSchema(fields, "DCPR document embeddings"))
     collection.create_index(
         "embedding",
         {"index_type": "IVF_FLAT", "metric_type": "COSINE", "params": {"nlist": 128}},

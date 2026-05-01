@@ -3,37 +3,36 @@
 Production RAG System with LangGraph, Tools, Excel & Math Capabilities
 """
 
-import os
-import json
-import re
 import argparse
+import json
 import logging
-from pathlib import Path
+import os
+import re
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from pathlib import Path
+from typing import Any
+
 import requests
 
 logger = logging.getLogger(__name__)
 
 # LangGraph
 try:
-    from langgraph.graph import StateGraph
     from langchain_ollama import ChatOllama
-    from langchain_core.messages import HumanMessage, AIMessage
 
     LANGGRAPH_AVAILABLE = True
-except:
+except Exception:
     LANGGRAPH_AVAILABLE = False
     from langchain_ollama import ChatOllama
 
 # Milvus imports
 try:
     from pymilvus import (
-        connections,
         Collection,
-        FieldSchema,
         CollectionSchema,
         DataType,
+        FieldSchema,
+        connections,
         utility,
     )
 
@@ -171,11 +170,10 @@ class ExcelTool:
         self.excel_available = False
         try:
             import pandas as pd
-            import openpyxl
 
             self.pd = pd
             self.excel_available = True
-        except:
+        except Exception:
             pass
 
     def read_excel(self, filepath: str, sheet: str = None) -> str:
@@ -191,9 +189,7 @@ class ExcelTool:
             output = f"File: {filepath}\nSheets: {xl.sheet_names}\n\n"
             for s in xl.sheet_names[:3]:
                 df = self.pd.read_excel(xl, s)
-                output += (
-                    f"=== {s} ===\n{self.pd.DataFrame(df).head(5).to_string()}\n\n"
-                )
+                output += f"=== {s} ===\n{self.pd.DataFrame(df).head(5).to_string()}\n\n"
             return output
         except Exception as e:
             return f"Error: {str(e)}"
@@ -211,9 +207,7 @@ class ExcelTool:
 
             numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
-            output = (
-                f"Data Analysis:\n- Rows: {len(df)}\n- Columns: {len(df.columns)}\n\n"
-            )
+            output = f"Data Analysis:\n- Rows: {len(df)}\n- Columns: {len(df.columns)}\n\n"
 
             if numeric_cols:
                 output += "Numeric Columns:\n"
@@ -272,7 +266,7 @@ class WebSearchTool:
             results = response.json()
 
             snippets = []
-            if "organic_results" in results: # SerpApi uses 'organic_results'
+            if "organic_results" in results:  # SerpApi uses 'organic_results'
                 for result in results["organic_results"][:5]:
                     snippets.append(
                         f"Title: {result.get('title')}\nSnippet: {result.get('snippet')}\nLink: {result.get('link')}\n"
@@ -314,9 +308,7 @@ class MilvusVectorStore:
                 )
             else:
                 # Local connection
-                connections.connect(
-                    alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=5
-                )
+                connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=5)
             logger.info(f"[OK] Connected to Milvus/Zilliz at {MILVUS_HOST}")
             self._setup_collection()
         except Exception as e:
@@ -330,13 +322,9 @@ class MilvusVectorStore:
             self.collection.load()
             logger.info(f"[OK] Loaded collection: {self.collection_name}")
         else:
-            dim = int(
-                os.environ.get("EMBEDDING_DIM", "1536")
-            )  # OpenAI text-embedding-3-small
+            dim = int(os.environ.get("EMBEDDING_DIM", "1536"))  # OpenAI text-embedding-3-small
             fields = [
-                FieldSchema(
-                    name="id", dtype=DataType.INT64, is_primary=True, auto_id=True
-                ),
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
                 FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
                 FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=512),
                 FieldSchema(name="page", dtype=DataType.INT32),
@@ -357,14 +345,10 @@ class MilvusVectorStore:
                 "metric_type": "COSINE",
                 "params": {"M": 16, "efConstruction": 256},
             }
-            self.collection.create_index(
-                field_name="embedding", index_params=index_params
-            )
-            logger.info(
-                f"[OK] Created collection: {self.collection_name} (HNSW, {dim}d COSINE)"
-            )
+            self.collection.create_index(field_name="embedding", index_params=index_params)
+            logger.info(f"[OK] Created collection: {self.collection_name} (HNSW, {dim}d COSINE)")
 
-    def add_documents(self, documents: List) -> int:
+    def add_documents(self, documents: list) -> int:
         """Add documents to Milvus with metadata support."""
         texts = [doc.page_content for doc in documents]
         logger.info(f"Embedding {len(texts)} docs...")
@@ -387,7 +371,7 @@ class MilvusVectorStore:
             all_vectors.extend(vectors)
 
             # Extract metadata from documents if available
-            for j, doc in enumerate(documents[i : i + batch_size]):
+            for _j, doc in enumerate(documents[i : i + batch_size]):
                 meta = getattr(doc, "metadata", {}) or {}
                 all_sources.append(meta.get("source", ""))
                 all_pages.append(meta.get("page", 0))
@@ -423,7 +407,7 @@ class MilvusVectorStore:
         logger.info(f"[OK] Added {len(texts)} docs to Milvus")
         return len(texts)
 
-    def search(self, query: str, k: int = 10) -> List[tuple]:
+    def search(self, query: str, k: int = 10) -> list[tuple]:
         """Search documents with HNSW params and metadata."""
         try:
             if self.collection:
@@ -486,7 +470,7 @@ class SimpleVectorStore:
         data = {"documents": self.documents, "vectors": self.vectors}
         filepath.write_text(json.dumps(data))
 
-    def add_documents(self, documents: List) -> int:
+    def add_documents(self, documents: list) -> int:
         texts = [doc.page_content for doc in documents]
         logger.info(f"Embedding {len(texts)} docs...")
 
@@ -498,13 +482,13 @@ class SimpleVectorStore:
             vectors = self.embeddings.embed_documents(batch)
             all_vectors.extend(vectors)
 
-        for t, v in zip(texts, all_vectors):
+        for t, v in zip(texts, all_vectors, strict=False):
             self.documents.append({"text": t})
             self.vectors.append(v)
 
         return len(texts)
 
-    def search(self, query: str, k: int = 10) -> List[tuple]:
+    def search(self, query: str, k: int = 10) -> list[tuple]:
         if not self.documents:
             return []
 
@@ -516,7 +500,7 @@ class SimpleVectorStore:
                 if i >= len(self.documents):
                     break
                 # Cosine similarity
-                dot = sum(a * b for a, b in zip(query_vec, vec))
+                dot = sum(a * b for a, b in zip(query_vec, vec, strict=False))
                 norm1 = sum(x * x for x in query_vec) ** 0.5
                 norm2 = sum(x * x for x in vec) ** 0.5
                 score = dot / (norm1 * norm2 + 0.0001)
@@ -549,7 +533,7 @@ class DocumentLoader:
         chunk_size: int = 1000,
         overlap: int = 200,
         strategy: str = "semantic",
-    ) -> List:
+    ) -> list:
         """
         Chunk text using semantic or fixed-size approach.
 
@@ -561,6 +545,8 @@ class DocumentLoader:
         """
         if strategy == "semantic":
             try:
+                from langchain_core.documents import Document
+
                 from ..scripts.semantic_chunker import SemanticChunker
 
                 chunker = SemanticChunker(
@@ -569,15 +555,11 @@ class DocumentLoader:
                     overlap=overlap,
                 )
                 chunks = chunker.chunk_text(text, "")
-                return [
-                    Document(page_content=c[0], metadata={"type": c[1]}) for c in chunks
-                ]
+                return [Document(page_content=c[0], metadata={"type": c[1]}) for c in chunks]
             except ImportError:
                 logger.warning("Warning: SemanticChunker not found, falling back to fixed")
 
-        # Default to langchain's RecursiveCharacterTextSplitter
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_core.documents import Document
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -706,7 +688,7 @@ class RAGAgent:
 
         return len(docs)
 
-    def analyze_question(self, question: str) -> Dict:
+    def analyze_question(self, question: str) -> dict:
         """Analyze what tools to use"""
         question_lower = question.lower()
 
@@ -759,7 +741,7 @@ class RAGAgent:
             ),
         }
 
-    def execute_tools(self, tool_names: List[str], question: str) -> Dict[str, str]:
+    def execute_tools(self, tool_names: list[str], question: str) -> dict[str, str]:
         """Execute multiple tools"""
         results = {}
 
@@ -773,9 +755,7 @@ class RAGAgent:
                 if numbers:
                     results["calculate"] = self.math_tool.calculate(",".join(numbers))
                 else:
-                    results["calculate"] = (
-                        "No numbers found in question for calculation."
-                    )
+                    results["calculate"] = "No numbers found in question for calculation."
 
             elif tool_name == "excel_analyze":
                 # Would need filepath
@@ -783,7 +763,7 @@ class RAGAgent:
 
         return results
 
-    def answer(self, question: str) -> Dict[str, Any]:
+    def answer(self, question: str) -> dict[str, Any]:
         """Answer question with tool calling"""
         self.query_count += 1
 
@@ -837,7 +817,7 @@ Answer:"""
         FEEDBACK_FILE.write_text(json.dumps(self.feedback, indent=2))
         return entry
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         return {
             "queries": self.query_count,
             "documents": len(self.vectorstore.documents),
@@ -884,7 +864,7 @@ def main():
     if args.cmd == "stats":
         agent = RAGAgent()
         s = agent.get_stats()
-        logger.info(f"\n=== STATS ===")
+        logger.info("\n=== STATS ===")
         logger.info(f"Queries: {s['queries']}")
         logger.info(f"Document: {s['current_doc']}")
         logger.info(f"Chunks: {s['documents']}")

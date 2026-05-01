@@ -1,14 +1,12 @@
 import os
-from pydantic_settings import BaseSettings
+
+from dhara_shared.core.config import BaseServiceSettings
 
 
-class Settings(BaseSettings):
-    APP_NAME: str = "PR Card Scraper Service"
-    APP_VERSION: str = "1.0.0"
+class Settings(BaseServiceSettings):
+    APP_NAME: str = "pr_card_scraper"
 
-    DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@localhost:5435/pr_card_scraper_db"
-    )
+    DATABASE_URL: str = "postgresql://redevelopment:redevelopment@localhost:5435/pr_card_scraper_db"
 
     MAHABHUMI_URL: str = "https://bhulekh.mahabhumi.gov.in"
 
@@ -21,15 +19,11 @@ class Settings(BaseSettings):
     BROWSER_TIMEOUT: int = 30000
 
     # CAPTCHA solver — LLM Vision APIs
-    GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.1-pro-preview"
-    OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
+    class Config(BaseServiceSettings.Config):
+        env_file = BaseServiceSettings.get_env_file(__file__)
 
 
 settings = Settings()

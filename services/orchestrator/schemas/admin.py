@@ -10,8 +10,10 @@ from pydantic import BaseModel, Field
 
 # ─── PMC Users ───────────────────────────────────────────────────────────────
 
+
 class PMCUserResponse(BaseModel):
     """PMC user detail for admin view."""
+
     id: UUID
     email: str
     name: str
@@ -29,8 +31,10 @@ class PMCUserResponse(BaseModel):
 
 # ─── Enquiries ──────────────────────────────────────────────────────────────
 
+
 class EnquiryResponse(BaseModel):
     """Full enquiry detail for admin view."""
+
     id: UUID
     name: str
     email: str
@@ -50,6 +54,7 @@ class EnquiryResponse(BaseModel):
 
 class EnquiryUpdate(BaseModel):
     """Partial update for an enquiry (admin)."""
+
     status: str | None = Field(default=None, pattern="^(new|in_progress|resolved|closed)$")
     assigned_to: UUID | None = None
     admin_notes: str | None = Field(default=None, max_length=5000)
@@ -57,8 +62,10 @@ class EnquiryUpdate(BaseModel):
 
 # ─── Roles ───────────────────────────────────────────────────────────────────
 
+
 class RoleResponse(BaseModel):
     """Role definition response."""
+
     id: UUID
     name: str
     display_name: str
@@ -72,9 +79,8 @@ class RoleResponse(BaseModel):
 
 class RoleCreate(BaseModel):
     """Create a role (admin only)."""
+
     name: str = Field(min_length=2, max_length=100)
     display_name: str = Field(min_length=2, max_length=255)
     description: str | None = Field(default=None, max_length=1000)
     permissions: dict | None = None
-
-

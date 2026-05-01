@@ -1,14 +1,16 @@
 import uuid
 from datetime import datetime
 
-from db.base import Base
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from services.orchestrator.db.base import Base
+
 
 def _uuid():
     return uuid.uuid4()
+
 
 def _now():
     return datetime.utcnow()
@@ -28,6 +30,6 @@ class LandingPageContent(Base):
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now, nullable=False)
-
-
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=False
+    )

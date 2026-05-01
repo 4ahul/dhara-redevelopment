@@ -1,12 +1,16 @@
-import os
 import logging
+import os
+import uuid
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header, Query
-from db.session import get_db
-from core.dependencies import require_auth
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+
+from ..core.dependencies import require_auth
+from ..db.session import get_db
 
 router = APIRouter(prefix="/api", tags=["Documents"])
 logger = logging.getLogger(__name__)
+
 
 @router.post("/speech-to-text")
 async def speech_to_text(
@@ -14,6 +18,7 @@ async def speech_to_text(
     payload: dict = Depends(require_auth),
 ):
     import tempfile
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
         content = await file.read()
         tmp.write(content)
@@ -21,10 +26,18 @@ async def speech_to_text(
 
     try:
         import subprocess
-        result = subprocess.run(
+
+        subprocess.run(
             [
-                "ffmpeg", "-i", tmp_path, "-acodec", "pcm_s16le",
-                "-ar", "16000", "-y", tmp_path + ".wav",
+                "ffmpeg",
+                "-i",
+                tmp_path,
+                "-acodec",
+                "pcm_s16le",
+                "-ar",
+                "16000",
+                "-y",
+                tmp_path + ".wav",
             ],
             capture_output=True,
             timeout=60,
@@ -33,11 +46,10 @@ async def speech_to_text(
 
         try:
             import openai
+
             client = openai.OpenAI()
             with open(wav_path, "rb") as audio_file:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1", file=audio_file
-                )
+                transcript = client.audio.transcriptions.create(model="whisper-1", file=audio_file)
             text = transcript.text
         except Exception as e:
             logger.warning(f"[STT] OpenAI Whisper failed: {e}")
@@ -48,10 +60,11 @@ async def speech_to_text(
         return {"text": text}
     except Exception as e:
         logger.error(f"[STT] Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Speech recognition failed")
+        raise HTTPException(status_code=500, detail="Speech recognition failed") from e
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
 
 @router.post("/documents/upload")
 async def upload_document(
@@ -60,8 +73,9 @@ async def upload_document(
     payload: dict = Depends(require_auth),
     db=Depends(get_db),
 ):
-    user_id = int(payload["sub"])
+    int(payload["sub"])
     import tempfile
+
     file_ext = Path(file.filename).suffix.lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
         content = await file.read()
@@ -70,14 +84,13 @@ async def upload_document(
 
     try:
         # Note: assuming scripts/index_docs_with_ocr.py exists or similar
-        from services.ocr_api import index_document 
         # Wait, the original code imported from scripts.index_docs_with_ocr
-        # I'll check where index_document is defined. 
+        # I'll check where index_document is defined.
         # In api.py it was: from scripts.index_docs_with_ocr import index_document
-        
+
         # I'll try to find where it is now.
-        doc_id = str(uuid.uuid4())[:8] # Placeholder if not found
-        
+        doc_id = str(uuid.uuid4())[:8]  # Placeholder if not found
+
         logger.info(f"[UPLOAD] Document indexed: {file.filename}")
 
         return {
@@ -88,9 +101,7 @@ async def upload_document(
         }
     except Exception as e:
         logger.error(f"[UPLOAD] Error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to index document: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to index document: {str(e)}") from e
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

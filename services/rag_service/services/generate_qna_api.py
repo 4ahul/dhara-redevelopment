@@ -1,12 +1,14 @@
-import os
 import logging
+import os
+
 os.environ["OPENAI_API_KEY"] = open(".env").read().split("OPENAI_API_KEY=")[1].split("\n")[0]
 
-import requests
-import pandas as pd
-from pathlib import Path
-from datetime import datetime
 import time
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+import requests
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -48,9 +50,9 @@ for i, q in enumerate(questions, 1):
     try:
         resp = requests.post(API_URL, json={"question": q, "k": 5}, timeout=60)
         data = resp.json()
-        
+
         context = "\n\n".join([r["text"][:500] for r in data.get("results", [])])
-        
+
         prompt = f"""Based on DCPR 2034, answer this question:
 
 Question: {q}
@@ -60,31 +62,45 @@ Context:
 
 Provide detailed answer with specific values.
 """
-        
+
         client = OpenAI()
         llm_resp = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "You are a DCPR 2034 expert."}, {"role": "user", "content": prompt}],
-            temperature=0.2, max_tokens=1500
+            messages=[
+                {"role": "system", "content": "You are a DCPR 2034 expert."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=1500,
         )
-        
+
         answer = llm_resp.choices[0].message.content
         confidence = data["results"][0]["score"] if data.get("results") else 0
-        
-        results.append({
-            "Q_No": i,
-            "Question": q,
-            "Answer": answer,
-            "Confidence": f"{confidence:.0%}",
-            "Source_Score": confidence,
-        })
-        
+
+        results.append(
+            {
+                "Q_No": i,
+                "Question": q,
+                "Answer": answer,
+                "Confidence": f"{confidence:.0%}",
+                "Source_Score": confidence,
+            }
+        )
+
         logger.info(f"[{i}/{len(questions)}] ✓ {confidence:.0%}")
         time.sleep(0.5)
 
     except Exception as e:
         logger.error(f"[{i}/{len(questions)}] ✗ {str(e)[:40]}", exc_info=True)
-        results.append({"Q_No": i, "Question": q, "Answer": f"Error: {str(e)}", "Confidence": "0%", "Source_Score": 0})
+        results.append(
+            {
+                "Q_No": i,
+                "Question": q,
+                "Answer": f"Error: {str(e)}",
+                "Confidence": "0%",
+                "Source_Score": 0,
+            }
+        )
 
 df = pd.DataFrame(results)
 Path("data").mkdir(exist_ok=True)
@@ -92,6 +108,6 @@ ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 filename = f"data/PMC_QnA_{len(questions)}_{ts}.xlsx"
 df.to_excel(filename, index=False)
 
-passed = sum(1 for r in results if float(r['Confidence'].replace('%','')) >= 40)
+passed = sum(1 for r in results if float(r["Confidence"].replace("%", "")) >= 40)
 logger.info(f"\nSAVED: {filename}")
-logger.info(f"Total: {len(results)} | Answered: {passed} ({passed/len(results)*100:.0f}%)")
+logger.info(f"Total: {len(results)} | Answered: {passed} ({passed / len(results) * 100:.0f}%)")

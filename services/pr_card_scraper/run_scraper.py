@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
+# noqa: E402
 """
 Standalone PR Card Scraper — Updated to use Playwright and Modular architecture.
 """
 
-import sys
-import os
-import asyncio
-import logging
 import argparse
+import asyncio
 import json
+import logging
+import os
+import sys
 
 # ── make service modules importable ──────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
-from services.browser import BaseBrowser, MahabhumiScraper
+from services.pr_card_scraper.services.browser import BaseBrowser, MahabhumiScraper  # noqa: E402
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  SCRAPE TARGETS
 # ═════════════════════════════════════════════════════════════════════════════
 TARGETS = [
     # Narhe is in Haveli taluka (न-हे visible in dropdown, CTS survey type)
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Narhe",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-    ),
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Narhe",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+    },
 ]
 
 OUTPUT_DIR = os.path.join(_HERE, "outputs")
@@ -49,7 +50,9 @@ async def run_one_target(target: dict, headless: bool) -> dict:
 
         async def on_captcha(img_bytes: bytes) -> str:
             """Prompt user to solve CAPTCHA when auto-solver fails."""
-            import sys, subprocess
+            import subprocess
+            import sys
+
             captcha_path = os.path.join(OUTPUT_DIR, "captcha_manual.png")
             with open(captcha_path, "wb") as f:
                 f.write(img_bytes)
@@ -99,9 +102,7 @@ async def main(headless: bool):
         if result.get("status") == "completed":
             logger.info("SUCCESS!")
             logger.info(f"Output: {result.get('output_path')}")
-            logger.info(
-                f"Extracted Data: {json.dumps(result.get('extracted_data'), indent=2)}"
-            )
+            logger.info(f"Extracted Data: {json.dumps(result.get('extracted_data'), indent=2)}")
         else:
             logger.error(f"FAILED: {result.get('error')}")
 

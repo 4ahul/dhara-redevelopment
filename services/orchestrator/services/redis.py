@@ -6,29 +6,51 @@ Caches sessions and user profiles in Redis.
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 import redis
-from core.config import settings
+from arq import create_pool
+from arq.connections import RedisSettings
+
+from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 redis_client: redis.Redis | None = None
+arq_pool: Any = None
 
 
 async def init_redis():
-    """Initialize Redis connection."""
-    global redis_client
+    """Initialize Redis connection and Arq pool."""
+    global redis_client, arq_pool
     try:
         redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
         redis_client.ping()
         logger.info("Redis connected")
+
+        # Initialize Arq pool
+        arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+        logger.info("Arq task pool initialized")
     except Exception as e:
         logger.warning("Redis connection failed: %s — using in-memory fallback.", e)
         redis_client = None
+        arq_pool = None
+
+
+async def close_redis():
+    """Close connections."""
+    global arq_pool
+    if arq_pool:
+        await arq_pool.close()
+        logger.info("Arq task pool closed")
 
 
 def get_redis() -> redis.Redis | None:
     return redis_client
+
+
+def get_arq():
+    return arq_pool
 
 
 def save_session(session_id: str, user_id: str, data: dict) -> bool:
@@ -41,11 +63,16 @@ def save_session(session_id: str, user_id: str, data: dict) -> bool:
         now_iso = datetime.now(UTC).isoformat()
         data["created_at"] = data.get("created_at", now_iso)
         data["updated_at"] = now_iso
-        redis_client.hset(key, mapping={
-            "session_id": session_id, "user_id": user_id,
-            "data": json.dumps(data),
-            "created_at": data["created_at"], "updated_at": data["updated_at"],
-        })
+        redis_client.hset(
+            key,
+            mapping={
+                "session_id": session_id,
+                "user_id": user_id,
+                "data": json.dumps(data),
+                "created_at": data["created_at"],
+                "updated_at": data["updated_at"],
+            },
+        )
         redis_client.expire(key, 86400 * 30)
         return True
     except Exception as e:
@@ -74,12 +101,14 @@ def get_user_sessions(user_id: str) -> list:
         for key in keys:
             data = redis_client.hgetall(key)
             if data:
-                sessions.append({
-                    "session_id": data.get("session_id"),
-                    "data": json.loads(data.get("data", "{}")),
-                    "created_at": data.get("created_at"),
-                    "updated_at": data.get("updated_at"),
-                })
+                sessions.append(
+                    {
+                        "session_id": data.get("session_id"),
+                        "data": json.loads(data.get("data", "{}")),
+                        "created_at": data.get("created_at"),
+                        "updated_at": data.get("updated_at"),
+                    }
+                )
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
     except Exception as e:
         logger.error("Failed to get user sessions: %s", e)
@@ -128,5 +157,3 @@ def update_session_report(session_id: str, user_id: str, report_path: str) -> bo
     except Exception as e:
         logger.error("Failed to update session report: %s", e)
     return False
-
-

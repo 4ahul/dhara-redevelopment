@@ -16,7 +16,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-CTS_FP_ARCGIS_URL = "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Department/MapServer/3"
+CTS_FP_ARCGIS_URL = (
+    "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Department/MapServer/3"
+)
 
 DP_2034_URL = "https://dpremarks.mcgm.gov.in/dp2034/"
 DP_1991_URL = "https://dpremarks.mcgm.gov.in/srdp1991/"
@@ -25,12 +27,15 @@ DP_1991_URL = "https://dpremarks.mcgm.gov.in/srdp1991/"
 @dataclass
 class CTSFPResolutionResult:
     """Result of CTS/FP resolution."""
+
     cts_no: str | None = None
     fp_no: str | None = None
     tps_name: str | None = None
     is_validated: bool = False
     resolution_method: str = "none"
-    extra: dict | None = None  # ArcGIS-sourced location metadata (ward, village, taluka, district, ...)
+    extra: dict | None = (
+        None  # ArcGIS-sourced location metadata (ward, village, taluka, district, ...)
+    )
 
 
 class CTSFPResolver:
@@ -86,7 +91,7 @@ class CTSFPResolver:
             if ai_result and ai_result.get("tps_name"):
                 result.fp_no = ai_result.get("fp_no")
                 result.tps_name = ai_result.get("tps_name")
-                result.is_validated = False          # AI is not authoritative
+                result.is_validated = False  # AI is not authoritative
                 result.resolution_method = "gemini_ai"
                 return result
 
@@ -145,7 +150,8 @@ class CTSFPResolver:
     ) -> dict | None:
         """Use Gemini AI to infer TPS name and FP/CTS mapping when ArcGIS has no record."""
         try:
-            from core.config import settings
+            from services.orchestrator.core.config import settings
+
             api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
             if not api_key:
                 return None
@@ -154,15 +160,20 @@ class CTSFPResolver:
             import importlib
             import sys
             import sysconfig
+
             def _import_genai():
                 try:
                     from google import genai as g
                     from google.genai import types as t
+
                     return g, t
                 except ImportError:
                     pass
                 sp = sysconfig.get_path("purelib")
-                for path in [sp, "C:/Users/Admin/AppData/Local/Programs/Python/Python314/Lib/site-packages"]:
+                for path in [
+                    sp,
+                    "C:/Users/Admin/AppData/Local/Programs/Python/Python314/Lib/site-packages",
+                ]:
                     if path and path not in sys.path:
                         sys.path.insert(0, path)
                 g = importlib.import_module("google.genai")
@@ -178,11 +189,11 @@ return ONLY a JSON object with these fields (null if unknown):
 - fp_no      (FP number for this CTS under the relevant TPS)
 - cts_no     (CTS number if known)
 
-Ward: {ward or 'unknown'}
-Village: {village or 'unknown'}
-CTS Number: {cts_no or 'N/A'}
-FP Number: {fp_no or 'N/A'}
-Address: {address or 'N/A'}
+Ward: {ward or "unknown"}
+Village: {village or "unknown"}
+CTS Number: {cts_no or "N/A"}
+FP Number: {fp_no or "N/A"}
+Address: {address or "N/A"}
 
 Return ONLY valid JSON. No markdown, no explanation."""
 
@@ -277,17 +288,17 @@ Return ONLY valid JSON. No markdown, no explanation."""
             f"Village={attrs.get('VILLAGE_NAME')}"
         )
         return {
-            "fp_no":        attrs.get("FP_NO"),
-            "tps_name":     attrs.get("TPS_NAME"),
-            "ward":         attrs.get("WARD"),
-            "village":      attrs.get("VILLAGE_NAME") or attrs.get("VILLAGE"),
-            "taluka":       attrs.get("TALUKA"),
-            "district":     attrs.get("DISTRICT"),
+            "fp_no": attrs.get("FP_NO"),
+            "tps_name": attrs.get("TPS_NAME"),
+            "ward": attrs.get("WARD"),
+            "village": attrs.get("VILLAGE_NAME") or attrs.get("VILLAGE"),
+            "taluka": attrs.get("TALUKA"),
+            "district": attrs.get("DISTRICT"),
             "property_type": attrs.get("PROPERTY_TYPE"),
-            "tenure":       attrs.get("TENURE"),
-            "ownership":    attrs.get("OWNERSHIP"),
-            "area_sqm":     attrs.get("AREA_APP_SQ_MTRS"),
-            "holder_name":  attrs.get("HOLDER_NAME"),
+            "tenure": attrs.get("TENURE"),
+            "ownership": attrs.get("OWNERSHIP"),
+            "area_sqm": attrs.get("AREA_APP_SQ_MTRS"),
+            "holder_name": attrs.get("HOLDER_NAME"),
             "city_survey_office": attrs.get("CITY_SURVEY_OFFICE"),
         }
 
@@ -357,17 +368,17 @@ Return ONLY valid JSON. No markdown, no explanation."""
             f"TPS={attrs.get('TPS_NAME')}, Ward={attrs.get('WARD')}"
         )
         return {
-            "cts_no":       attrs.get("CTS_CS_NO"),
-            "tps_name":     attrs.get("TPS_NAME"),
-            "ward":         attrs.get("WARD"),
-            "village":      attrs.get("VILLAGE_NAME") or attrs.get("VILLAGE"),
-            "taluka":       attrs.get("TALUKA"),
-            "district":     attrs.get("DISTRICT"),
+            "cts_no": attrs.get("CTS_CS_NO"),
+            "tps_name": attrs.get("TPS_NAME"),
+            "ward": attrs.get("WARD"),
+            "village": attrs.get("VILLAGE_NAME") or attrs.get("VILLAGE"),
+            "taluka": attrs.get("TALUKA"),
+            "district": attrs.get("DISTRICT"),
             "property_type": attrs.get("PROPERTY_TYPE"),
-            "tenure":       attrs.get("TENURE"),
-            "ownership":    attrs.get("OWNERSHIP"),
-            "area_sqm":     attrs.get("AREA_APP_SQ_MTRS"),
-            "holder_name":  attrs.get("HOLDER_NAME"),
+            "tenure": attrs.get("TENURE"),
+            "ownership": attrs.get("OWNERSHIP"),
+            "area_sqm": attrs.get("AREA_APP_SQ_MTRS"),
+            "holder_name": attrs.get("HOLDER_NAME"),
             "city_survey_office": attrs.get("CITY_SURVEY_OFFICE"),
         }
 
@@ -384,11 +395,12 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
         try:
             from playwright.async_api import async_playwright
+
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 context = await browser.new_context(
                     viewport={"width": 1280, "height": 720},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 )
                 page = await context.new_page()
 
@@ -405,7 +417,9 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Fill village
                 try:
-                    village_input = page.locator('input[id*="village"], select[id*="village"]').first
+                    village_input = page.locator(
+                        'input[id*="village"], select[id*="village"]'
+                    ).first
                     await village_input.fill(village)
                     await page.wait_for_timeout(1000)
                 except Exception:
@@ -421,7 +435,9 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Click search
                 try:
-                    search_btn = page.locator('button:has-text("Search"), input[type="submit"]').first
+                    search_btn = page.locator(
+                        'button:has-text("Search"), input[type="submit"]'
+                    ).first
                     await search_btn.click()
                     await page.wait_for_timeout(5000)
                 except Exception as e:
@@ -429,9 +445,11 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Extract FP from results
                 try:
-                    result_text = await page.locator('.result, table, .search-result').first.text_content()
+                    result_text = await page.locator(
+                        ".result, table, .search-result"
+                    ).first.text_content()
                     if result_text:
-                        fp_match = re.search(r'FP[:\s]*([0-9]+)', result_text, re.IGNORECASE)
+                        fp_match = re.search(r"FP[:\s]*([0-9]+)", result_text, re.IGNORECASE)
                         if fp_match:
                             fp_no = fp_match.group(1)
                             logger.info(f"[DP1991] Found FP: {fp_no}")
@@ -462,11 +480,12 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
         try:
             from playwright.async_api import async_playwright
+
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
                 context = await browser.new_context(
                     viewport={"width": 1280, "height": 720},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 )
                 page = await context.new_page()
 
@@ -475,7 +494,9 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Click search icon
                 try:
-                    search_icon = page.locator('button[data-target="#searchModal"], #searchBtn').first
+                    search_icon = page.locator(
+                        'button[data-target="#searchModal"], #searchBtn'
+                    ).first
                     await search_icon.click()
                     await page.wait_for_timeout(2000)
                 except Exception:
@@ -500,7 +521,9 @@ Return ONLY valid JSON. No markdown, no explanation."""
                 # Fill TPS if available
                 if tps_name:
                     try:
-                        tps_input = page.locator('input[id*="tps"], input[placeholder*="TPS"]').first
+                        tps_input = page.locator(
+                            'input[id*="tps"], input[placeholder*="TPS"]'
+                        ).first
                         await tps_input.fill(tps_name)
                         await page.wait_for_timeout(500)
                     except Exception:
@@ -516,7 +539,9 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Click search
                 try:
-                    search_btn = page.locator('button:has-text("Search"), input[type="submit"]').first
+                    search_btn = page.locator(
+                        'button:has-text("Search"), input[type="submit"]'
+                    ).first
                     await search_btn.click()
                     await page.wait_for_timeout(5000)
                 except Exception:
@@ -524,9 +549,11 @@ Return ONLY valid JSON. No markdown, no explanation."""
 
                 # Extract CTS from results
                 try:
-                    result_text = await page.locator('.result, table, .search-result, #result').first.text_content()
+                    result_text = await page.locator(
+                        ".result, table, .search-result, #result"
+                    ).first.text_content()
                     if result_text:
-                        cts_match = re.search(r'CTS[/\s]*([0-9/]+)', result_text, re.IGNORECASE)
+                        cts_match = re.search(r"CTS[/\s]*([0-9/]+)", result_text, re.IGNORECASE)
                         if cts_match:
                             cts = cts_match.group(1)
                             logger.info(f"[DP2034] Found CTS: {cts}")
@@ -554,5 +581,3 @@ def get_resolver() -> CTSFPResolver:
     if _cts_fp_resolver is None:
         _cts_fp_resolver = CTSFPResolver()
     return _cts_fp_resolver
-
-

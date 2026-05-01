@@ -1,7 +1,7 @@
 import json
+import logging
 import os
 import re
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,11 @@ class ReadyReckonerRepository:
         if best_score == 0:
             logger.warning(
                 "No RR match for district=%s taluka=%s locality=%s zone=%s sub_zone=%s",
-                district, taluka, locality, zone, sub_zone,
+                district,
+                taluka,
+                locality,
+                zone,
+                sub_zone,
             )
             return {}
 

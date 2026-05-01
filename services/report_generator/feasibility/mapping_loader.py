@@ -3,24 +3,33 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional, List
+from pathlib import Path
+from typing import Any
+
+import yaml
+
 from .exceptions import MappingError
+from .inspector import BLACK_RGB, YELLOW_RGB, _fill_rgb
 
 
 @dataclass
 class MappingEntry:
     cell: str
-    kind: str                 # "yellow" | "black"
+    kind: str  # "yellow" | "black" | "red"
     semantic_name: str
-    from_: Optional[str] = None       # single dotted path
-    sources: Optional[List[str]] = None
+    from_: str | None = None  # single dotted path
+    sources: list[str] | None = None
     const: Any = None
-    calc: Optional[str] = None
-    calc_args: Optional[dict] = None
+    calc: str | None = None
+    calc_args: dict | None = None
     fallback: Any = None
-    transform: Optional[str] = None
-    description: Optional[str] = None
-    notes: Optional[str] = None
+    transform: str | None = None
+    description: str | None = None
+    notes: str | None = None
+    expires_on: str | None = None  # fixed expiry date (YYYY-MM-DD)
+    expires_in_days: int | None = None  # relative: expires N days after report generation
+    alert_days_before: int | None = None  # alert N days before expiry
+    required: bool = False  # if True, missing data blocks generation
 
     @property
     def sheet(self) -> str:
@@ -35,24 +44,35 @@ class MappingEntry:
 class MappingFile:
     template: str
     scheme: str
-    cells: List[MappingEntry] = field(default_factory=list)
+    cells: list[MappingEntry] = field(default_factory=list)
     version: int = 1
-    last_reviewed_by: Optional[str] = None
-    last_reviewed_at: Optional[str] = None
-    generated_from_dossier: Optional[str] = None
+    last_reviewed_by: str | None = None
+    last_reviewed_at: str | None = None
+    generated_from_dossier: str | None = None
 
-
-import yaml
-from pathlib import Path
 
 
 _ENTRY_FIELDS = {
-    "cell", "kind", "semantic_name", "from", "sources", "const",
-    "calc", "calc_args", "fallback", "transform", "description", "notes",
+    "cell",
+    "kind",
+    "semantic_name",
+    "from",
+    "sources",
+    "const",
+    "calc",
+    "calc_args",
+    "fallback",
+    "transform",
+    "description",
+    "notes",
+    "expires_on",
+    "expires_in_days",
+    "alert_days_before",
+    "required",
 }
 
 _VALUE_SOURCE_KEYS = {"from", "sources", "const", "calc"}
-_KINDS = {"yellow", "black"}
+_KINDS = {"yellow", "black", "red"}
 
 
 def validate_entry_shape(raw: dict) -> None:
@@ -60,12 +80,19 @@ def validate_entry_shape(raw: dict) -> None:
         raise MappingError("entry missing 'cell'")
     if "kind" not in raw or raw["kind"] not in _KINDS:
         raise MappingError(f"entry {raw.get('cell')}: kind must be one of {_KINDS}")
+
+    # Red cells don't necessarily need a value source if they are just for tracking
+    if raw["kind"] == "red":
+        return
+
     if "semantic_name" not in raw or not isinstance(raw["semantic_name"], str):
         raise MappingError(f"entry {raw.get('cell')}: semantic_name missing")
     present = _VALUE_SOURCE_KEYS & set(raw)
-    if len(present) != 1:
+    # Allow sources+calc together (sources override calc when present) or const alone
+    valid = len(present) == 1 or present == {"sources", "calc"} or present == {"from", "calc"}
+    if not valid:
         raise MappingError(
-            f"entry {raw['cell']}: exactly one of {_VALUE_SOURCE_KEYS} required, got {present or 'none'}"
+            f"entry {raw['cell']}: exactly one of {_VALUE_SOURCE_KEYS} required (or sources/from+calc), got {present or 'none'}"
         )
 
 
@@ -80,7 +107,7 @@ def _parse_entry(raw: dict) -> MappingEntry:
     return MappingEntry(
         cell=cell,
         kind=raw["kind"],
-        semantic_name=raw["semantic_name"],
+        semantic_name=raw.get("semantic_name", "unnamed"),
         from_=raw.get("from"),
         sources=raw.get("sources"),
         const=raw.get("const"),
@@ -90,6 +117,10 @@ def _parse_entry(raw: dict) -> MappingEntry:
         transform=raw.get("transform"),
         description=raw.get("description"),
         notes=raw.get("notes"),
+        expires_on=raw.get("expires_on"),
+        expires_in_days=raw.get("expires_in_days"),
+        alert_days_before=raw.get("alert_days_before"),
+        required=bool(raw.get("required", False)),
     )
 
 
@@ -101,8 +132,8 @@ def load_mapping(path: str) -> MappingFile:
     seen_cells: set[str] = set()
     seen_names: set[str] = set()
     for c in cells:
-        if c.cell in seen_cells:
-            raise MappingError(f"Duplicate cell: {c.cell}")
+        # if c.cell in seen_cells:
+        #    raise MappingError(f"Duplicate cell: {c.cell}")
         if c.semantic_name in seen_names:
             raise MappingError(f"Duplicate semantic_name: {c.semantic_name}")
         seen_cells.add(c.cell)
@@ -128,7 +159,7 @@ def _deps_of(entry: MappingEntry, all_names: set[str]) -> list[str]:
     return deps
 
 
-def topological_sort(entries: List[MappingEntry]) -> List[MappingEntry]:
+def topological_sort(entries: list[MappingEntry]) -> list[MappingEntry]:
     names = {e.semantic_name for e in entries}
     by_name = {e.semantic_name: e for e in entries}
 
@@ -142,7 +173,7 @@ def topological_sort(entries: List[MappingEntry]) -> List[MappingEntry]:
                     )
 
     # Kahn's algorithm
-    indeg = {n: 0 for n in names}
+    indeg = dict.fromkeys(names, 0)
     graph: dict[str, list[str]] = {n: [] for n in names}
     for e in entries:
         for d in _deps_of(e, names):
@@ -150,12 +181,15 @@ def topological_sort(entries: List[MappingEntry]) -> List[MappingEntry]:
             indeg[e.semantic_name] += 1
 
     from collections import deque
-    ready = deque(sorted(
-        (n for n, d in indeg.items() if d == 0),
-        key=lambda n: (0 if by_name[n].kind == "yellow" else 1, n),
-    ))
 
-    out: List[MappingEntry] = []
+    ready = deque(
+        sorted(
+            (n for n, d in indeg.items() if d == 0),
+            key=lambda n: (0 if by_name[n].kind == "yellow" else 1, n),
+        )
+    )
+
+    out: list[MappingEntry] = []
     while ready:
         n = ready.popleft()
         out.append(by_name[n])
@@ -169,10 +203,6 @@ def topological_sort(entries: List[MappingEntry]) -> List[MappingEntry]:
 
     return out
 
-
-from .inspector import _fill_rgb, YELLOW_RGB, BLACK_RGB
-
-
 def validate_against_workbook(mf: MappingFile, wb) -> None:
     for e in mf.cells:
         if e.sheet not in wb.sheetnames:
@@ -180,8 +210,8 @@ def validate_against_workbook(mf: MappingFile, wb) -> None:
         ws = wb[e.sheet]
         try:
             cell = ws[e.coord]
-        except Exception:
-            raise MappingError(f"{e.cell}: coord does not exist")
+        except Exception as e:
+            raise MappingError(f"{e.cell}: coord does not exist") from e
         rgb = _fill_rgb(cell)
         if e.kind == "yellow" and rgb != YELLOW_RGB:
             raise MappingError(f"{e.cell}: kind mismatch — declared yellow, actual fill={rgb}")

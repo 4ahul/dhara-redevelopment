@@ -8,8 +8,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import aiosmtplib
-from core.config import settings
 from jinja2 import BaseLoader, Environment
+
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding
 <p><strong>{{ inviter_name }}</strong> invited you to join as <strong>{{ role }}</strong>.</p>
 <p style="text-align:center"><a href="{{ invite_url }}" class="cta">Accept Invitation</a></p></div>
 <div class="f">© {{ year }} Dhara AI. All rights reserved.</div></div></body></html>""",
-
     "get_started_confirmation": """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding:0}
 .c{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)}
@@ -42,7 +42,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding
 {% if society_name %}<p>Society: {{ society_name }}</p>{% endif %}
 <p>We'll get back to you within 24 hours.</p></div>
 <div class="f">© {{ year }} Dhara AI. All rights reserved.</div></div></body></html>""",
-
     "contact_confirmation": """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding:0}
 .c{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)}
@@ -54,7 +53,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding
 <div class="b"><p>Hello {{ name }},</p><p>Reference: <strong>{{ reference_id }}</strong></p>
 <p>We'll respond within 1-2 business days.</p></div>
 <div class="f">© {{ year }} Dhara AI. All rights reserved.</div></div></body></html>""",
-
     "admin_new_enquiry": """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fa;margin:0;padding:0}
 .c{max-width:600px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)}
@@ -75,10 +73,14 @@ _jinja = Environment(loader=BaseLoader())
 
 # ─── Core ────────────────────────────────────────────────────────────────────
 
+
 async def send_email(
-    to_email: str, subject: str, html_body: str,
+    to_email: str,
+    subject: str,
+    html_body: str,
     text_body: str | None = None,
-    cc: list[str] | None = None, bcc: list[str] | None = None,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
 ) -> bool:
     if not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
         logger.warning("SMTP not configured — skipping email to %s", to_email)
@@ -96,9 +98,13 @@ async def send_email(
 
     try:
         await aiosmtplib.send(
-            msg, hostname=settings.SMTP_HOST, port=settings.SMTP_PORT,
-            username=settings.SMTP_USERNAME, password=settings.SMTP_PASSWORD,
-            use_tls=False, start_tls=settings.SMTP_USE_TLS,
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USERNAME,
+            password=settings.SMTP_PASSWORD,
+            use_tls=False,
+            start_tls=settings.SMTP_USE_TLS,
         )
         logger.info("Email sent to %s: %s", to_email, subject)
         return True
@@ -109,33 +115,58 @@ async def send_email(
 
 def _render(template_name: str, **ctx) -> str:
     from datetime import datetime
+
     ctx.setdefault("year", datetime.utcnow().year)
     return _jinja.from_string(TEMPLATES[template_name]).render(**ctx)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async def send_team_invite(to_email: str, inviter_name: str, role: str, invite_url: str, name: str | None = None) -> bool:
-    html = _render("team_invite", name=name, inviter_name=inviter_name, role=role, invite_url=invite_url)
+
+async def send_team_invite(
+    to_email: str, inviter_name: str, role: str, invite_url: str, name: str | None = None
+) -> bool:
+    html = _render(
+        "team_invite", name=name, inviter_name=inviter_name, role=role, invite_url=invite_url
+    )
     return await send_email(to_email, f"{inviter_name} invited you to Dhara AI", html)
 
 
-async def send_get_started_confirmation(to_email: str, name: str, reference_id: str, society_name: str | None = None) -> bool:
-    html = _render("get_started_confirmation", name=name, reference_id=reference_id, society_name=society_name)
+async def send_get_started_confirmation(
+    to_email: str, name: str, reference_id: str, society_name: str | None = None
+) -> bool:
+    html = _render(
+        "get_started_confirmation", name=name, reference_id=reference_id, society_name=society_name
+    )
     return await send_email(to_email, "Welcome to Dhara AI", html)
 
 
-async def send_contact_confirmation(to_email: str, name: str, reference_id: str, subject: str | None = None) -> bool:
+async def send_contact_confirmation(
+    to_email: str, name: str, reference_id: str, subject: str | None = None
+) -> bool:
     html = _render("contact_confirmation", name=name, reference_id=reference_id, subject=subject)
     return await send_email(to_email, "Dhara AI — Message Received", html)
 
 
 async def send_admin_notification(
-    name: str, email: str, message: str, reference_id: str,
-    source: str = "Enquiry", phone: str | None = None,
-    subject: str | None = None, society_name: str | None = None,
+    name: str,
+    email: str,
+    message: str,
+    reference_id: str,
+    source: str = "Enquiry",
+    phone: str | None = None,
+    subject: str | None = None,
+    society_name: str | None = None,
 ) -> bool:
-    html = _render("admin_new_enquiry", name=name, email=email, phone=phone, subject=subject, message=message, reference_id=reference_id, source=source, society_name=society_name)
+    html = _render(
+        "admin_new_enquiry",
+        name=name,
+        email=email,
+        phone=phone,
+        subject=subject,
+        message=message,
+        reference_id=reference_id,
+        source=source,
+        society_name=society_name,
+    )
     return await send_email(settings.SMTP_FROM_EMAIL, f"New {source}: {name}", html)
-
-

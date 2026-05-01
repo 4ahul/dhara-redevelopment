@@ -1,6 +1,0 @@
-address,lat,lng,max_height_m,max_floors,restriction_reason,aai_zone,nocas_reference
-"Prabhadevi, Mumbai, India",19.016328299999998,72.8291129,147.52,49,Airport proximity (Airport: Juhu),Juhu,N/A (Approximate)
-"Bandra West, Mumbai, India",19.0595596,72.8295287,57.13,19,Airport proximity (Airport: Juhu),Juhu,N/A (Approximate)
-"Worli, Mumbai, India",18.998640599999998,72.8173599,181.49,60,Airport proximity (Airport: Juhu),Juhu,N/A (Approximate)
-"Andheri East, Mumbai, India",19.1178548,72.8631304,57.13,19,Airport proximity (Airport: Santa Cruz),Santa Cruz,N/A (Approximate)
-"Dadar, Mumbai, India",19.0177989,72.84781199999999,137.67,45,Airport proximity (Airport: Santa Cruz),Santa Cruz,N/A (Approximate)

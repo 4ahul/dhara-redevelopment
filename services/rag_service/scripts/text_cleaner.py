@@ -5,8 +5,6 @@ Handles Devanagari normalization, OCR artifacts, language detection.
 
 import re
 import unicodedata
-from typing import Optional, Tuple
-
 
 # ---------------------------------------------------------------------------
 # Language detection
@@ -199,7 +197,7 @@ def clean_text(text: str, aggressive: bool = False) -> str:
     return text
 
 
-def clean_and_detect(text: str) -> Tuple[str, str]:
+def clean_and_detect(text: str) -> tuple[str, str]:
     """Clean text and detect language in one pass. Returns (cleaned_text, language)."""
     cleaned = clean_text(text)
     lang = detect_language(cleaned) if len(cleaned) > 20 else "en"
@@ -211,9 +209,7 @@ def clean_and_detect(text: str) -> Tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 DOC_TYPE_PATTERNS = {
-    "dcpr": re.compile(
-        r"DCPR|UDCPR|Development Control|Promotion Regulation", re.IGNORECASE
-    ),
+    "dcpr": re.compile(r"DCPR|UDCPR|Development Control|Promotion Regulation", re.IGNORECASE),
     "act": re.compile(r"MRTP|Municipal Corporation Act|Bombay", re.IGNORECASE),
     "circular": re.compile(r"Circular|CIRCULAR|Office Order|Memorandum", re.IGNORECASE),
     "guideline": re.compile(r"Guideline|Guidance|Procedure|Manual", re.IGNORECASE),
@@ -238,9 +234,7 @@ CHUNK_TYPE_PATTERNS = {
         r"^#{1,3}\s|^[A-Z][A-Z\s]{5,}$|^(?:CHAPTER|PART|REGULATION)\s",
         re.MULTILINE | re.IGNORECASE,
     ),
-    "clause": re.compile(
-        r"^\s*\(\d+\)|^\s*\d+\.\d+|^\s*Clause\s", re.MULTILINE | re.IGNORECASE
-    ),
+    "clause": re.compile(r"^\s*\(\d+\)|^\s*\d+\.\d+|^\s*Clause\s", re.MULTILINE | re.IGNORECASE),
     "list": re.compile(r"^\s*[-*•]\s|^\s*\d+[\.\)]\s", re.MULTILINE),
 }
 

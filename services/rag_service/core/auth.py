@@ -1,8 +1,8 @@
-import os
 import logging
-from typing import Optional
-import jwt
+import os
 import uuid
+
+import jwt
 
 logger = logging.getLogger(__name__)
 
@@ -12,22 +12,24 @@ CLERK_JWT_KEY = os.environ.get("CLERK_JWT_KEY", "")
 SECRET_KEY = os.environ.get("SECRET_KEY", "temporary-secret-key-for-dhara-rag")
 ALGORITHM = "RS256" if CLERK_JWT_KEY.startswith("-----BEGIN PUBLIC KEY-----") else "HS256"
 
-def decode_token(token: str) -> Optional[dict]:
+
+def decode_token(token: str) -> dict | None:
     """
     Decodes and validates a JWT token, trying Clerk RS256 first, then local HS256.
     """
     # 1. Try Clerk RS256 if CLERK_JWT_KEY configured
     if CLERK_JWT_KEY:
         try:
-            return jwt.decode(token, CLERK_JWT_KEY, algorithms=["RS256"],
-                               options={"verify_aud": False})
+            return jwt.decode(
+                token, CLERK_JWT_KEY, algorithms=["RS256"], options={"verify_aud": False}
+            )
         except jwt.InvalidTokenError:
             logger.debug("Clerk RS256 token decoding failed, trying HS256.")
             pass  # Fall through to HS256
         except Exception as e:
             logger.error(f"Unexpected error decoding Clerk RS256 token: {e}")
-            pass # Fall through in case of other errors
-    
+            pass  # Fall through in case of other errors
+
     # 2. Try local HS256 (frontend's own login/register flow)
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
@@ -40,6 +42,7 @@ def decode_token(token: str) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Unexpected error decoding local HS256 token: {e}")
         return None
+
 
 def generate_session_id() -> str:
     """Generates a random short session ID."""

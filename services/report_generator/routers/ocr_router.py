@@ -15,16 +15,15 @@ Both return the same structured dict:
     "PFA original OC":                   "14316.12"
   }
 """
+
 from __future__ import annotations
 
-import io
 import base64
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -36,12 +35,14 @@ def _get_extractor():
     """Lazily import extract_from_pdf to avoid loading heavy deps at startup."""
     try:
         import sys
+
         # ocr_dhara_v2 lives at the repo root — two levels up from this file
         repo_root = Path(__file__).resolve().parents[3]
         ocr_dir = repo_root / "ocr_dhara_v2"
         if str(ocr_dir) not in sys.path:
             sys.path.insert(0, str(ocr_dir))
         from main import extract_from_pdf  # noqa: PLC0415
+
         return extract_from_pdf
     except ImportError as e:
         raise RuntimeError(f"ocr_dhara_v2 dependencies not installed: {e}") from e
@@ -49,20 +50,22 @@ def _get_extractor():
 
 # ── Request/Response schemas ───────────────────────────────────────────────────
 
+
 class OcrExtractRequest(BaseModel):
     """Send PDF as base64-encoded bytes."""
+
     pdf_base64: str
-    filename: Optional[str] = "document.pdf"
+    filename: str | None = "document.pdf"
 
 
 class OcrResult(BaseModel):
-    society_age: Optional[str] = None
-    num_flats: Optional[str] = None
-    num_commercial: Optional[str] = None
-    commercial_area_sqft: Optional[str] = None
-    residential_area_sqft: Optional[str] = None
-    existing_bua_sqft: Optional[str] = None
-    pfa_sqft: Optional[str] = None
+    society_age: str | None = None
+    num_flats: str | None = None
+    num_commercial: str | None = None
+    commercial_area_sqft: str | None = None
+    residential_area_sqft: str | None = None
+    existing_bua_sqft: str | None = None
+    pfa_sqft: str | None = None
     raw: dict = {}
 
 
@@ -81,8 +84,11 @@ def _map_raw(raw: dict) -> OcrResult:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/document", response_model=OcrResult, summary="Extract fields from an uploaded PDF")
-async def ocr_document(file: UploadFile = File(..., description="Building document PDF (OC / Plan / Completion Cert)")):
+async def ocr_document(
+    file: UploadFile = File(..., description="Building document PDF (OC / Plan / Completion Cert)"),
+):
     """
     Upload a PDF building document and extract structured fields using Gemini Vision.
 
@@ -107,10 +113,10 @@ async def ocr_document(file: UploadFile = File(..., description="Building docume
         return _map_raw(raw)
 
     except RuntimeError as e:
-        raise HTTPException(503, f"OCR service not available: {e}")
+        raise HTTPException(503, f"OCR service not available: {e}") from e
     except Exception as e:
         logger.exception("OCR extraction failed")
-        raise HTTPException(500, f"OCR extraction failed: {e}")
+        raise HTTPException(500, f"OCR extraction failed: {e}") from e
 
 
 @router.post("/extract", response_model=OcrResult, summary="Extract fields from base64-encoded PDF")
@@ -121,8 +127,8 @@ async def ocr_extract(req: OcrExtractRequest):
     """
     try:
         pdf_bytes = base64.b64decode(req.pdf_base64)
-    except Exception:
-        raise HTTPException(400, "Invalid base64 encoding")
+    except Exception as e:
+        raise HTTPException(400, "Invalid base64 encoding") from e
 
     if len(pdf_bytes) > 50 * 1024 * 1024:
         raise HTTPException(413, "PDF must be ≤ 50 MB")
@@ -138,7 +144,7 @@ async def ocr_extract(req: OcrExtractRequest):
         return _map_raw(raw)
 
     except RuntimeError as e:
-        raise HTTPException(503, f"OCR service not available: {e}")
+        raise HTTPException(503, f"OCR service not available: {e}") from e
     except Exception as e:
         logger.exception("OCR extraction failed")
-        raise HTTPException(500, f"OCR extraction failed: {e}")
+        raise HTTPException(500, f"OCR extraction failed: {e}") from e

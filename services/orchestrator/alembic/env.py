@@ -1,8 +1,6 @@
 import asyncio
-import os
 
 # ── Imports for Model Discovery ───────────────────
-import sys
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,21 +8,22 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Ensure the root of the orchestrator is in path so we can import 'db' and 'models'
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from core.config import settings
-from db.base import Base
-
 # IMPORTANT: Import ALL models so metadata is complete!
-from models import *
+# Import models so Alembic can autogenerate migrations
+from services.orchestrator import models as _models
+
+from ..core.config import settings
+from ..db.base import Base
+
+# Reference to ensure import side-effects are preserved
+_ = getattr(_models, "__all__", None)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
 # Force the sqlalchemy.url from our application settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.db_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -66,7 +65,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        compare_type=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -100,5 +103,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-

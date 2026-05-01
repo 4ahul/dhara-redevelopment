@@ -1,12 +1,13 @@
 import logging
-from repositories.rr_repository import rr_repository
-from schemas import (
-    PremiumRequest,
-    PremiumResponse,
-    PremiumLineItem,
-    LocationInfo,
+
+from ..repositories.rr_repository import rr_repository
+from ..schemas import (
     AdministrativeInfo,
     ApplicabilityInfo,
+    LocationInfo,
+    PremiumLineItem,
+    PremiumRequest,
+    PremiumResponse,
     RRRateItem,
 )
 
@@ -110,36 +111,44 @@ class PremiumService:
             depreciation = base_value * (req.depreciation_percentage / 100.0)
             total_property_value = base_value + amenities - depreciation
 
-            line_items.append(PremiumLineItem(
-                description=f"Property Base Value ({req.property_type.title()})",
-                basis=f"@ Rs.{base_rr_rate:,.2f}/sqm × {req.property_area_sqm:,.2f} sqm",
-                rate=base_rr_rate,
-                area_or_units=req.property_area_sqm,
-                amount=base_value,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description=f"Property Base Value ({req.property_type.title()})",
+                    basis=f"@ Rs.{base_rr_rate:,.2f}/sqm × {req.property_area_sqm:,.2f} sqm",
+                    rate=base_rr_rate,
+                    area_or_units=req.property_area_sqm,
+                    amount=base_value,
+                )
+            )
             if amenities:
-                line_items.append(PremiumLineItem(
-                    description=f"Amenities Premium ({req.amenities_premium_percentage}%)",
-                    basis=f"@ {req.amenities_premium_percentage}% of Base Value",
-                    rate=req.amenities_premium_percentage,
-                    area_or_units=base_value,
-                    amount=amenities,
-                ))
+                line_items.append(
+                    PremiumLineItem(
+                        description=f"Amenities Premium ({req.amenities_premium_percentage}%)",
+                        basis=f"@ {req.amenities_premium_percentage}% of Base Value",
+                        rate=req.amenities_premium_percentage,
+                        area_or_units=base_value,
+                        amount=amenities,
+                    )
+                )
             if depreciation:
-                line_items.append(PremiumLineItem(
-                    description=f"Depreciation ({req.depreciation_percentage}%)",
-                    basis=f"@ {req.depreciation_percentage}% of Base Value",
-                    rate=req.depreciation_percentage,
-                    area_or_units=base_value,
-                    amount=-depreciation,
-                ))
-            line_items.append(PremiumLineItem(
-                description="Total Property Value (Ready Reckoner)",
-                basis="Base Value + Amenities Premium − Depreciation",
-                rate=0.0,
-                area_or_units=req.property_area_sqm,
-                amount=total_property_value,
-            ))
+                line_items.append(
+                    PremiumLineItem(
+                        description=f"Depreciation ({req.depreciation_percentage}%)",
+                        basis=f"@ {req.depreciation_percentage}% of Base Value",
+                        rate=req.depreciation_percentage,
+                        area_or_units=base_value,
+                        amount=-depreciation,
+                    )
+                )
+            line_items.append(
+                PremiumLineItem(
+                    description="Total Property Value (Ready Reckoner)",
+                    basis="Base Value + Amenities Premium − Depreciation",
+                    rate=0.0,
+                    area_or_units=req.property_area_sqm,
+                    amount=total_property_value,
+                )
+            )
 
         # ------------------------------------------------------------------ #
         # 2. FSI / TDR Premiums (DCPR 2034)                                  #
@@ -151,66 +160,79 @@ class PremiumService:
 
         if req.permissible_bua_sqft > 0:
             bua_sqm = req.permissible_bua_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="Additional FSI Premium",
-                basis=f"@ {req.premium_fsi_ratio * 100:.0f}% of RR Land × {bua_sqm:.2f} sqm",
-                rate=rr_open * req.premium_fsi_ratio,
-                area_or_units=bua_sqm,
-                amount=rr_open * req.premium_fsi_ratio * bua_sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Additional FSI Premium",
+                    basis=f"@ {req.premium_fsi_ratio * 100:.0f}% of RR Land × {bua_sqm:.2f} sqm",
+                    rate=rr_open * req.premium_fsi_ratio,
+                    area_or_units=bua_sqm,
+                    amount=rr_open * req.premium_fsi_ratio * bua_sqm,
+                )
+            )
 
         if req.fungible_residential_sqft > 0:
             sqm = req.fungible_residential_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="Fungible Compensatory Area - Residential",
-                basis=f"@ {req.fungible_res_ratio * 100:.0f}% of RR Land × {sqm:.2f} sqm",
-                rate=rr_open * req.fungible_res_ratio,
-                area_or_units=sqm,
-                amount=rr_open * req.fungible_res_ratio * sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Fungible Compensatory Area - Residential",
+                    basis=f"@ {req.fungible_res_ratio * 100:.0f}% of RR Land × {sqm:.2f} sqm",
+                    rate=rr_open * req.fungible_res_ratio,
+                    area_or_units=sqm,
+                    amount=rr_open * req.fungible_res_ratio * sqm,
+                )
+            )
 
         if req.fungible_commercial_sqft > 0:
             sqm = req.fungible_commercial_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="Fungible Compensatory Area - Commercial",
-                basis=f"@ {req.fungible_comm_ratio * 100:.0f}% of RR Land × {sqm:.2f} sqm",
-                rate=rr_open * req.fungible_comm_ratio,
-                area_or_units=sqm,
-                amount=rr_open * req.fungible_comm_ratio * sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Fungible Compensatory Area - Commercial",
+                    basis=f"@ {req.fungible_comm_ratio * 100:.0f}% of RR Land × {sqm:.2f} sqm",
+                    rate=rr_open * req.fungible_comm_ratio,
+                    area_or_units=sqm,
+                    amount=rr_open * req.fungible_comm_ratio * sqm,
+                )
+            )
 
         if req.staircase_area_sqft > 0:
             sqm = req.staircase_area_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="Staircase Premium",
-                basis=f"@ {req.staircase_ratio * 100:.0f}% of RR Residential × {sqm:.2f} sqm",
-                rate=rr_res * req.staircase_ratio,
-                area_or_units=sqm,
-                amount=rr_res * req.staircase_ratio * sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Staircase Premium",
+                    basis=f"@ {req.staircase_ratio * 100:.0f}% of RR Residential × {sqm:.2f} sqm",
+                    rate=rr_res * req.staircase_ratio,
+                    area_or_units=sqm,
+                    amount=rr_res * req.staircase_ratio * sqm,
+                )
+            )
 
         if req.general_tdr_area_sqft > 0:
             sqm = req.general_tdr_area_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="General TDR",
-                basis=f"@ 50% of RR Land × {sqm:.2f} sqm",
-                rate=rr_open * 0.50,
-                area_or_units=sqm,
-                amount=rr_open * 0.50 * sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="General TDR",
+                    basis=f"@ 50% of RR Land × {sqm:.2f} sqm",
+                    rate=rr_open * 0.50,
+                    area_or_units=sqm,
+                    amount=rr_open * 0.50 * sqm,
+                )
+            )
 
         if req.slum_tdr_area_sqft > 0:
             sqm = req.slum_tdr_area_sqft / 10.764
-            line_items.append(PremiumLineItem(
-                description="Slum TDR",
-                basis=f"@ 35% of RR Land × {sqm:.2f} sqm",
-                rate=rr_open * 0.35,
-                area_or_units=sqm,
-                amount=rr_open * 0.35 * sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Slum TDR",
+                    basis=f"@ 35% of RR Land × {sqm:.2f} sqm",
+                    rate=rr_open * 0.35,
+                    area_or_units=sqm,
+                    amount=rr_open * 0.35 * sqm,
+                )
+            )
 
         total_fsi_tdr = sum(
-            item.amount for item in line_items
+            item.amount
+            for item in line_items
             if item.description not in _VALUATION_LABELS
             and not any(item.description.startswith(p) for p in _VALUATION_PREFIXES)
         )
@@ -221,50 +243,62 @@ class PremiumService:
         total_bua = (req.commercial_bua_sqft or 0) + (req.residential_bua_sqft or 0)
 
         if total_bua > 0:
-            line_items.append(PremiumLineItem(
-                description="Scrutiny / Amended Plan Fees",
-                basis=f"@ Rs.{req.scrutiny_fee_sqft}/sqft × {total_bua} sqft",
-                rate=req.scrutiny_fee_sqft,
-                area_or_units=total_bua,
-                amount=total_bua * req.scrutiny_fee_sqft,
-            ))
-            line_items.append(PremiumLineItem(
-                description="Development Cess",
-                basis=f"@ Rs.5/sqft × {total_bua} sqft",
-                rate=5,
-                area_or_units=total_bua,
-                amount=total_bua * 5,
-            ))
-            line_items.append(PremiumLineItem(
-                description="CFO Scrutiny Fees",
-                basis=f"@ Rs.3/sqft × {total_bua} sqft",
-                rate=3,
-                area_or_units=total_bua,
-                amount=total_bua * 3,
-            ))
-            line_items.append(PremiumLineItem(
-                description="Incidental, Miscellaneous, Contingencies",
-                basis=f"@ Rs.10/sqft × {total_bua} sqft",
-                rate=10,
-                area_or_units=total_bua,
-                amount=total_bua * 10,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Scrutiny / Amended Plan Fees",
+                    basis=f"@ Rs.{req.scrutiny_fee_sqft}/sqft × {total_bua} sqft",
+                    rate=req.scrutiny_fee_sqft,
+                    area_or_units=total_bua,
+                    amount=total_bua * req.scrutiny_fee_sqft,
+                )
+            )
+            line_items.append(
+                PremiumLineItem(
+                    description="Development Cess",
+                    basis=f"@ Rs.5/sqft × {total_bua} sqft",
+                    rate=5,
+                    area_or_units=total_bua,
+                    amount=total_bua * 5,
+                )
+            )
+            line_items.append(
+                PremiumLineItem(
+                    description="CFO Scrutiny Fees",
+                    basis=f"@ Rs.3/sqft × {total_bua} sqft",
+                    rate=3,
+                    area_or_units=total_bua,
+                    amount=total_bua * 3,
+                )
+            )
+            line_items.append(
+                PremiumLineItem(
+                    description="Incidental, Miscellaneous, Contingencies",
+                    basis=f"@ Rs.10/sqft × {total_bua} sqft",
+                    rate=10,
+                    area_or_units=total_bua,
+                    amount=total_bua * 10,
+                )
+            )
 
         if req.plot_area_sqm > 0:
-            line_items.append(PremiumLineItem(
-                description="Development Charges (MCGM)",
-                basis=f"@ Rs.{req.dev_charge_sqm}/sqm × {req.plot_area_sqm:.2f} sqm",
-                rate=req.dev_charge_sqm,
-                area_or_units=req.plot_area_sqm,
-                amount=req.plot_area_sqm * req.dev_charge_sqm,
-            ))
-            line_items.append(PremiumLineItem(
-                description="Land Under Construction (LUC) Charges",
-                basis=f"@ Rs.{req.luc_charge_sqm}/sqm × {req.plot_area_sqm:.2f} sqm",
-                rate=req.luc_charge_sqm,
-                area_or_units=req.plot_area_sqm,
-                amount=req.plot_area_sqm * req.luc_charge_sqm,
-            ))
+            line_items.append(
+                PremiumLineItem(
+                    description="Development Charges (MCGM)",
+                    basis=f"@ Rs.{req.dev_charge_sqm}/sqm × {req.plot_area_sqm:.2f} sqm",
+                    rate=req.dev_charge_sqm,
+                    area_or_units=req.plot_area_sqm,
+                    amount=req.plot_area_sqm * req.dev_charge_sqm,
+                )
+            )
+            line_items.append(
+                PremiumLineItem(
+                    description="Land Under Construction (LUC) Charges",
+                    basis=f"@ Rs.{req.luc_charge_sqm}/sqm × {req.plot_area_sqm:.2f} sqm",
+                    rate=req.luc_charge_sqm,
+                    area_or_units=req.plot_area_sqm,
+                    amount=req.plot_area_sqm * req.luc_charge_sqm,
+                )
+            )
 
         _MCGM_LABELS = {
             "Scrutiny / Amended Plan Fees",

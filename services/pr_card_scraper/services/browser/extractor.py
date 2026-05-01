@@ -1,8 +1,8 @@
-import logging
 import asyncio
 import base64
+import logging
 import time
-from typing import Optional, Tuple
+
 from playwright.async_api import Page, Response
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class ImageExtractor:
     def __init__(self, page: Page):
         self.page = page
         self._pr_card_responses: list[dict] = []  # high-confidence PR card captures
-        self._other_responses: list[dict] = []     # lower-confidence captures
+        self._other_responses: list[dict] = []  # lower-confidence captures
         self._active = False  # only capture after form submit
         self.page.on("response", self._handle_response)
 
@@ -103,14 +103,16 @@ class ImageExtractor:
             logger.info(f"[Intercepted] PR card image via network: {url} ({len(body):,} bytes)")
             self._pr_card_responses.append(entry)
         else:
-            logger.info(f"[Intercepted] Large image via network (candidate): {url} ({len(body):,} bytes)")
+            logger.info(
+                f"[Intercepted] Large image via network (candidate): {url} ({len(body):,} bytes)"
+            )
             self._other_responses.append(entry)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public API
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def wait_for_pr_card_image(self, timeout: int = 45) -> Tuple[Optional[bytes], Optional[str]]:
+    async def wait_for_pr_card_image(self, timeout: int = 45) -> tuple[bytes | None, str | None]:
         """
         Primary extraction method. Priority:
           A. DOM #ContentPlaceHolder1_ImgPC.src → page.request.get() (3 retries)
@@ -132,13 +134,17 @@ class ImageExtractor:
             # ── B: High-confidence network capture ───────────────────────────
             if self._pr_card_responses:
                 best = max(self._pr_card_responses, key=lambda x: x["size"])
-                logger.info(f"Using intercepted PR card image: {best['url']} ({best['size']:,} bytes)")
+                logger.info(
+                    f"Using intercepted PR card image: {best['url']} ({best['size']:,} bytes)"
+                )
                 return best["body"], best["url"]
 
             # ── C: Any large network capture ─────────────────────────────────
             if self._other_responses and attempt >= 3:
                 best = max(self._other_responses, key=lambda x: x["size"])
-                logger.info(f"Using best candidate image from network: {best['url']} ({best['size']:,} bytes)")
+                logger.info(
+                    f"Using best candidate image from network: {best['url']} ({best['size']:,} bytes)"
+                )
                 return best["body"], best["url"]
 
             remaining = end_time - time.time()
@@ -149,7 +155,7 @@ class ImageExtractor:
         logger.warning("wait_for_pr_card_image: timed out — no PR card image found")
         return None, None
 
-    async def get_best_image(self, timeout: int = 20) -> Tuple[Optional[bytes], Optional[str]]:
+    async def get_best_image(self, timeout: int = 20) -> tuple[bytes | None, str | None]:
         """
         Fallback polling that tries DOM + network captures then generic DOM scan.
         Called when wait_for_pr_card_image fails.
@@ -178,7 +184,9 @@ class ImageExtractor:
         all_candidates = self._pr_card_responses + self._other_responses
         if all_candidates:
             best = max(all_candidates, key=lambda x: x["size"])
-            logger.warning(f"Timeout — returning best available: {best['url']} ({best['size']:,} bytes)")
+            logger.warning(
+                f"Timeout — returning best available: {best['url']} ({best['size']:,} bytes)"
+            )
             return best["body"], best["url"]
 
         return None, None
@@ -212,7 +220,7 @@ class ImageExtractor:
     # Internal helpers
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def _try_dom_img_src(self) -> Optional[Tuple[bytes, str]]:
+    async def _try_dom_img_src(self) -> tuple[bytes, str] | None:
         """
         Read #ContentPlaceHolder1_ImgPC.src from the page (all frames).
         Retries 3 times if src is empty. Converts relative URLs to absolute.
@@ -256,7 +264,9 @@ class ImageExtractor:
                     if src.startswith("http"):
                         img_bytes = await self._download_with_retry(src)
                         if img_bytes and len(img_bytes) > 5000:
-                            logger.info(f"Downloaded PR card image ({len(img_bytes):,} bytes) from {src}")
+                            logger.info(
+                                f"Downloaded PR card image ({len(img_bytes):,} bytes) from {src}"
+                            )
                             return img_bytes, src
 
                     await asyncio.sleep(1)
@@ -267,7 +277,7 @@ class ImageExtractor:
 
         return None
 
-    async def _download_with_retry(self, url: str, retries: int = 3) -> Optional[bytes]:
+    async def _download_with_retry(self, url: str, retries: int = 3) -> bytes | None:
         """Download URL via Playwright session (cookies), with retries."""
         for attempt in range(1, retries + 1):
             try:
@@ -285,7 +295,7 @@ class ImageExtractor:
                 await asyncio.sleep(2 * attempt)
         return None
 
-    async def _generic_dom_scan(self) -> Optional[Tuple[bytes, str]]:
+    async def _generic_dom_scan(self) -> tuple[bytes, str] | None:
         """
         Scan all frames for any large image, prioritising PR card URL keywords.
         Used as a last-chance fallback when the specific element isn't found.

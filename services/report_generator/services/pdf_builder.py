@@ -17,21 +17,21 @@ Uses reportlab Platypus for layout + Canvas for headers/footers.
 
 from datetime import datetime
 from pathlib import Path
-from reportlab.lib.pagesizes import A4
+
 from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    HRFlowable,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    PageBreak,
-    HRFlowable,
 )
-from reportlab.platypus.flowables import HRFlowable
 
 # ── Brand colours (Globera-style) ─────────────────────────────────────────
 NAVY = colors.HexColor("#1B3A6B")
@@ -50,7 +50,7 @@ W, H = A4  # 595 × 842 pts
 # ── Style helpers ─────────────────────────────────────────────────────────
 def styles():
     s = getSampleStyleSheet()
-    base = dict(fontName="Helvetica", fontSize=9, leading=13, textColor=BLACK)
+    base = {"fontName": "Helvetica", "fontSize": 9, "leading": 13, "textColor": BLACK}
 
     s.add(
         ParagraphStyle(
@@ -93,11 +93,7 @@ def styles():
             textColor=BLACK,
         )
     )
-    s.add(
-        ParagraphStyle(
-            "Small", fontName="Helvetica", fontSize=7.5, leading=11, textColor=DGREY
-        )
-    )
+    s.add(ParagraphStyle("Small", fontName="Helvetica", fontSize=7.5, leading=11, textColor=DGREY))
     s.add(
         ParagraphStyle(
             "CellHdr",
@@ -108,11 +104,7 @@ def styles():
             alignment=TA_CENTER,
         )
     )
-    s.add(
-        ParagraphStyle(
-            "CellBody", fontName="Helvetica", fontSize=8, leading=11, textColor=BLACK
-        )
-    )
+    s.add(ParagraphStyle("CellBody", fontName="Helvetica", fontSize=8, leading=11, textColor=BLACK))
     s.add(
         ParagraphStyle(
             "CellNum",
@@ -178,9 +170,7 @@ def SP(pts):
 
 
 def HR():
-    return HRFlowable(
-        width="100%", thickness=0.5, color=MID, spaceAfter=4, spaceBefore=2
-    )
+    return HRFlowable(width="100%", thickness=0.5, color=MID, spaceAfter=4, spaceBefore=2)
 
 
 # ── Table helpers ─────────────────────────────────────────────────────────
@@ -205,7 +195,7 @@ def cr(n):
     try:
         v = float(n)
         return f"{v:,.2f}"
-    except:
+    except Exception:
         return str(n)
 
 
@@ -214,7 +204,7 @@ def inr(n):
     try:
         v = int(float(n))
         return f"{v:,}"
-    except:
+    except Exception:
         return str(n)
 
 
@@ -274,9 +264,7 @@ def sec_heading(title):
 
 
 def annexure_banner(title, ref):
-    tbl = Table(
-        [[P(title, "ReportTitle"), P(ref, "Small")]], colWidths=[W - 4 * cm - 80, 80]
-    )
+    tbl = Table([[P(title, "ReportTitle"), P(ref, "Small")]], colWidths=[W - 4 * cm - 80, 80])
     tbl.setStyle(
         TableStyle(
             [
@@ -368,9 +356,7 @@ def build_cover(story, data):
 
     # ── Letter content ──
     story.append(P(f"Ref. No.: {data.get('ref_no', '')}", "Body"))
-    story.append(
-        P(f"Date: {data.get('date', datetime.now().strftime('%d %B %Y'))}", "Body")
-    )
+    story.append(P(f"Date: {data.get('date', datetime.now().strftime('%d %B %Y'))}", "Body"))
     story.append(sp(12))
 
     story.append(P("To,", "Body"))
@@ -536,9 +522,7 @@ def build_narrative(story, data):
     )
 
     story.append(SP(10))
-    story.append(
-        sec_heading("Chronicle and Particulars of the Existing Structure / Property")
-    )
+    story.append(sec_heading("Chronicle and Particulars of the Existing Structure / Property"))
     story.append(SP(6))
 
     prop_rows = [
@@ -559,9 +543,7 @@ def build_narrative(story, data):
         ],
         [
             body_cell("Road Width"),
-            body_cell(
-                f"{data.get('road_width_m', 0)} m (Swatantra Veer Savarkar Road)"
-            ),
+            body_cell(f"{data.get('road_width_m', 0)} m (Swatantra Veer Savarkar Road)"),
         ],
         [body_cell("CRZ Status"), body_cell("CRZ II — NOC from MCZMA required")],
         [
@@ -602,10 +584,7 @@ def build_dcpr_fsi(story, data):
         [body_cell("Fungible — 35%")]
         + [num_cell(str(fsi.get(s, {}).get("fungible", "—"))) for s in schemes],
         [body_cell("Total FSI Permissible")]
-        + [
-            bold_num(str(fsi.get(s, {}).get("total_fsi_permissible", "—")))
-            for s in schemes
-        ],
+        + [bold_num(str(fsi.get(s, {}).get("total_fsi_permissible", "—"))) for s in schemes],
     ]
 
     t = Table(rows, colWidths=[160, 84, 84, 84, 84])
@@ -827,12 +806,10 @@ def build_annexure_i(story, data):
 
 # ── Annexure II — FSI (detailed) ──────────────────────────────────────────
 def build_annexure_ii(story, data):
-    story.append(
-        annexure_banner("ANNEXURE II : FSI CALCULATION", data.get("ref_no", ""))
-    )
+    story.append(annexure_banner("ANNEXURE II : FSI CALCULATION", data.get("ref_no", "")))
     story.append(SP(8))
 
-    fsi = data.get("fsi", {})
+    data.get("fsi", {})
     schemes = ["33(7)(B)", "33(20)(B)", "33(11)", "33(12)(B)"]
 
     # Plot details header table
@@ -922,16 +899,12 @@ def build_annexure_ii(story, data):
         [body_cell("Built-up Area at Zonal FSI (Sq.m.)")] + [num_cell("1,825.50")] * 4,
         [body_cell("Additional BUA — FSI Premium (Sq.ft.)")]
         + [
-            num_cell(
-                cr(bua.get(s, {}).get("add_fsi_sqft", 12410.24 if s != "33(11)" else 0))
-            )
+            num_cell(cr(bua.get(s, {}).get("add_fsi_sqft", 12410.24 if s != "33(11)" else 0)))
             for s in schemes
         ],
         [body_cell("Additional BUA — TDR (Sq.ft.)")]
         + [
-            num_cell(
-                cr(bua.get(s, {}).get("tdr_sqft", 12262.50 if s != "33(11)" else 0))
-            )
+            num_cell(cr(bua.get(s, {}).get("tdr_sqft", 12262.50 if s != "33(11)" else 0)))
             for s in schemes
         ],
         [body_cell("Total Fungible Compensatory Area (Sq.m.)")]
@@ -952,22 +925,14 @@ def build_annexure_ii(story, data):
         [body_cell("Staircase, Lift, Lobbies etc. (Sq.ft.)")]
         + [
             num_cell(
-                cr(
-                    bua.get(s, {}).get(
-                        "staircase_sqft", 8975.26 if s == "33(7)(B)" else 11967.02
-                    )
-                )
+                cr(bua.get(s, {}).get("staircase_sqft", 8975.26 if s == "33(7)(B)" else 11967.02))
             )
             for s in schemes
         ],
         [body_cell("Yogalaya / Fitness Centre (Sq.ft.)")]
         + [
             num_cell(
-                cr(
-                    bua.get(s, {}).get(
-                        "yogalaya_sqft", 1196.70 if s == "33(7)(B)" else 1595.60
-                    )
-                )
+                cr(bua.get(s, {}).get("yogalaya_sqft", 1196.70 if s == "33(7)(B)" else 1595.60))
             )
             for s in schemes
         ],
@@ -993,9 +958,7 @@ def build_annexure_ii(story, data):
 
 # ── Annexure III — Financial ───────────────────────────────────────────────
 def build_annexure_iii(story, data):
-    story.append(
-        annexure_banner("ANNEXURE III : FINANCIAL CALCULATION", data.get("ref_no", ""))
-    )
+    story.append(annexure_banner("ANNEXURE III : FINANCIAL CALCULATION", data.get("ref_no", "")))
     story.append(SP(8))
 
     fin = data.get("financial", {})
@@ -1058,9 +1021,7 @@ def build_annexure_iii(story, data):
             fin_row("1b. Cost of parking (60% of construction)", "parking_cost"),
             fin_row("1d. Total construction cost", "const_subtotal", subtotal=True),
             fin_row("1e. 18% GST on construction cost", "gst"),
-            fin_row(
-                "1f. Total construction cost with GST", "const_with_gst", bold=True
-            ),
+            fin_row("1f. Total construction cost with GST", "const_with_gst", bold=True),
             crore_row("Say (Crore)", "const_with_gst"),
         ],
         story,
@@ -1111,21 +1072,15 @@ def build_annexure_iii(story, data):
 
     story.append(PageBreak())
 
-    story.append(
-        annexure_banner("ANNEXURE III : FINANCIAL (continued)", data.get("ref_no", ""))
-    )
+    story.append(annexure_banner("ANNEXURE III : FINANCIAL (continued)", data.get("ref_no", "")))
     story.append(SP(8))
 
     # 5. Accommodation
     build_section(
         "5.  Cost for Temporary Alternate Accommodation",
         [
-            fin_row(
-                "5a-i.  Commercial — 1st 12 months @ ₹3,600/Sq.ft.", "temp_comm_y1"
-            ),
-            fin_row(
-                "5d-i.  Residential — 1st 12 months @ ₹1,800/Sq.ft.", "temp_res_y1"
-            ),
+            fin_row("5a-i.  Commercial — 1st 12 months @ ₹3,600/Sq.ft.", "temp_comm_y1"),
+            fin_row("5d-i.  Residential — 1st 12 months @ ₹1,800/Sq.ft.", "temp_res_y1"),
             fin_row("5d-ii. Residential — 13–24 months", "temp_res_y2"),
             fin_row("5d-iii.Residential — 25–36 months", "temp_res_y3"),
             fin_row("5g. Total accommodation cost", "temp_total", bold=True),
@@ -1185,9 +1140,7 @@ def build_annexure_iii(story, data):
 # ── Annexure III — B: Additional Area Entitlement ────────────────────────
 def build_additional_area(story, data):
     story.append(
-        annexure_banner(
-            "ADDITIONAL AREA ENTITLEMENT & PROFIT SUMMARY", data.get("ref_no", "")
-        )
+        annexure_banner("ADDITIONAL AREA ENTITLEMENT & PROFIT SUMMARY", data.get("ref_no", ""))
     )
     story.append(SP(8))
 
@@ -1219,35 +1172,25 @@ def build_additional_area(story, data):
         [body_cell("1. Cost of project")]
         + [num_cell(f"{ae.get(s, {}).get('cost_crore', 0):.2f} Cr") for s in schemes],
         [body_cell("2. Total RERA carpet area incl. Fungible (Sq.ft.)")]
-        + [
-            num_cell(f"{ae.get(s, {}).get('rera_total_sqft', 0):,.2f}") for s in schemes
-        ],
+        + [num_cell(f"{ae.get(s, {}).get('rera_total_sqft', 0):,.2f}") for s in schemes],
         [body_cell("3. Existing carpet area (Sq.ft.)")]
         + [num_cell(f"{ae.get(s, {}).get('existing_sqft', 0):,.2f}") for s in schemes],
         [body_cell("4. Income per Sq.ft. on sale (₹)")]
         + [num_cell(f"₹{ae.get(s, {}).get('sale_rate', 60000):,.0f}") for s in schemes],
         [bold_num("5. Additional RERA area % considered")]
-        + [
-            bold_num(f"{ae.get(s, {}).get('add_rera_pct', 0) * 100:.0f}%")
-            for s in schemes
-        ],
+        + [bold_num(f"{ae.get(s, {}).get('add_rera_pct', 0) * 100:.0f}%") for s in schemes],
         [body_cell("6. Additional area for sale (Sq.ft.)")]
         + [num_cell(f"{ae.get(s, {}).get('add_area_sqft', 0):,.2f}") for s in schemes],
         [bold_num("7. RERA carpet area available for sale (Sq.ft.)")]
         + [bold_num(f"{ae.get(s, {}).get('sale_area_sqft', 0):,.2f}") for s in schemes],
         [body_cell("8. Revenue from project (₹ Crore)")]
-        + [
-            num_cell(f"{ae.get(s, {}).get('revenue_crore', 0):.2f} Cr") for s in schemes
-        ],
+        + [num_cell(f"{ae.get(s, {}).get('revenue_crore', 0):.2f} Cr") for s in schemes],
         [body_cell("9. GST for existing members (₹ Crore)")]
         + [num_cell(f"{ae.get(s, {}).get('gst_crore', 0):.2f} Cr") for s in schemes],
         [bold_num("10. Profit (₹ Crore)")]
         + [bold_num(f"{ae.get(s, {}).get('profit_crore', 0):.2f} Cr") for s in schemes],
         [bold_num("11. Profit %")]
-        + [
-            bold_num(f"{ae.get(s, {}).get('profit_pct', 0) * 100:.2f}%")
-            for s in schemes
-        ],
+        + [bold_num(f"{ae.get(s, {}).get('profit_pct', 0) * 100:.2f}%") for s in schemes],
     ]
 
     t = Table(rows, colWidths=col_w)
@@ -1313,10 +1256,7 @@ def build_summary(story, data):
         [body_cell("Fungible 35%")]
         + [num_cell(str(fsi.get(s, {}).get("fungible", "—"))) for s in schemes],
         [bold_num("Total FSI Permissible")]
-        + [
-            bold_num(str(fsi.get(s, {}).get("total_fsi_permissible", "—")))
-            for s in schemes
-        ],
+        + [bold_num(str(fsi.get(s, {}).get("total_fsi_permissible", "—"))) for s in schemes],
         [body_cell("Total Built-Up Area (Sq.ft.)")]
         + [num_cell(cr(bua.get(s, {}).get("total_bua_sqft", ""))) for s in schemes],
         [body_cell("Total RERA Carpet Area (Sq.ft.)")]
@@ -1324,39 +1264,19 @@ def build_summary(story, data):
         # Cost
         [bold_num("C. COST OF PROJECT (₹ Crore)")] + [body_cell("")] * 4,
         [body_cell("Total construction (incl. GST)")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('const_with_gst', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('const_with_gst', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("FSI / TDR / Premiums")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('fsi_tdr_total', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('fsi_tdr_total', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("MCGM approvals")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('mcgm_total', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('mcgm_total', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("Professional fees")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('prof_fees', 0) / 1e7:.2f}") for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('prof_fees', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("Temporary accommodation")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('temp_total', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('temp_total', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("Stamp duty & registration")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('stamp_total', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('stamp_total', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("Total cost of redevelopment project")]
-        + [
-            num_cell(f"{fin.get(s, {}).get('redevelopment_total', 0) / 1e7:.2f}")
-            for s in schemes
-        ],
+        + [num_cell(f"{fin.get(s, {}).get('redevelopment_total', 0) / 1e7:.2f}") for s in schemes],
         [body_cell("Corpus fund")]
         + [num_cell(f"{fin.get(s, {}).get('corpus', 0) / 1e7:.2f}") for s in schemes],
         [bold_num("Total Cost of Project (Crore)")]
@@ -1366,16 +1286,11 @@ def build_summary(story, data):
         [body_cell("Income per Sq.ft. on sale (₹)")]
         + [num_cell(f"₹{ae.get(s, {}).get('sale_rate', 60000):,}") for s in schemes],
         [body_cell("RERA carpet area (Sq.ft.)")]
-        + [
-            num_cell(f"{ae.get(s, {}).get('rera_total_sqft', 0):,.2f}") for s in schemes
-        ],
+        + [num_cell(f"{ae.get(s, {}).get('rera_total_sqft', 0):,.2f}") for s in schemes],
         [body_cell("Existing carpet area (Sq.ft.)")]
         + [num_cell(f"{ae.get(s, {}).get('existing_sqft', 0):,.2f}") for s in schemes],
         [body_cell("Additional RERA % considered")]
-        + [
-            num_cell(f"{ae.get(s, {}).get('add_rera_pct', 0) * 100:.0f}%")
-            for s in schemes
-        ],
+        + [num_cell(f"{ae.get(s, {}).get('add_rera_pct', 0) * 100:.0f}%") for s in schemes],
         [body_cell("Area available for sale (Sq.ft.)")]
         + [num_cell(f"{ae.get(s, {}).get('sale_area_sqft', 0):,.2f}") for s in schemes],
         [body_cell("Revenue from project (₹ Crore)")]
@@ -1385,10 +1300,7 @@ def build_summary(story, data):
         [bold_num("Profit (₹ Crore)")]
         + [bold_num(f"{ae.get(s, {}).get('profit_crore', 0):.2f}") for s in schemes],
         [bold_num("Profit %")]
-        + [
-            bold_num(f"{ae.get(s, {}).get('profit_pct', 0) * 100:.2f}%")
-            for s in schemes
-        ],
+        + [bold_num(f"{ae.get(s, {}).get('profit_pct', 0) * 100:.2f}%") for s in schemes],
     ]
 
     t = Table(summary_rows, colWidths=col_w)

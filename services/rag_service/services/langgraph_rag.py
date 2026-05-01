@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
+# noqa: E402
 """
 LangGraph-based RAG System with LangSmith Observability
 Uses LangGraph for agent orchestration and LangSmith for tracing
 """
 
-import os
 import json
-import re
-import uuid
 import logging
+import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional, TypedDict, Annotated
-from dataclasses import dataclass, field
-from datetime import datetime
-from collections import defaultdict
+from typing import TypedDict
 
 logger = logging.getLogger(__name__)
 
@@ -26,16 +22,15 @@ if env_file.exists():
             os.environ[key] = val
 
 # LangGraph imports
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
-from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import BaseMessage, HumanMessage  # noqa: E402
+from langgraph.graph import END, StateGraph  # noqa: E402
+from langsmith import Client as LangSmithClient  # noqa: E402
 
 # LangSmith imports
-from langsmith import traceable, Client as LangSmithClient
+from langsmith import traceable  # noqa: E402
 
 # LLM imports
-from openai import OpenAI
-
+from openai import OpenAI  # noqa: E402
 
 # ==================== LANGSMITH SETUP ====================
 
@@ -65,18 +60,18 @@ def setup_langsmith():
 class AgentState(TypedDict):
     """State for LangGraph agent"""
 
-    messages: List[BaseMessage]
+    messages: list[BaseMessage]
     question: str
-    intent: Optional[str]
-    topic: Optional[str]
-    local_results: Optional[List[Dict]]
-    web_results: Optional[List[Dict]]
-    vertex_results: Optional[List[Dict]]
-    synthesis: Optional[Dict]
-    answer: Optional[str]
-    confidence: Optional[float]
-    sources: List[Dict]
-    metadata: Dict
+    intent: str | None
+    topic: str | None
+    local_results: list[dict] | None
+    web_results: list[dict] | None
+    vertex_results: list[dict] | None
+    synthesis: dict | None
+    answer: str | None
+    confidence: float | None
+    sources: list[dict]
+    metadata: dict
 
 
 # ==================== RAG TOOLS ====================
@@ -93,7 +88,7 @@ class RAGTools:
     def _init_milvus(self):
         """Initialize Milvus connection"""
         try:
-            from pymilvus import connections, Collection
+            from pymilvus import Collection, connections
 
             connections.connect(host="localhost", port="19530")
             self.milvus_client = Collection("dcpr_knowledge")
@@ -102,7 +97,7 @@ class RAGTools:
             logger.warning(f"Milvus not available: {e}")
 
     @traceable(name="classify_intent", run_type="chain")
-    def classify_intent(self, question: str) -> Dict:
+    def classify_intent(self, question: str) -> dict:
         """Classify user intent and extract entities"""
         prompt = f"""Analyze this question and extract:
 1. Intent (explain, calculate, compare, recommend, find)
@@ -122,18 +117,18 @@ Return JSON with: intent, topic, entities[]"""
         try:
             result = json.loads(response.choices[0].message.content)
             return result
-        except:
+        except Exception:
             return {"intent": "explain", "topic": "general", "entities": []}
 
     @traceable(name="search_local", run_type="retriever")
-    def search_local(self, query: str, topic: str, k: int = 10) -> List[Dict]:
+    def search_local(self, query: str, topic: str, k: int = 10) -> list[dict]:
         """Search local Milvus vector store"""
         if not self.milvus_client:
             return [{"text": "Milvus not available", "score": 0}]
 
         try:
-            from pymilvus import connections, Collection
             from langchain_openai import OpenAIEmbeddings
+            from pymilvus import Collection
 
             embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
             query_embedding = embeddings.embed_query(query)
@@ -149,15 +144,12 @@ Return JSON with: intent, topic, entities[]"""
                 output_fields=["text", "metadata"],
             )
 
-            return [
-                {"text": r.entity.get("text", ""), "score": r.distance}
-                for r in results[0]
-            ]
+            return [{"text": r.entity.get("text", ""), "score": r.distance} for r in results[0]]
         except Exception as e:
             return [{"text": f"Error: {e}", "score": 0}]
 
     @traceable(name="search_web", run_type="tool")
-    def search_web(self, query: str) -> List[Dict]:
+    def search_web(self, query: str) -> list[dict]:
         """Search web for information"""
         # Using Tavily or similar
         try:
@@ -166,7 +158,7 @@ Return JSON with: intent, topic, entities[]"""
             client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
             results = client.search(query=query, max_results=5)
             return [{"text": r["content"], "url": r["url"]} for r in results]
-        except:
+        except Exception:
             # Fallback to DuckDuckGo
             try:
                 from duckduckgo import DDGS
@@ -174,13 +166,13 @@ Return JSON with: intent, topic, entities[]"""
                 ddgs = DDGS()
                 results = ddgs.text(query, max_results=5)
                 return [{"text": r["body"], "url": r["href"]} for r in results]
-            except:
+            except Exception:
                 return [{"text": "Web search not available", "url": ""}]
 
     @traceable(name="synthesize_answer", run_type="chain")
     def synthesize_answer(
         self, question: str, local_context: str, web_context: str, vertex_context: str
-    ) -> Dict:
+    ) -> dict:
         """Synthesize answer from all sources"""
         prompt = f"""You are a helpful urban planning consultant. Answer the user's question directly.
 
@@ -289,14 +281,12 @@ class LangGraphRAG:
         topic = state.get("topic", "general")
 
         results = self.tools.search_local(question, topic, k=10)
-        local_text = "\n\n".join([r["text"][:500] for r in results[:6]])
+        "\n\n".join([r["text"][:500] for r in results[:6]])
 
         return {
             **state,
             "local_results": results,
-            "sources": [
-                {"type": "local", "text": r["text"][:200]} for r in results[:3]
-            ],
+            "sources": [{"type": "local", "text": r["text"][:200]} for r in results[:3]],
         }
 
     def _web_search_node(self, state: AgentState) -> AgentState:
@@ -316,12 +306,8 @@ class LangGraphRAG:
         """Synthesize final answer"""
         question = state["question"]
 
-        local_text = "\n\n".join(
-            [r["text"][:500] for r in (state.get("local_results") or [])[:6]]
-        )
-        web_text = "\n\n".join(
-            [r["text"][:300] for r in (state.get("web_results") or [])[:3]]
-        )
+        local_text = "\n\n".join([r["text"][:500] for r in (state.get("local_results") or [])[:6]])
+        web_text = "\n\n".join([r["text"][:300] for r in (state.get("web_results") or [])[:3]])
 
         result = self.tools.synthesize_answer(question, local_text, web_text, "")
 
@@ -337,7 +323,7 @@ class LangGraphRAG:
         }
 
     @traceable(name="query", run_type="chain")
-    def query(self, question: str, stream: bool = False) -> Dict:
+    def query(self, question: str, stream: bool = False) -> dict:
         """Query the RAG agent"""
         initial_state = {
             "messages": [HumanMessage(content=question)],
@@ -375,9 +361,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="LangGraph RAG with LangSmith")
-    parser.add_argument(
-        "question", nargs="?", default="What is FSI for residential in Pune?"
-    )
+    parser.add_argument("question", nargs="?", default="What is FSI for residential in Pune?")
     parser.add_argument("--stream", action="store_true", help="Stream the response")
 
     args = parser.parse_args()

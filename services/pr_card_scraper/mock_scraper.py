@@ -3,13 +3,14 @@ Mock PR Card Scraper for testing when Mahabhumi website is inaccessible.
 Returns sample PR card images for development and testing.
 """
 
+import asyncio
+import io
 import logging
 import os
-import asyncio
-from typing import Dict, Any, Optional
-from PIL import Image, ImageDraw, ImageFont
-import io
 import time
+from typing import Any
+
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,13 @@ class MockMahabhumiScraper:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str] = None,
+        survey_no_part1: str | None = None,
         mobile: str = "9876543210",
-        property_uid: Optional[str] = None,
+        property_uid: str | None = None,
         language: str = "EN",
         record_of_right: str = "Property Card",
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Mock scrape flow that generates a sample PR card image.
         """
@@ -48,9 +49,7 @@ class MockMahabhumiScraper:
         await asyncio.sleep(2)
 
         # Generate a sample PR card image
-        image_bytes = self._generate_sample_pr_card(
-            district, taluka, village, survey_no, mobile
-        )
+        image_bytes = self._generate_sample_pr_card(district, taluka, village, survey_no, mobile)
 
         # Save image
         timestamp = int(time.time())
@@ -94,7 +93,7 @@ class MockMahabhumiScraper:
             font_large = ImageFont.truetype("arial.ttf", 24)
             font_medium = ImageFont.truetype("arial.ttf", 18)
             font_small = ImageFont.truetype("arial.ttf", 14)
-        except IOError:
+        except OSError:
             font_large = ImageFont.load_default()
             font_medium = ImageFont.load_default()
             font_small = ImageFont.load_default()

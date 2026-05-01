@@ -1,4 +1,4 @@
-from feasibility.value_resolver import lookup
+from services.report_generator.feasibility.value_resolver import lookup
 
 
 def test_nested_dict():

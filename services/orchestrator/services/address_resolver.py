@@ -82,8 +82,6 @@ class AddressResolver:
 
         return {"ward": None, "village": None, "district": None, "taluka": None}
 
-
-
     async def _search_serpapi(self, address: str) -> dict[str, str | None]:
         """Search using SerpApi."""
         # SerpApi requires direct API call with api_key parameter
@@ -115,9 +113,7 @@ class AddressResolver:
             snippet = result.get("snippet", "") + " " + result.get("title", "")
 
             # Try to find ward pattern (e.g., "K/W", "K/E", "A Ward", etc.)
-            ward_match = re.search(
-                r"([A-Z])[/\\]?([EWNS])?\s*Ward", snippet, re.IGNORECASE
-            )
+            ward_match = re.search(r"([A-Z])[/\\]?([EWNS])?\s*Ward", snippet, re.IGNORECASE)
             if ward_match:
                 ward = ward_match.group(1)
                 direction = ward_match.group(2) or ""
@@ -251,5 +247,3 @@ address_resolver = AddressResolver()
 async def resolve_address_from_input(address: str) -> dict[str, str | None]:
     """Utility function to resolve address to ward/village."""
     return await address_resolver.resolve_address(address)
-
-

@@ -3,13 +3,12 @@ MCGM Property Lookup — Pydantic Schemas
 """
 
 from datetime import datetime
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 from pydantic import BaseModel, field_validator
 
 
-class Ward(str, Enum):
+class Ward(StrEnum):
     """The 24 MCGM administrative wards, exactly as stored in the ArcGIS layer
     and shown in the WebApp Ward dropdown."""
 
@@ -40,11 +39,11 @@ class Ward(str, Enum):
 
 
 class PropertyLookupRequest(BaseModel):
-    ward: Ward                   # e.g. "K/W" — must be one of the 24 MCGM wards
-    village: str                 # e.g. "MANDVI" — normalised to uppercase
-    cts_no: str                  # e.g. "854" (CTS), "VI/18" (FP), "123/1/A"
-    tps_name: Optional[str] = None  # TPS scheme name (e.g. "VILE PARLE") - for FP search
-    use_fp: bool = False          # Set True if searching by FP number (e.g. "VI/18")
+    ward: Ward  # e.g. "K/W" — must be one of the 24 MCGM wards
+    village: str  # e.g. "MANDVI" — normalised to uppercase
+    cts_no: str  # e.g. "854" (CTS), "VI/18" (FP), "123/1/A"
+    tps_name: str | None = None  # TPS scheme name (e.g. "VILE PARLE") - for FP search
+    use_fp: bool = False  # Set True if searching by FP number (e.g. "VI/18")
     include_nearby: bool = True  # also fetch adjacent plot CTS numbers
 
     @field_validator("village")
@@ -67,7 +66,7 @@ class PropertyLookupRequest(BaseModel):
         return False
 
 
-class PropertyLookupStatus(str, Enum):
+class PropertyLookupStatus(StrEnum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -75,23 +74,23 @@ class PropertyLookupStatus(str, Enum):
 
 class NearbyProperty(BaseModel):
     cts_no: str
-    tps_name: Optional[str] = None
-    ward: Optional[str] = None
+    tps_name: str | None = None
+    ward: str | None = None
 
 
 class PropertyLookupResponse(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     status: PropertyLookupStatus
-    ward: Optional[str] = None
-    village: Optional[str] = None
-    cts_no: Optional[str] = None
-    tps_name: Optional[str] = None       # TPS scheme name
-    fp_no: Optional[str] = None          # Final Plot No (same as CTS in many cases)
-    geometry_wgs84: Optional[list] = None  # polygon coordinates [[lng, lat], ...]
-    centroid_lat: Optional[float] = None
-    centroid_lng: Optional[float] = None
-    area_sqm: Optional[float] = None
-    nearby_properties: Optional[list[NearbyProperty]] = None
-    download_url: Optional[str] = None
-    error_message: Optional[str] = None
-    created_at: Optional[datetime] = None
+    ward: str | None = None
+    village: str | None = None
+    cts_no: str | None = None
+    tps_name: str | None = None  # TPS scheme name
+    fp_no: str | None = None  # Final Plot No (same as CTS in many cases)
+    geometry_wgs84: list | None = None  # polygon coordinates [[lng, lat], ...]
+    centroid_lat: float | None = None
+    centroid_lng: float | None = None
+    area_sqm: float | None = None
+    nearby_properties: list[NearbyProperty] | None = None
+    download_url: str | None = None
+    error_message: str | None = None
+    created_at: datetime | None = None

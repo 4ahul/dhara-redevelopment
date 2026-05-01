@@ -1,43 +1,40 @@
-"""
-Premium Checker Service - Government Charges Calculator
-Main entry point.
-"""
-
-import sys
-import os
 import logging
-from pathlib import Path
-
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
 
 from fastapi import FastAPI
-from core import settings
-from routers.premium_router import router
 
-from shared.dhara_common.logging import setup_logging
-from shared.dhara_common.exceptions import setup_exception_handlers
+from dhara_shared.core.banner import print_banner
+from dhara_shared.core.config import validate_config
+from dhara_shared.core.exceptions import setup_exception_handlers
+from dhara_shared.core.logging import setup_logging, setup_sentry
+from dhara_shared.core.metrics import setup_metrics
+from dhara_shared.core.tracing import setup_tracing
 
-from core.banner import print_banner as _print_banner
-_print_banner()
+from .core import settings
+from .routers.premium_router import router
+
+print_banner(settings.APP_NAME)
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+validate_config(settings, [])
+
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
+setup_tracing(app, settings.APP_NAME)
+
 setup_exception_handlers(app)
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "ready_reckoner"}
 
+
 app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8003)
 
+    uvicorn.run(app, host="0.0.0.0", port=8003)

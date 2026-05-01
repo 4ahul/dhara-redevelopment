@@ -1,39 +1,34 @@
-"""
-Report Generator Service - Excel and PDF Feasibility Reports
-Main app factory.
-"""
-
-import sys
-import os
 import logging
-from pathlib import Path
-
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
 
 from fastapi import FastAPI
-from core.config import settings
-from routers.report_router import router
-from routers.ocr_router import router as ocr_router
 
-from core.banner import print_banner as _print_banner
-_print_banner()
+from dhara_shared.core.banner import print_banner
+from dhara_shared.core.config import validate_config
+from dhara_shared.core.logging import setup_logging, setup_sentry
+from dhara_shared.core.metrics import setup_metrics
+from dhara_shared.core.tracing import setup_tracing
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+from .core.config import settings
+from .routers.ocr_router import router as ocr_router
+from .routers.report_router import router
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
+print_banner(settings.APP_NAME)
+
+validate_config(settings, [])
+
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
+setup_sentry(settings.APP_NAME)
+setup_metrics(app, settings.APP_NAME)
+setup_tracing(app, settings.APP_NAME)
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "report_generator"}
+
 
 app.include_router(router)
 app.include_router(ocr_router)
@@ -41,5 +36,5 @@ app.include_router(ocr_router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8004)
 
+    uvicorn.run(app, host="0.0.0.0", port=8004)

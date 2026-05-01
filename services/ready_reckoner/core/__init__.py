@@ -1,15 +1,11 @@
-import os
-from pydantic_settings import BaseSettings
+from dhara_shared.core.config import BaseServiceSettings
 
 
-class Settings(BaseSettings):
-    APP_NAME: str = "Premium Checker Service"
-    APP_VERSION: str = "1.0.0"
+class Settings(BaseServiceSettings):
+    APP_NAME: str = "ready_reckoner"
 
-    class Config:
-        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
-        case_sensitive = True
-        extra = "ignore"
+    class Config(BaseServiceSettings.Config):
+        env_file = BaseServiceSettings.get_env_file(__file__)
 
 
 settings = Settings()

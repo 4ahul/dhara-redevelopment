@@ -3,10 +3,11 @@ PostgreSQL storage service for PR Cards.
 Includes form_state persistence so CAPTCHA retry works across process restarts.
 """
 
+import asyncio as _asyncio
+import functools as _functools
 import json
 import logging
 import uuid
-from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -19,7 +20,7 @@ class StorageService:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self._init_db()
+        # Schema is managed by Alembic
 
     # ------------------------------------------------------------------ #
     # Connection                                                           #
@@ -101,9 +102,9 @@ class StorageService:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str],
+        survey_no_part1: str | None,
         mobile: str,
-        property_uid: Optional[str],
+        property_uid: str | None,
         property_uid_known: bool = False,
         record_of_right: str = "Property Card",
         language: str = "EN",
@@ -158,11 +159,11 @@ class StorageService:
         self,
         pr_id: str,
         status: str,
-        image: Optional[bytes] = None,
-        error_message: Optional[str] = None,
-        captcha_image: Optional[bytes] = None,
-        image_url: Optional[str] = None,
-        extracted_data: Optional[dict] = None,
+        image: bytes | None = None,
+        error_message: str | None = None,
+        captcha_image: bytes | None = None,
+        image_url: str | None = None,
+        extracted_data: dict | None = None,
     ):
         """Update status, image, error, and/or image_url for an existing PR Card."""
         try:
@@ -173,7 +174,7 @@ class StorageService:
                 cur.execute(
                     """
                     UPDATE pr_cards
-                    SET status = %s, image = %s, image_url = %s, 
+                    SET status = %s, image = %s, image_url = %s,
                         extracted_data = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE id = %s
                     """,
@@ -217,7 +218,7 @@ class StorageService:
     # Read                                                                 #
     # ------------------------------------------------------------------ #
 
-    def get_pr_card(self, pr_id: str) -> Optional[dict]:
+    def get_pr_card(self, pr_id: str) -> dict | None:
         """Fetch metadata (no binary blobs) for a PR Card."""
         try:
             conn = self._get_connection()
@@ -240,7 +241,7 @@ class StorageService:
             logger.error(f"Failed to get PR Card: {e}")
             return None
 
-    def get_form_state(self, pr_id: str) -> Optional[dict]:
+    def get_form_state(self, pr_id: str) -> dict | None:
         """Return the saved form_state JSON for a PR Card (used for captcha retry)."""
         try:
             conn = self._get_connection()
@@ -256,7 +257,7 @@ class StorageService:
             logger.error(f"Failed to get form_state: {e}")
             return None
 
-    def get_pr_card_image(self, pr_id: str) -> Optional[bytes]:
+    def get_pr_card_image(self, pr_id: str) -> bytes | None:
         """Return the stored PR Card image bytes."""
         try:
             conn = self._get_connection()
@@ -270,7 +271,7 @@ class StorageService:
             logger.error(f"Failed to get PR Card image: {e}")
             return None
 
-    def get_captcha_image(self, pr_id: str) -> Optional[bytes]:
+    def get_captcha_image(self, pr_id: str) -> bytes | None:
         """Return the stored CAPTCHA image bytes."""
         try:
             conn = self._get_connection()
@@ -306,11 +307,6 @@ class StorageService:
         except Exception as e:
             logger.error(f"Failed to list PR Cards: {e}")
             return []
-
-
-import asyncio as _asyncio
-import functools as _functools
-
 
 class AsyncStorageService(StorageService):
     """

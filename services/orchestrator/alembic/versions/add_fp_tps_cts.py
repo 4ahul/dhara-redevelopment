@@ -5,6 +5,7 @@ Revises: add_audit_logs
 Create Date: 2026-04-22
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -28,5 +29,3 @@ def downgrade() -> None:
     op.drop_column("societies", "cts_validated")
     op.drop_column("societies", "tps_name")
     op.drop_column("societies", "fp_no")
-
-

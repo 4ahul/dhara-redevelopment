@@ -7,7 +7,6 @@ import functools as _functools
 import json
 import logging
 import uuid
-from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -90,7 +89,12 @@ class StorageService:
                     ep_nos                  JSONB,
                     sm_nos                  JSONB,
                     pdf_text                TEXT,
-                    pdf_bytes               BYTEA
+                    pdf_bytes               BYTEA,
+                    -- Payment tracking
+                    payment_status          VARCHAR(20),
+                    payment_transaction_id  VARCHAR(100),
+                    payment_amount          NUMERIC(10,2),
+                    payment_paid_at         TIMESTAMPTZ
                 );
             """)
             # Add columns to existing tables (idempotent)
@@ -133,10 +137,16 @@ class StorageService:
                 ("sm_nos", "JSONB"),
                 ("pdf_text", "TEXT"),
                 ("pdf_bytes", "BYTEA"),
+                ("payment_status", "VARCHAR(20)"),
+                ("payment_transaction_id", "VARCHAR(100)"),
+                ("payment_amount", "NUMERIC(10,2)"),
+                ("payment_paid_at", "TIMESTAMPTZ"),
             ]
             for col_name, col_type in new_columns:
                 try:
-                    cur.execute(f"ALTER TABLE dp_reports ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                    cur.execute(
+                        f"ALTER TABLE dp_reports ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                    )
                 except Exception:
                     pass  # Column already exists
             cur.execute("""
@@ -161,8 +171,8 @@ class StorageService:
         ward: str,
         village: str,
         cts_no: str,
-        lat: Optional[float] = None,
-        lng: Optional[float] = None,
+        lat: float | None = None,
+        lng: float | None = None,
     ) -> str:
         report_id = str(uuid.uuid4())
         try:
@@ -186,28 +196,63 @@ class StorageService:
 
     # Fields that need JSON serialization
     _JSON_FIELDS = {
-        "reservations", "raw_attributes", "cts_nos",
-        "water_pipeline", "sewer_line", "drainage", "ground_level",
-        "ep_nos", "sm_nos",
+        "reservations",
+        "raw_attributes",
+        "cts_nos",
+        "water_pipeline",
+        "sewer_line",
+        "drainage",
+        "ground_level",
+        "ep_nos",
+        "sm_nos",
     }
     # Fields that need binary wrapping
     _BINARY_FIELDS = {"map_screenshot", "pdf_bytes"}
     # All valid column names for dynamic update
     _ALL_FIELDS = {
-        "zone_code", "zone_name", "road_width_m", "fsi", "height_limit_m",
-        "crz_zone", "heritage_zone", "dp_remarks", "error_message",
-        "report_type", "reference_no", "report_date", "applicant_name",
-        "fp_no", "tps_name",
-        "reservations_affecting", "reservations_abutting",
-        "designations_affecting", "designations_abutting",
-        "dp_roads", "proposed_road", "proposed_road_widening",
-        "rl_remarks_traffic", "rl_remarks_survey",
-        "heritage_building", "heritage_precinct", "heritage_buffer_zone",
-        "archaeological_site", "archaeological_buffer",
-        "existing_amenities_affecting", "existing_amenities_abutting",
-        "crz_zone_details", "high_voltage_line", "buffer_sgnp",
-        "flamingo_esz", "corrections_dcpr", "modifications_sec37",
-        "road_realignment", "pdf_text",
+        "zone_code",
+        "zone_name",
+        "road_width_m",
+        "fsi",
+        "height_limit_m",
+        "crz_zone",
+        "heritage_zone",
+        "dp_remarks",
+        "error_message",
+        "report_type",
+        "reference_no",
+        "report_date",
+        "applicant_name",
+        "fp_no",
+        "tps_name",
+        "reservations_affecting",
+        "reservations_abutting",
+        "designations_affecting",
+        "designations_abutting",
+        "dp_roads",
+        "proposed_road",
+        "proposed_road_widening",
+        "rl_remarks_traffic",
+        "rl_remarks_survey",
+        "heritage_building",
+        "heritage_precinct",
+        "heritage_buffer_zone",
+        "archaeological_site",
+        "archaeological_buffer",
+        "existing_amenities_affecting",
+        "existing_amenities_abutting",
+        "crz_zone_details",
+        "high_voltage_line",
+        "buffer_sgnp",
+        "flamingo_esz",
+        "corrections_dcpr",
+        "modifications_sec37",
+        "road_realignment",
+        "pdf_text",
+        "payment_status",
+        "payment_transaction_id",
+        "payment_amount",
+        "payment_paid_at",
     }
 
     def update_report(self, report_id: str, status: str, **kwargs):
@@ -243,7 +288,7 @@ class StorageService:
 
     # ── Read ──────────────────────────────────────────────────────────────────
 
-    def get_report(self, report_id: str) -> Optional[dict]:
+    def get_report(self, report_id: str) -> dict | None:
         try:
             conn = self._get_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -256,8 +301,7 @@ class StorageService:
             logger.error("Failed to get DP report %s: %s", report_id, e)
             return None
 
-
-    def get_screenshot(self, report_id: str) -> Optional[bytes]:
+    def get_screenshot(self, report_id: str) -> bytes | None:
         try:
             conn = self._get_connection()
             cur = conn.cursor()

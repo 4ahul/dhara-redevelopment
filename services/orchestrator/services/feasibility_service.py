@@ -9,15 +9,18 @@ import logging
 import math
 from uuid import UUID
 
-from agent import run_agent
-from db import async_session_factory
 from fastapi import BackgroundTasks
-from models.enums import ReportStatus
-from models.report import FeasibilityReport
-from repositories import society_repository
-from schemas.society import FeasibilityReportCreate, FeasibilityReportUpdate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db import async_session_factory
+from ..models.enums import ReportStatus
+from ..models.report import FeasibilityReport
+from ..repositories import society_repository
+from ..schemas.feasibility import (
+    FeasibilityReportCreate,
+    FeasibilityReportUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,23 +49,42 @@ class FeasibilityService:
             "total_pages": math.ceil(total / page_size) if total else 0,
         }
 
-    async def get_report(
-        self, user_id: UUID, report_id: UUID
-    ) -> FeasibilityReport | None:
+    async def get_report(self, user_id: UUID, report_id: UUID) -> FeasibilityReport | None:
         """Fetch a specific report."""
-        return await society_repository.get_feasibility_report(
-            self.db, report_id, user_id
-        )
+        return await society_repository.get_feasibility_report(self.db, report_id, user_id)
 
     async def create_report(
         self, user_id: UUID, req: FeasibilityReportCreate, bg: BackgroundTasks
     ) -> FeasibilityReport | None:
         """Initiate feasibility analysis."""
-        soc = await society_repository.get_society_by_id(
-            self.db, req.society_id, user_id
-        )
+        soc = await society_repository.get_society_by_id(self.db, req.society_id, user_id)
         if not soc:
             return None
+
+        # ── Flatten FE saleAreaBreakup nested object into flat fields ────────
+        breakup = getattr(req, "sale_area_breakup", None)
+        if breakup and isinstance(breakup, dict):
+            floor_map = {
+                "groundFloor": ("commercial_gf_area", "sale_rate_commercial_gf"),
+                "firstFloor":  ("commercial_1f_area", "sale_rate_commercial_1f"),
+                "secondFloor": ("commercial_2f_area", "sale_rate_commercial_2f"),
+                "otherFloors": ("commercial_other_area", "sale_rate_commercial_other"),
+            }
+            for fe_key, (area_attr, rate_attr) in floor_map.items():
+                floor = breakup.get(fe_key, {})
+                if floor.get("area") is not None and getattr(req, area_attr, None) is None:
+                    object.__setattr__(req, area_attr, float(floor["area"]))
+                if floor.get("rate") is not None and getattr(req, rate_attr, None) is None:
+                    object.__setattr__(req, rate_attr, float(floor["rate"]))
+
+        # ── Map FE landIdentifierType/Value to cts_no/fp_no ──────────────────
+        lid_type = getattr(req, "land_identifier_type", None)
+        lid_value = getattr(req, "land_identifier_value", None)
+        if lid_type and lid_value:
+            if lid_type.upper() == "CTS" and not getattr(req, "cts_no", None):
+                object.__setattr__(req, "cts_no", lid_value)
+            elif lid_type.upper() == "FP" and not getattr(req, "fp_no", None):
+                object.__setattr__(req, "fp_no", lid_value)
 
         # ── Resolve CTS/FP if provided in the feasibility request ────────────
         req_cts_no = getattr(req, "cts_no", None)
@@ -70,7 +92,8 @@ class FeasibilityService:
 
         updates = {}
         if req_cts_no or req_fp_no:
-            from services.cts_fp_resolver import get_resolver
+            from .cts_fp_resolver import get_resolver
+
             resolver = get_resolver()
 
             res = await resolver.resolve(
@@ -78,7 +101,7 @@ class FeasibilityService:
                 fp_no=req_fp_no,
                 ward=soc.ward,
                 village=soc.village,
-                address=soc.address
+                address=soc.address,
             )
 
             if res:
@@ -136,6 +159,8 @@ class FeasibilityService:
                 "basement_required": getattr(req, "basement_required", None),
                 "corpus_commercial": getattr(req, "corpus_commercial", None),
                 "corpus_residential": getattr(req, "corpus_residential", None),
+                "bank_guarantee_commercial": getattr(req, "bank_guarantee_commercial", None),
+                "bank_guarantee_residential": getattr(req, "bank_guarantee_residential", None),
                 "sale_commercial_bua_sqft": getattr(req, "sale_commercial_bua_sqft", None),
                 "const_rate_commercial": getattr(req, "const_rate_commercial", None),
                 "const_rate_residential": getattr(req, "const_rate_residential", None),
@@ -154,7 +179,7 @@ class FeasibilityService:
                 "sale_rate_commercial_other": getattr(req, "sale_rate_commercial_other", None),
                 "sale_rate_residential": getattr(req, "sale_rate_residential", None),
                 "parking_price_per_unit": getattr(req, "parking_price_per_unit", None),
-            }
+            },
         }
 
         report_data = {
@@ -164,13 +189,22 @@ class FeasibilityService:
             "input_data": input_data,
         }
 
-        report = await society_repository.create_feasibility_report(
-            self.db, user_id, report_data
-        )
+        report = await society_repository.create_feasibility_report(self.db, user_id, report_data)
 
-        # Queue the background task
-        bg.add_task(self._run_agent_task, report.id, input_data)
-        logger.info("Report %s queued for society %s", report.id, soc.name)
+        # ── Queue the background task via Arq (Task 1) ───────────────────────
+        from .redis import get_arq
+
+        arq = get_arq()
+        if arq:
+            await arq.enqueue_job("run_ai_agent", input_data, str(report.id))
+            logger.info("Report %s enqueued to Arq for society %s", report.id, soc.name)
+        else:
+            # Fallback to legacy in-memory task if Redis is down
+            bg.add_task(self._run_agent_task, report.id, input_data)
+            logger.warning(
+                "Arq pool not available, using fallback BackgroundTask for %s", report.id
+            )
+
         return report
 
     async def update_report(
@@ -197,9 +231,7 @@ class FeasibilityService:
                     # Use a fresh session for background task
                     report_obj = (
                         await db.execute(
-                            select(FeasibilityReport).where(
-                                FeasibilityReport.id == report_id
-                            )
+                            select(FeasibilityReport).where(FeasibilityReport.id == report_id)
                         )
                     ).scalar_one_or_none()
                     if report_obj:
@@ -213,9 +245,7 @@ class FeasibilityService:
                 await asyncio.sleep(1)
 
             if not report:
-                logger.error(
-                    "Background task: Report %s PERMANENTLY not found", report_id
-                )
+                logger.error("Background task: Report %s PERMANENTLY not found", report_id)
                 return
 
             # 2. Run the agent and update status
@@ -223,9 +253,7 @@ class FeasibilityService:
                 # We need to re-fetch to ensure we're on the latest state in THIS session
                 report = (
                     await db.execute(
-                        select(FeasibilityReport).where(
-                            FeasibilityReport.id == report_id
-                        )
+                        select(FeasibilityReport).where(FeasibilityReport.id == report_id)
                     )
                 ).scalar_one_or_none()
 
@@ -234,6 +262,8 @@ class FeasibilityService:
 
                 try:
                     # Trigger AI Agent Runner
+                    from ..agent.runner import run_agent
+
                     result = await run_agent(society_data, str(report_id))
 
                     # Finalize results
@@ -254,8 +284,4 @@ class FeasibilityService:
                 await db.commit()
 
         except Exception as e:
-            logger.error(
-                "Feasibility background task CRITICAL ERROR for %s: %s", report_id, e
-            )
-
-
+            logger.error("Feasibility background task CRITICAL ERROR for %s: %s", report_id, e)

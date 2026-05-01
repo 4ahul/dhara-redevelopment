@@ -1,7 +1,7 @@
 import pytest
-from feasibility.calcs import area_derivations  # registers
-from feasibility.calc_registry import get
-from feasibility.exceptions import MissingData
+
+from services.report_generator.feasibility.calc_registry import get
+from services.report_generator.feasibility.exceptions import MissingData
 
 
 def test_sqft_from_sqm():
@@ -25,7 +25,14 @@ def test_existing_bua_from_carpet_and_multiplier():
             "residential_extra_multiplier": 1.3,
         },
     }
-    assert fn(ctx, carpet="existing_residential_carpet_sqft", multiplier="residential_extra_multiplier") == 13000.0
+    assert (
+        fn(
+            ctx,
+            carpet="existing_residential_carpet_sqft",
+            multiplier="residential_extra_multiplier",
+        )
+        == 13000.0
+    )
 
 
 def test_road_width_conditional_setback():

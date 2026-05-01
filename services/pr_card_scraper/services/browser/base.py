@@ -1,5 +1,6 @@
 import logging
-from playwright.async_api import async_playwright, Page
+
+from playwright.async_api import Page, async_playwright
 from playwright_stealth import Stealth
 
 logger = logging.getLogger(__name__)
@@ -55,14 +56,10 @@ class BaseBrowser:
 
     async def _resource_filter(self, route):
         """Filter out unnecessary resources like fonts and analytics."""
-        excluded_resource_types = ["font", "image", "media", "ping"]
         # We need images for CAPTCHA and the final result, so we'll be selective
         if route.request.resource_type in ["font", "media", "ping"]:
             await route.abort()
-        elif (
-            "google-analytics" in route.request.url
-            or "googletagmanager" in route.request.url
-        ):
+        elif "google-analytics" in route.request.url or "googletagmanager" in route.request.url:
             await route.abort()
         else:
             await route.continue_()
