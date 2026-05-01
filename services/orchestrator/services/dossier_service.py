@@ -37,11 +37,26 @@ class DossierService:
         """Update a specific stage of the dossier with service results."""
         dossier = await self.get_dossier(report_id)
         if not dossier:
-            logger.error(f"Cannot update missing dossier: {report_id}")
-            return
+            # Create a minimal dossier if it doesn't exist yet (worker may have created it)
+            dossier = {
+                "dossier_id": report_id,
+                "version": "1.0",
+                "created_at": datetime.utcnow().isoformat(),
+                "status": "processing",
+                "data": {},
+                "metadata": {"trace_id": report_id},
+            }
 
         dossier["data"][stage] = result
         dossier["updated_at"] = datetime.utcnow().isoformat()
+
+        # Auto-advance status based on stage
+        if stage == "final_result":
+            final = result if isinstance(result, dict) else {}
+            job_status = final.get("status", "completed")
+            dossier["status"] = "completed" if job_status == "completed" else "failed"
+        elif stage in ("start", "round1", "round2") and dossier.get("status") == "initialized":
+            dossier["status"] = "processing"
 
         await self._save_to_disk(report_id, dossier)
 
@@ -63,15 +78,17 @@ class DossierService:
             return None
 
         # Calculate progress based on stages
-        stages = ["round1", "round2", "final_result"]
+        stages = ["round1_pr_card", "round1_mcgm", "round1_site_analysis", "round1_dp_remarks", "round1_ocr", "round2", "final_result"]
         completed = [s for s in stages if s in dossier.get("data", {})]
 
-        progress = (len(completed) / len(stages)) * 100
+        progress_pct = round((len(completed) / len(stages)) * 100, 2)
+        status = dossier.get("status", "processing")
 
         return {
             "job_id": report_id,
-            "status": dossier.get("status", "processing"),
-            "progress": round(progress, 2),
+            "status": status,
+            "progress": progress_pct,
+            "progress_pct": progress_pct,  # alias for frontend compat
             "current_stage": completed[-1] if completed else "initialized",
             "updated_at": dossier.get("updated_at"),
             "file_url": dossier.get("data", {}).get("final_result", {}).get("report_url"),

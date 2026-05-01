@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from ..models.enums import SocietyStatus
+
 
 # ---------------------------------------------------------------------------
 # Shared Pydantic config: accept both camelCase (FE) and snake_case (BE),
@@ -33,7 +35,7 @@ class SocietyCreate(BaseModel):
     poc_phone: str | None = Field(default=None, max_length=50, alias='contactPhone')
     poc_email: str | None = Field(default=None, max_length=255, alias='contactEmail')
     onboarded_date: datetime | None = Field(default=None, alias='onboardedDate')
-    initial_status: str | None = Field(default='new', alias='initialStatus')
+    initial_status: SocietyStatus | None = Field(default=SocietyStatus.NEW, alias='initialStatus')
     notes: str | None = None
     point_of_contact: list[dict] | None = Field(default=None, alias='pointOfContact',
         description='Array of {contactPerson, contactMail, contactPhone}')
@@ -148,6 +150,13 @@ class SocietyResponse(BaseModel):
     lat: float | None = None
     lng: float | None = None
     status: str
+    @field_validator('reports', 'tenders', mode='before')
+    @classmethod
+    def _list_to_count(cls, v: Any) -> int:
+        if isinstance(v, (list, tuple)) or hasattr(v, '__len__'):
+            return len(v)
+        return v or 0
+
     reports: int = Field(default=0, description='Count of reports for this society')
     tenders: int = Field(default=0, description='Count of tenders for this society')
     created_by: UUID = Field(serialization_alias='createdBy')
@@ -178,6 +187,13 @@ class SocietyListItem(BaseModel):
     status: str
     plot_area_sqm: float | None = Field(default=None, serialization_alias='plotAreaSqm')
     notes: str | None = None
+    @field_validator('reports', 'tenders', mode='before')
+    @classmethod
+    def _list_to_count(cls, v: Any) -> int:
+        if isinstance(v, (list, tuple)) or hasattr(v, '__len__'):
+            return len(v)
+        return v or 0
+
     reports: int = Field(default=0, description='Count of reports')
     tenders: int = Field(default=0, description='Count of tenders')
     created_at: datetime = Field(serialization_alias='registeredOn')

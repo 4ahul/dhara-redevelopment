@@ -43,6 +43,7 @@ cells:
     kind: black
     semantic_name: area_sqm
     sources:
+      - manual_inputs.plot_area_sqm
       - mcgm_property.area_sqm
       - plot_area_sqm
     fallback: 0
@@ -104,6 +105,41 @@ cells:
     sources:
       - old_setback_sqm
       - manual_inputs.old_setback_sqm
+    fallback: 0
+    transform: float
+
+  # Zone (DP)
+  - cell: Details!P16
+    kind: red
+    semantic_name: zone_code
+    sources:
+      - manual_inputs.zone_code
+      - dp_report.zone_code
+      - dp_report.zone
+    fallback: "R"
+    transform: str
+
+  # FSI (DP)
+  - cell: Details!P17
+    kind: red
+    semantic_name: fsi_dp
+    sources:
+      - manual_inputs.fsi
+      - dp_report.fsi
+    fallback: 2.0
+    transform: float
+
+  # Permissible Height (Aviation)
+  - cell: Details!P20
+    kind: red
+    semantic_name: permissible_height
+    sources:
+      - height.data.permissible_height_agl
+      - height.data.max_height_m
+      - height.permitted_height_m
+      - height.max_height_m
+      - dp_report.height_limit_m
+      - manual_inputs.permissible_height
     fallback: 0
     transform: float
 

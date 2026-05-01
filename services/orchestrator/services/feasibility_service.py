@@ -133,28 +133,22 @@ class FeasibilityService:
             soc = await society_repository.update_society_field(self.db, soc.id, updates)
             logger.info("Society %s updated with resolved CTS/FP details", soc.id)
 
-        # Prepare input data block for the AI Agent
+        # Prepare input data block for the background worker
         input_data = {
+            "society_id": str(soc.id),
             "society_name": soc.name,
             "address": soc.address,
             "cts_no": soc.cts_no,
             "fp_no": soc.fp_no,
             "ward": soc.ward,
-            # Maharashtra land records — used by get_pr_card tool
-            "district": soc.district,
-            "taluka": soc.taluka,
             "village": soc.village,
+            "taluka": soc.taluka,
+            "district": soc.district,
             "tps_name": soc.tps_name,
-            "survey_no": soc.cts_no,  # CTS number = survey number on Mahabhumi
             "plot_area_sqm": soc.plot_area_sqm or 0,
-            "plot_area_with_tp": soc.plot_area_with_tp or soc.plot_area_sqm or 0,
-            "road_width_m": soc.road_width_m or 27.45,
+            "road_width_m": soc.road_width_m or 0,
             "num_flats": getattr(req, "num_flats", None) or soc.num_flats or 0,
             "num_commercial": getattr(req, "num_commercial", None) or soc.num_commercial or 0,
-            "residential_area_sqft": soc.residential_area_sqft or 0,
-            "commercial_area_sqft": soc.commercial_area_sqft or 0,
-            "sale_rate": soc.sale_rate or 60000,
-            # ── Extracted manual UI fields ──────────────────────────────────
             "manual_inputs": {
                 "basement_required": getattr(req, "basement_required", None),
                 "corpus_commercial": getattr(req, "corpus_commercial", None),

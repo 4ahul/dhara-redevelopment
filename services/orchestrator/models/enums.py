@@ -37,14 +37,16 @@ class ReportStatus(enum.StrEnum):
 
 
 class SocietyStatus(enum.StrEnum):
-    NEW = "new"
-    INVITATION_SENT = "invitation_sent"
-    REPORT_PENDING = "report_pending"
-    TENDER_PENDING = "tender_pending"
-    TENDER_PUBLISHED = "tender_published"
-    TENDER_REVIEW_PENDING = "tender_review_pending"
-    BUILDER_FINALIZED = "builder_finalized"
-    MANUAL_PROCESS = "manual_process"
+    NEW = "NEW"
+    ACTIVE = "ACTIVE"
+    ONBOARDED = "ONBOARDED"
+    INVITATION_SENT = "INVITATION_SENT"
+    REPORT_PENDING = "REPORT_PENDING"
+    TENDER_PENDING = "TENDER_PENDING"
+    TENDER_PUBLISHED = "TENDER_PUBLISHED"
+    TENDER_REVIEW_PENDING = "TENDER_REVIEW_PENDING"
+    BUILDER_FINALIZED = "BUILDER_FINALIZED"
+    MANUAL_PROCESS = "MANUAL_PROCESS"
 
 
 class TenderStatus(enum.StrEnum):

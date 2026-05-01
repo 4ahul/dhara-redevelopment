@@ -207,42 +207,24 @@ class SocietyService:
         # registration_number already mapped correctly by field name
 
         address = data.get("address")
+        logger.info(f"Creating society: {data.get('name')} | address: {address}")
 
         # ── Step 1: Location resolution ──────────────────────────────────────
-        needs_location = address and not (data.get("ward") or data.get("village"))
+        needs_location = bool(address and not (data.get("ward") or data.get("village")))
+        logger.info(f"Needs location resolution? {needs_location}")
 
         if needs_location:
-            location_data = await resolve_address_with_ai(address)
+            from .address_resolver import resolve_address_from_input
+            location_data = await resolve_address_from_input(address)
+            logger.info(f"Resolved location data for '{address}': {location_data}")
             if location_data:
                 data.setdefault("ward", location_data.get("ward"))
                 data.setdefault("village", location_data.get("village"))
                 data.setdefault("taluka", location_data.get("taluka"))
                 data.setdefault("district", location_data.get("district"))
+                logger.info(f"Set ward to: {data.get('ward')}")
 
-        # ── Step 2: Map OCR fields into DB columns ────────────────────────────
-        ocr = data.get("ocr_data") or {}
-        if ocr:
-            # Prefer explicitly passed values; fill gaps from OCR blob
-            def _safe_int(v):
-                return int(float(v)) if v else None
-
-            def _safe_float(v):
-                return float(v) if v else None
-
-            data.setdefault("num_flats", _safe_int(ocr.get("Number of Flats/Tenaments")))
-            data.setdefault("num_commercial", _safe_int(ocr.get("Number of Commercial Shops")))
-            data.setdefault(
-                "residential_area_sqft", _safe_float(ocr.get("Existing Residential area in sq ft"))
-            )
-            data.setdefault(
-                "commercial_area_sqft", _safe_float(ocr.get("Existing Commercial area in sq ft"))
-            )
-            data.setdefault("existing_bua_sqft", _safe_float(ocr.get("Existing Built Up Area")))
-            data.setdefault("pfa_sqft", _safe_float(ocr.get("PFA original OC")))
-            # Society age: store raw year string as int if it looks like a year
-            raw_age = ocr.get("Society Age", "")
-            if raw_age and raw_age.isdigit():
-                data.setdefault("society_age", int(raw_age))
+        # ── Step 2: Skip OCR (Moved to feasibility report phase) ─────────────────
 
         # ── Step 3: Map FE-specific fields to DB columns ────────────────────
         # initial_status → status

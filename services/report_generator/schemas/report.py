@@ -82,10 +82,10 @@ class TemplateReportRequest(BaseModel):
     num_flats: int = 0
     num_commercial: int = 0
 
-    # Society existing areas (map directly to yellow cells in Details sheet)
-    existing_commercial_carpet_sqft: float | None = None  # → Details!O53
-    existing_residential_carpet_sqft: float | None = None  # → Details!Q53
-    sale_rate_per_sqft: float | None = None  # → P&L!D28 (fallback)
+    existing_commercial_carpet_sqft: float | None = None
+    existing_residential_carpet_sqft: float | None = None
+    existing_bua_sqft: float | None = None
+    sale_rate_per_sqft: float | None = None
 
     # Full microservice outputs - these map to yellow cells
     site_analysis: dict | None = {}

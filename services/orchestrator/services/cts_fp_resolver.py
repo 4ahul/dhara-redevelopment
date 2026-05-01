@@ -356,9 +356,15 @@ Return ONLY valid JSON. No markdown, no explanation."""
             t = tps_name.replace("'", "''")
             attrs = await _query(f"FP_NO='{fp_clean}' AND TPS_NAME='{t}'")
 
-        # Strategy 3: FP only
+        # Strategy 3: FP + Ward (if TPS missing)
+        if not attrs and ward:
+            attrs = await _query(f"FP_NO='{fp_clean}' AND WARD='{ward}'")
+
+        # Strategy 4: FP only (Extremely risky)
         if not attrs:
-            attrs = await _query(f"FP_NO='{fp_clean}'")
+            # If we don't have ward or TPS, searching by FP alone is too ambiguous in Mumbai
+            logger.warning(f"Skipping ambiguous FP-only search for {fp_no} (ward/tps missing)")
+            return None
 
         if not attrs:
             return None

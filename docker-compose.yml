@@ -133,6 +133,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./services/orchestrator:/app/services/orchestrator
       - dossiers_data:/app/dossiers
     networks:
       - dhara_net
@@ -172,6 +173,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./services/orchestrator:/app/services/orchestrator
       - dossiers_data:/app/dossiers
     networks:
       - dhara_net
@@ -185,6 +187,9 @@ services:
     image: redevelopment-ai/site_analysis:v1
     ports:
       - "8001:8001"
+    volumes:
+      - ./services/site_analysis:/app/services/site_analysis
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/site_analysis/.env
     environment:
@@ -213,6 +218,9 @@ services:
     image: redevelopment-ai/aviation_height:v1
     ports:
       - "8002:8002"
+    volumes:
+      - ./services/aviation_height:/app/services/aviation_height
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/aviation_height/.env
     environment:
@@ -241,6 +249,9 @@ services:
     image: redevelopment-ai/ready_reckoner:v1
     ports:
       - "8003:8003"
+    volumes:
+      - ./services/ready_reckoner:/app/services/ready_reckoner
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/ready_reckoner/.env
     environment:
@@ -331,6 +342,9 @@ services:
     image: redevelopment-ai/mcgm_property_lookup:v1
     ports:
       - "8007:8007"
+    volumes:
+      - ./services/mcgm_property_lookup:/app/services/mcgm_property_lookup
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/mcgm_property_lookup/.env
     environment:
@@ -362,6 +376,9 @@ services:
     image: redevelopment-ai/dp_remarks_report:v1
     ports:
       - "8008:8008"
+    volumes:
+      - ./services/dp_remarks_report:/app/services/dp_remarks_report
+      - ./dhara_shared:/app/dhara_shared:ro
     env_file:
       - ./services/dp_remarks_report/.env
     environment:
@@ -393,6 +410,8 @@ services:
     image: redevelopment-ai/ocr_service:v1
     ports:
       - "8009:8009"
+    volumes:
+      - ./services/ocr_service:/app/services/ocr_service
     env_file:
       - ./services/ocr_service/.env
     environment:

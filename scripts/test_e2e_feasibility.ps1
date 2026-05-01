@@ -6,10 +6,11 @@
 $BASE = "http://localhost:8000"
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $OCC_PDF = Join-Path $SCRIPT_DIR "..\test_docs\Full OCC.pdf"
-$LOG_FILE = Join-Path $SCRIPT_DIR "e2e_test_log.txt"
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$LOG_FILE = Join-Path $SCRIPT_DIR "e2e_test_log_$ts.txt"
 
-# Pre-generated permanent admin token for admin@dharaai.com (UUID: 866294eb-d0fc-4432-8e90-bfeda496a2af)
-$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NjYyOTRlYi1kMGZjLTQ0MzItOGU5MC1iZmVkYTQ5NmEyYWYiLCJlbWFpbCI6ImFkbWluQGRoYXJhYWkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkRoYXJhIEFJIEFkbWluIiwiaWF0IjoxNzc3NTMzMTE2LCJpc3MiOiJkaGFyYS1haSJ9.ULDYEPrBdIn_CQYOGRgiXdXO4VKGVC74DBkDJCnARDc"
+# Pre-generated 1-year admin token for admin@dharaai.com (UUID: 866294eb-d0fc-4432-8e90-bfeda496a2af)
+$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4NjYyOTRlYi1kMGZjLTQ0MzItOGU5MC1iZmVkYTQ5NmEyYWYiLCJlbWFpbCI6ImFkbWluQGRoYXJhYWkuY29tIiwicm9sZSI6ImFkbWluIiwibmFtZSI6IkRoYXJhIEFJIEFkbWluIiwiaWF0IjoxNzc3NTk2MzQ2LCJleHAiOjE4MDkxMzIzNDYsImlzcyI6ImRoYXJhLWFpIn0.0H5-1MYzIz6O8aITCodW1kvqlzWDaBK4GhvHrlia3WQ"
 
 function Log($msg) {
     $ts = Get-Date -Format "HH:mm:ss"
@@ -46,10 +47,22 @@ try {
 
 # == Step 2: Create Society ==
 Log ""
-Log "--- Step 2: Create Society (Dhiraj Kunj, Vile Parle, Mumbai) ---"
+Log "--- Step 2: Create Society (Shanti Nagar CHS) ---"
 $socBody = @{
-    name              = "Dhiraj Kunj CHS"
-    address           = "Dhiraj Kunj, Vile Parle, Mumbai"
+    name               = "Shanti Nagar CHS V10_FINAL"
+    location           = "Andheri West, Mumbai"
+    registrationNumber = "MH-MBR-CHS-12345"
+    initialStatus      = "NEW"
+    totalFlats         = 48
+    onboardedDate      = 1704844800000
+    pointOfContact     = @(
+        @{
+            contactPerson = "Ramesh Patil"
+            contactMail   = "ramesh@example.com"
+            contactPhone  = "+91 98700 00001"
+        }
+    )
+    notes              = "Initial outreach done"
 } | ConvertTo-Json
 
 $SOC_ID = $null
@@ -66,11 +79,11 @@ try {
 
 # == Step 3: Verify Society ==
 Log ""
-Log "--- Step 3: Verify Society ---"
+Log "--- Step 3: Verify Society (AI Resolution) ---"
 try {
     $socGet = Invoke-RestMethod -Uri "$BASE/api/societies/$SOC_ID" -Method GET `
         -Headers $HEADERS -TimeoutSec 15
-    StepResult "Get Society" ($socGet.id -eq $SOC_ID) "name=$($socGet.name)"
+    StepResult "Get Society" ($socGet.id -eq $SOC_ID) "name=$($socGet.name) ward=$($socGet.ward) village=$($socGet.village)"
 } catch {
     Log "WARN Get Society failed (non-fatal): $($_.Exception.Message)"
 }
@@ -97,11 +110,17 @@ $ms = [System.IO.MemoryStream]::new()
 
 $fields = [ordered]@{
     "landIdentifierType"            = "FP"
-    "landIdentifierValue"           = "18"
+    "landIdentifierValue"           = "1"
+    "tpsScheme"                     = "WORLI"
+    "ward"                          = "G/S"
+    "village"                       = "Worli"
     "tenementMode"                  = "manual"
     "numberOfTenements"             = "24"
     "numberOfCommercialShops"       = "2"
     "basementRequired"              = "yes"
+    "zone_code"                     = "C"
+    "fsi"                           = "3.5"
+    "plotAreaSqM"                   = "555.5"
     "corpusCommercial"              = "2000000"
     "corpusResidential"             = "1500000"
     "bankGuranteeCommercial"        = "500000"
@@ -149,7 +168,7 @@ $STATUS = "unknown"
 try {
     $submitResp = Invoke-RestMethod -Uri $submitUrl -Method POST `
         -ContentType $contentType -Headers $HEADERS `
-        -Body $rawBody -TimeoutSec 180
+        -Body $rawBody -TimeoutSec 900
     $JOB_ID = $submitResp.job_id
     $STATUS  = $submitResp.status
     StepResult "Submit Feasibility Form" ($null -ne $JOB_ID) "job_id=$JOB_ID status=$STATUS"
@@ -163,7 +182,7 @@ try {
 # == Step 5: Poll Status ==
 Log ""
 Log "--- Step 5: Poll Job Status (max 5 min) ---"
-$maxPolls = 60
+$maxPolls = 180
 $pollCount = 0
 $finalStatus = $STATUS
 
