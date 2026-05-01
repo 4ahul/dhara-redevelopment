@@ -1,6 +1,10 @@
 import asyncio
+import os
+import sys
 
-# ── Imports for Model Discovery ───────────────────
+# Ensure repo root is on sys.path so absolute imports work in pre-deploy context
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,50 +12,29 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# IMPORTANT: Import ALL models so metadata is complete!
-# Import models so Alembic can autogenerate migrations
-from services.orchestrator import models as _models
+# Import ONLY config and Base — avoid importing models or services packages,
+# which trigger a circular import chain (models → db/__init__ → services → admin_service
+# → services.orchestrator) that kills the pre-deploy migration.
+# target_metadata=None is fine here: alembic upgrade head runs explicit DDL scripts
+# and does not need metadata for comparison (that's only needed for autogenerate).
+from services.orchestrator.core.config import settings
+from services.orchestrator.db.base import Base
 
-from ..core.config import settings
-from ..db.base import Base
-
-# Reference to ensure import side-effects are preserved
-_ = getattr(_models, "__all__", None)
-
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
 # Force the sqlalchemy.url from our application settings
 config.set_main_option("sqlalchemy.url", settings.db_url)
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
+# For autogenerate support, populate this with all ORM models.
+# Left as Base.metadata (empty — no models imported) for upgrade-only usage.
 target_metadata = Base.metadata
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is also acceptable
-    here.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -76,11 +59,6 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
-
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -94,8 +72,6 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-
     asyncio.run(run_async_migrations())
 
 
