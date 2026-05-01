@@ -29,8 +29,12 @@ class Settings(BaseServiceSettings):
     HF_TOKEN: str = ""
 
     # --- Auth ---
-    CLERK_JWT_KEY: str = ""
+    CLERK_JWT_ISSUER: str = "https://clerk.accounts.dev"  # Full issuer URL
     SECRET_KEY: str = "7c995f82ba3a032a562b71010459672b6ad0710d690f9f89c82150a39300ada8"
+
+    @property
+    def CLERK_JWKS_URL(self) -> str:
+        return f"{self.CLERK_JWT_ISSUER}/.well-known/jwks.json"
 
     # --- Directories ---
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
