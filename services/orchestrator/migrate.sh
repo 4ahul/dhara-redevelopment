@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-export PYTHONPATH=/app
+export PYTHONPATH=/app:/app/services
 cd /app
 
 # Detect if schema is ahead of alembic tracking (columns missing despite version recorded).
