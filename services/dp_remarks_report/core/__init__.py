@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     PAYMENT_QUEUE_WAIT_SECONDS: int = 600
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # Payment method: "upi" (default) or "wallet"
+    PAYMENT_METHOD: str = "upi"
+    # Wallet type when PAYMENT_METHOD is "wallet": "phonepe", "paytm", "amazonpay", "mobikwik", "airtelmoney", "freecharge", "jioMoney", "olamoney", "axisbank", "kvi"
+    WALLET_TYPE: str = "phonepe"
+
     model_config = {
         "env_file": str(Path(__file__).parent.parent / ".env"),
         "extra": "ignore",
