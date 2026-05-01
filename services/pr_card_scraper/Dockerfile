@@ -33,12 +33,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libasound2 libxshmfence1 fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright browsers
-RUN playwright install chromium
-
 # Copy ALL installed packages from builder (where uv placed them)
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Install Playwright browsers
+RUN playwright install chromium
 
 # Service code
 COPY services/__init__.py /app/services/
