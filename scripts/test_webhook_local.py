@@ -1,14 +1,24 @@
-"""Local Clerk webhook tester — crafts proper Svix-signed requests."""
+"""Local Clerk webhook tester — crafts proper Svix-signed requests.
+
+Usage:
+    CLERK_WEBHOOK_SECRET=whsec_xxx python scripts/test_webhook_local.py
+"""
 
 import base64
 import hashlib
 import hmac
 import json
+import os
+import sys
 import time
 import httpx
 
-WEBHOOK_SECRET = "whsec_C/R2VzHnZQwMRzv6HvUDrsldQwG94Jvt"
-BASE_URL = "http://localhost:8000/api/webhooks/clerk"
+WEBHOOK_SECRET = os.environ.get("CLERK_WEBHOOK_SECRET", "")
+BASE_URL = os.environ.get("WEBHOOK_URL", "http://localhost:8000/api/webhooks/clerk")
+
+if not WEBHOOK_SECRET:
+    print("ERROR: set CLERK_WEBHOOK_SECRET env var")
+    sys.exit(1)
 
 
 def make_svix_headers(body: bytes, secret: str) -> dict:
