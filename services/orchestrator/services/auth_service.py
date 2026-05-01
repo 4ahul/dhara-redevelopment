@@ -51,8 +51,7 @@ class AuthService:
                 user = await user_repository.get_user_by_email(self.db, email)
 
         if not user:
-            logger.warning(f"User not found for clerk_id: {clerk_id}")
-            raise HTTPException(status_code=404, detail="User not found. Please wait a moment for account creation.")
+            user = await self._auto_create_from_claims(payload)
 
         # Update last login
         user.last_login_at = datetime.utcnow()
@@ -75,6 +74,36 @@ class AuthService:
                 organization=user.organization,
                 avatar_url=user.avatar_url,
             ),
+        )
+
+    async def _auto_create_from_claims(self, payload: dict) -> User:
+        """Create user in DB from Clerk JWT claims — used when webhook hasn't fired yet."""
+        clerk_id = payload.get("sub", "") or ""
+        email = payload.get("email") or ""
+        if not email:
+            try:
+                ea = payload.get("email_addresses")
+                if isinstance(ea, list) and ea:
+                    email = ea[0].get("email_address", "")
+            except Exception:
+                email = ""
+        first_name = payload.get("first_name", "") or ""
+        last_name = payload.get("last_name", "") or ""
+        name = payload.get("name") or f"{first_name} {last_name}".strip() or email or "Unknown"
+        avatar_url = payload.get("image_url") or payload.get("profile_picture_url") or ""
+
+        logger.info(f"Auto-creating user from JWT claims: clerk_id={clerk_id}, email={email}")
+        return await user_repository.create_user(
+            self.db,
+            {
+                "clerk_id": clerk_id,
+                "email": email,
+                "name": name,
+                "role": UserRole.PMC,
+                "avatar_url": avatar_url,
+                "is_active": True,
+                "last_login_at": datetime.utcnow(),
+            },
         )
 
     async def _fetch_clerk_user(self, clerk_id: str) -> dict:
