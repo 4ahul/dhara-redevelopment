@@ -23,8 +23,9 @@ _jwks_client: PyJWKClient | None = None
 def _get_jwks_client() -> PyJWKClient:
     global _jwks_client
     if _jwks_client is None:
+        jwks_url = f"{settings.CLERK_JWT_ISSUER}/.well-known/jwks.json"
         _jwks_client = PyJWKClient(
-            settings.CLERK_JWKS_URL,
+            jwks_url,
             cache_jwk_set=True,
             lifespan=3600,
         )
