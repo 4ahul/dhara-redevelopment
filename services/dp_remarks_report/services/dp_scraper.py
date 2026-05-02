@@ -1050,7 +1050,6 @@ class DPBrowserScraper:
                 pass
 
             # ====== PROPER DROPDOWN SELECTION ======
-            # Helper to select from autocomplete dropdown
             async def select_dropdown_option(field_id: str, value: str, field_label: str):
                 try:
                     field = page.locator(f"input[id='{field_id}']").first
@@ -1058,126 +1057,55 @@ class DPBrowserScraper:
                         logger.warning(f"{field_label}: field not visible")
                         return False
                     
-                    # Try setting value directly via dijit first (most reliable for MCGM portal)
-                    js_result = await page.evaluate("""([fieldId, val]) => {
+                    # JS logic to find exact item in store and select it
+                    js_select = """([fieldId, val]) => {
                         try {
-                            if (typeof dijit !== 'undefined') {
-                                var d = dijit.byId(fieldId);
-                                if (d) {
-                                    // Try to open dropdown to force data load
-                                    try { if (d.loadDropDown) d.loadDropDown(); } catch(e) {}
-                                    try { if (d.openDropDown) d.openDropDown(); } catch(e) {}
-                                    
-                                    // Try to find the exact option in the store
-                                    var items = [];
-                                    if (d.store) {
-                                        if (d.store.data) items = d.store.data;
-                                        else if (d.store._arrayOfAllItems) items = d.store._arrayOfAllItems;
-                                    }
-                                    
-                                    var matchedItem = null;
-                                    var searchAttr = d.searchAttr || 'name';
-                                    var available = [];
-                                    if (items && items.length > 0) {
-                                        for (var i=0; i<items.length; i++) {
-                                            var txtRaw = items[i][searchAttr];
-                                            var txt = Array.isArray(txtRaw) ? txtRaw[0] : txtRaw;
-                                            if (txt) {
-                                                available.push(txt);
-                                                if (txt.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(txt.toLowerCase())) {
-                                                    matchedItem = items[i];
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (matchedItem) {
-                                        d.set('item', matchedItem);
-                                        if (d.onChange) { d.onChange(d.get('value')); }
-                                        var mText = Array.isArray(matchedItem[searchAttr]) ? matchedItem[searchAttr][0] : matchedItem[searchAttr];
-                                        return 'dijit set item to: ' + mText;
-                                    } else {
-                                        d.set('displayedValue', val);
-                                        if (d.onChange) { d.onChange(d.get('value')); }
-                                        return 'dijit set displayedValue to: ' + val + ' (Available: ' + available.slice(0,10).join(', ') + ')';
-                                    }
+                            if (typeof dijit === 'undefined') return 'dijit_missing';
+                            var d = dijit.byId(fieldId);
+                            if (!d) return 'widget_missing';
+                            
+                            // Open dropdown to trigger data load if needed
+                            try { d.loadDropDown(); d.openDropDown(); } catch(e) {}
+                            
+                            var items = (d.store && d.store.data) || (d.store && d.store._arrayOfAllItems) || [];
+                            var matchedItem = null;
+                            var searchAttr = d.searchAttr || 'name';
+                            
+                            for (var i=0; i<items.length; i++) {
+                                var txtRaw = items[i][searchAttr];
+                                var txt = Array.isArray(txtRaw) ? txtRaw[0] : txtRaw;
+                                if (txt && (txt.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(txt.toLowerCase()))) {
+                                    matchedItem = items[i];
+                                    break;
                                 }
                             }
-                        } catch(e) { return 'js error: ' + e; }
-                        return 'dijit not found';
-                    }""", [field_id, value])
-                    
-                    logger.info(f"{field_label}: JS dijit setup result: {js_result}")
-                    await asyncio.sleep(2)
-                    
-                    # Fallback to UI interaction if JS didn't work perfectly
-                    if 'dijit set item to' not in js_result:
-                        await field.click()
-                        await asyncio.sleep(0.5)
-                        await field.fill("")
-                        await asyncio.sleep(0.5)
-                        
-                        # Open the dropdown using the down arrow button if available
-                        await page.evaluate(f"""(fieldId) => {{
-                            try {{
-                                var d = typeof dijit !== 'undefined' ? dijit.byId(fieldId) : null;
-                                if (d && d._buttonNode) {{ d._buttonNode.click(); }}
-                            }} catch(e) {{}}
-                        }}""", field_id)
-                        await asyncio.sleep(1)
-                        
-                        # Force open with keyboard
-                        await page.keyboard.press("ArrowDown")
-                        await asyncio.sleep(2)
-                        
-                        options = page.locator("li.ui-menu-item:visible, li.ui-selectmenu-item:visible, .ui-menu-item:visible, [role='option']:visible, .dijitMenuItem:visible")
-                        try:
-                            # We don't type first, we just open it and look for the option
-                            count = await options.count()
-                            clicked = False
                             
-                            # If no options, try typing the value
-                            if count == 0:
-                                await field.type(value, delay=100)
-                                await asyncio.sleep(2)
-                                await page.keyboard.press("ArrowDown")
-                                await asyncio.sleep(1)
-                                count = await options.count()
-                            
-                            for i in range(count):
-                                opt = options.nth(i)
-                                text = await opt.text_content() or ""
-                                text_clean = text.strip()
-                                if text_clean and "Previous" not in text_clean and "More" not in text_clean:
-                                    # Ensure it actually matches the value we want
-                                    val_clean = value.strip().lower()
-                                    if val_clean in text_clean.lower() or text_clean.lower() in val_clean:
-                                        await opt.click()
-                                        logger.info(f"{field_label}: clicked dropdown option '{text_clean}'")
-                                        clicked = True
-                                        break
-                            
-                            # If no exact match found, try to click the first valid one if we are desperate
-                            if not clicked and count > 0:
-                                for i in range(count):
-                                    opt = options.nth(i)
-                                    text = await opt.text_content() or ""
-                                    text_clean = text.strip()
-                                    if text_clean and "Previous" not in text_clean and "More" not in text_clean:
-                                        await opt.click()
-                                        logger.warning(f"{field_label}: no exact match, clicked first option '{text_clean}'")
-                                        clicked = True
-                                        break
-                                        
-                            if not clicked:
-                                await page.keyboard.press("Tab")
-                        except Exception:
-                            await page.keyboard.press("Tab")
+                            if (matchedItem) {
+                                d.set('item', matchedItem);
+                                if (d.onChange) { d.onChange(d.get('value')); }
+                                d.closeDropDown();
+                                return 'selected:' + (Array.isArray(matchedItem[searchAttr]) ? matchedItem[searchAttr][0] : matchedItem[searchAttr]);
+                            }
+                            return 'not_found';
+                        } catch(e) { return 'error:' + e; }
+                    }"""
                     
-                    await asyncio.sleep(1)
-                    actual_value = await field.input_value()
-                    logger.info(f"{field_label}: input value after selection: {actual_value}")
-                    return True
+                    for attempt in range(3):
+                        result = await page.evaluate(js_select, [field_id, value])
+                        logger.info(f"{field_label}: Selection attempt {attempt+1} result: {result}")
+                        
+                        if result.startswith('selected:'):
+                            await asyncio.sleep(1)
+                            # Verify displayed value
+                            disp = await page.evaluate(f"() => dijit.byId('{field_id}').get('displayedValue')")
+                            if disp and (value.lower() in disp.lower() or disp.lower() in value.lower()):
+                                return True
+                        
+                        await asyncio.sleep(2) # Wait for store to load
+                    return False
+                except Exception as e:
+                    logger.error(f"{field_label} error: {e}")
+                    return False
                 except Exception as e:
                     logger.warning(f"{field_label}: selection failed: {e}")
                     return False
