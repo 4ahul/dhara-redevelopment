@@ -70,8 +70,8 @@ async def test_dprmarks():
 
                 # Click Create Challan
                 logger.info("Clicking Create Challan...")
-                challan_result = await scraper._dprmarks_create_challan(page)
-                logger.info("Challan result: %s", challan_result)
+                bank_page = await scraper._dprmarks_click_challan_capture_popup(page)
+                logger.info("Bank page result: %s", "Success" if bank_page else "Failed")
 
         # Take final screenshot
         screenshot = await page.screenshot()
