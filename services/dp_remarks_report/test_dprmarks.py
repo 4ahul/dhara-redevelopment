@@ -21,7 +21,7 @@ async def test_dprmarks():
 
     # Set credentials
     settings.DPRMARKS_USERNAME = "Dhara "
-    settings.DPRMARKS_PASSWORD = os.getenv("TEST_DPRMARKS_PASSWORD", "Dhara@123")
+    settings.DPRMARKS_PASSWORD = "Dhara@123"
 
     print(f"Testing with username: {settings.DPRMARKS_USERNAME}")
 
@@ -58,7 +58,8 @@ async def test_dprmarks():
 
             # Fill form - use K/W, VILE PARLE NO. VI, FP 18
             logger.info("Filling form with ward=K/W, village=VILE PARLE NO. VI, cts_no=18 (FP)")
-            fill_result = await scraper._dprmarks_fill_form_fp(page, "K/W", "VILE PARLE NO. VI", None, "18")
+            # Pass "VILE PARLE NO. VI" as TPS scheme if needed, or None
+            fill_result = await scraper._dprmarks_fill_form_fp(page, "K/W", "VILE PARLE NO. VI", "VILE PARLE NO. VI", "18")
             logger.info("Fill result: %s", fill_result)
 
             if fill_result:
