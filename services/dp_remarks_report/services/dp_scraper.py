@@ -1112,7 +1112,7 @@ class DPBrowserScraper:
 
             # Ward 
             await select_dropdown_option("SelectWardR2", ward, "FP path: Ward")
-            await asyncio.sleep(3) # Wait for TPS to load based on Ward
+            await asyncio.sleep(5) # Wait for TPS to load based on Ward
 
             # Village/Division (Not needed for FP tab according to exact sequence)
             # The order must be Ward -> TPS Scheme -> FP
@@ -1330,6 +1330,12 @@ class DPBrowserScraper:
                             if await add_btn.is_visible(timeout=3000):
                                 await add_btn.click()
                                 logger.info("Clicked addSelection to add FP to selection list")
+                                # Wait for the parcel to appear in the summary table
+                                try:
+                                    await page.wait_for_selector(f"td:has-text('{fp_no}')", timeout=10000)
+                                    logger.info("FP %s confirmed in selection list", fp_no)
+                                except Exception:
+                                    logger.warning("FP %s not visible in list, but proceeding to check button state", fp_no)
                                 await asyncio.sleep(3)
                         except Exception as e:
                             logger.warning("addSelection regular click failed: %s, trying JS", e)
@@ -1341,6 +1347,12 @@ class DPBrowserScraper:
                                     return 'not found';
                                 }""")
                                 logger.info("JS click result: %s", result)
+                                # Wait for the parcel to appear in the summary table
+                                try:
+                                    await page.wait_for_selector(f"td:has-text('{fp_no}')", timeout=10000)
+                                    logger.info("FP %s confirmed in selection list via JS click", fp_no)
+                                except Exception:
+                                    logger.warning("FP %s not visible in list after JS click, but proceeding", fp_no)
                                 await asyncio.sleep(3)
                             except Exception as js_err:
                                 logger.warning("JS click also failed: %s", js_err)
@@ -1420,6 +1432,13 @@ class DPBrowserScraper:
                 }""")
                 logger.info("Map page interaction result: %s", map_interact)
                 
+                # Wait for the parcel to appear in the summary table
+                try:
+                    await page.wait_for_selector(f"td:has-text('{fp_no}')", timeout=10000)
+                    logger.info("FP %s confirmed in selection list after map interaction", fp_no)
+                except Exception:
+                    logger.warning("FP %s not visible in list after map interaction", fp_no)
+
                 await asyncio.sleep(4)
                 
                 # Try clicking generateChallan normally now that checkboxes are checked

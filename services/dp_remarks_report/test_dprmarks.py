@@ -20,8 +20,8 @@ async def test_dprmarks():
     from services.dp_remarks_report.services.dp_scraper import DPREMARKS_URL, DPBrowserScraper
 
     # Set credentials
-    settings.DPRMARKS_USERNAME = "Jigar001"
-    settings.DPRMARKS_PASSWORD = os.getenv("TEST_DPRMARKS_PASSWORD", "placeholder_password")
+    settings.DPRMARKS_USERNAME = "Dhara "
+    settings.DPRMARKS_PASSWORD = os.getenv("TEST_DPRMARKS_PASSWORD", "Dhara@123")
 
     print(f"Testing with username: {settings.DPRMARKS_USERNAME}")
 
@@ -56,15 +56,15 @@ async def test_dprmarks():
             await scraper._dprmarks_click_report(page)
             await asyncio.sleep(3)
 
-            # Fill form - use 1/1024 as the CTS
-            logger.info("Filling form with ward=A, village=FORT, cts_no=1/1024")
-            fill_result = await scraper._dprmarks_fill_form(page, "A", "FORT", "1/1024")
+            # Fill form - use K/W, VILE PARLE NO. VI, FP 18
+            logger.info("Filling form with ward=K/W, village=VILE PARLE NO. VI, cts_no=18 (FP)")
+            fill_result = await scraper._dprmarks_fill_form_fp(page, "K/W", "VILE PARLE NO. VI", None, "18")
             logger.info("Fill result: %s", fill_result)
 
             if fill_result:
                 # Click Next
                 logger.info("Clicking Next buttons...")
-                next_result = await scraper._dprmarks_click_next(page)
+                next_result = await scraper._dprmarks_click_next(page, path="fp", fp_no="18")
                 logger.info("Next result: %s", next_result)
                 await asyncio.sleep(3)
 
