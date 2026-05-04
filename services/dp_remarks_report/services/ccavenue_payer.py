@@ -27,6 +27,61 @@ _SELECTORS = {
         "text=UPI",
         "[data-payment-option='UPI']",
     ],
+    # Wallet tab
+    "wallet_tab": [
+        "li[id*='Wallet']",
+        "a[id*='Wallet']",
+        "text=Wallet",
+        "[data-payment-option='Wallet']",
+    ],
+    # Wallet options
+    "wallet_options": {
+        "phonepe": [
+            "img[alt*='PhonePe']",
+            "img[data-tt='PhonePe']",
+            "[data-tt*='PhonePe']",
+            "text=PhonePe",
+        ],
+        "paytm": [
+            "img[alt*='Paytm']",
+            "img[data-tt='Paytm']",
+            "[data-tt*='Paytm']",
+            "text=Paytm",
+        ],
+        "amazonpay": [
+            "img[alt*='Amazon Pay']",
+            "img[alt*='Amazon']",
+            "text=Amazon",
+        ],
+        "mobikwik": [
+            "img[alt*='MobiKwik']",
+            "text=MobiKwik",
+        ],
+        "airtelmoney": [
+            "img[alt*='Airtel Money']",
+            "text=Airtel Money",
+        ],
+        "freecharge": [
+            "img[alt*='FreeCharge']",
+            "text=FreeCharge",
+        ],
+        "jioMoney": [
+            "img[alt*='Jio Money']",
+            "text=Jio Money",
+        ],
+        "olamoney": [
+            "img[alt*='Ola Money']",
+            "text=Ola Money",
+        ],
+        "axisbank": [
+            "img[alt*='Axis Bank']",
+            "text=Axis Bank",
+        ],
+        "kvi": [
+            "img[alt*='KVI']",
+            "text=KVI",
+        ],
+    },
     # UPI VPA input
     "vpa_input": [
         "input[id*='vpa']",
@@ -62,11 +117,14 @@ class PaymentResult:
 
 class CCAvenuePayer:
     """
-    Handles the MCGM bank-selection modal and CCAvenue UPI payment popup.
+    Handles the MCGM bank-selection modal and CCAvenue UPI/Wallet payment popup.
 
     Usage:
         payer = CCAvenuePayer()
         result = await payer.pay(mcgm_page, upi_vpa="rahulsagar280103@okaxis")
+        
+        # Or with wallet payment method:
+        result = await payer.pay(mcgm_page, payment_method="wallet", wallet_type="phonepe")
     """
 
     def __init__(
@@ -77,17 +135,24 @@ class CCAvenuePayer:
         self._timeout = timeout_seconds
         self._poll = poll_interval
 
-    async def pay(self, bank_selection_page: Page, upi_vpa: str) -> PaymentResult:
+    async def pay(
+        self,
+        bank_selection_page: Page,
+        upi_vpa: str | None = None,
+        payment_method: str = "upi",
+        wallet_type: str | None = None,
+    ) -> PaymentResult:
         """
         Receives the bank selection popup page (Indian Bank / Maharashtra Bank / Citi Bank).
           1. Click "Indian Bank" to open CCAvenue
-          2. Select UPI tab, enter VPA, submit
+          2. Select payment method (UPI or Wallet), enter details, submit
           3. Poll until success redirect or timeout
         """
         logger.info(
-            "CCAvenuePayer.pay() called — bank_selection_page URL: %s  title: %s",
+            "CCAvenuePayer.pay() called — bank_selection_page URL: %s  title: %s  payment_method: %s",
             bank_selection_page.url,
             await bank_selection_page.title(),
+            payment_method,
         )
         # Wait for the page to fully render before searching
         try:
@@ -100,9 +165,14 @@ class CCAvenuePayer:
             if ccavenue_page is None:
                 return PaymentResult(success=False, error="CCAvenue page did not open")
 
-            submitted = await self._submit_upi(ccavenue_page, upi_vpa)
-            if not submitted:
-                return PaymentResult(success=False, error="Failed to submit UPI VPA on CCAvenue")
+            if payment_method == "wallet":
+                submitted = await self._submit_wallet(ccavenue_page, wallet_type or "phonepe")
+                if not submitted:
+                    return PaymentResult(success=False, error=f"Failed to select wallet: {wallet_type}")
+            else:
+                submitted = await self._submit_upi(ccavenue_page, upi_vpa)
+                if not submitted:
+                    return PaymentResult(success=False, error="Failed to submit UPI VPA on CCAvenue")
 
             return await self._poll_for_result(ccavenue_page)
 
@@ -230,6 +300,75 @@ class CCAvenuePayer:
 
         except Exception as e:
             logger.error("UPI submit error: %s", e)
+            return False
+
+    async def _submit_wallet(self, page: Page, wallet_type: str) -> bool:
+        """Select Wallet tab, select specific wallet, click Pay Now."""
+        logger.info("_submit_wallet on page: %s, wallet: %s", page.url, wallet_type)
+        try:
+            # Click Wallet tab
+            for sel in _SELECTORS["wallet_tab"]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3_000):
+                        await el.click()
+                        logger.info("Selected Wallet tab")
+                        await page.wait_for_timeout(1_000)
+                        break
+                except Exception:
+                    continue
+
+            # Get wallet selectors
+            wallet_selectors = _SELECTORS["wallet_options"].get(wallet_type.lower())
+            if not wallet_selectors:
+                logger.error("Unknown wallet type: %s", wallet_type)
+                return False
+
+            # Find and click the wallet
+            wallet_el = None
+            for sel in wallet_selectors:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3_000):
+                        wallet_el = el
+                        logger.info("Found wallet %s via selector: %s", wallet_type, sel)
+                        break
+                except Exception:
+                    continue
+
+            if wallet_el is None:
+                logger.error("Wallet %s not found on page", wallet_type)
+                # Log all visible images for debugging
+                try:
+                    imgs = await page.evaluate("""
+                        () => Array.from(document.querySelectorAll('img'))
+                            .map(e => e.alt || e.src || '').filter(x => x).join(' | ')
+                    """)
+                    logger.error("Available images: %s", imgs[:500])
+                except Exception:
+                    pass
+                return False
+
+            await wallet_el.click()
+            logger.info("Selected wallet: %s", wallet_type)
+            await page.wait_for_timeout(1_000)
+
+            # Click Pay Now
+            for sel in _SELECTORS["submit_btn"]:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=3_000):
+                        await el.click()
+                        logger.info("Clicked Pay Now — waiting for wallet redirect")
+                        return True
+                except Exception:
+                    continue
+
+            logger.error("Could not find Pay Now button for wallet payment")
+            return False
+
+        except Exception as e:
+            logger.error("Wallet submit error: %s", e)
             return False
 
     async def _poll_for_result(self, page: Page) -> PaymentResult:

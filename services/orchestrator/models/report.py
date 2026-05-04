@@ -50,6 +50,7 @@ class FeasibilityReport(Base, UUIDMixin, TimestampMixin):
     )
     input_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    data_buffer: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     tool_log: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     llm_analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -101,7 +101,6 @@ class LLMCaptchaSolver:
             "generationConfig": {
                 "maxOutputTokens": 256,
                 "temperature": 0,
-                "thinkingConfig": {"thinkingBudget": 0},
             },
             "safetySettings": [
                 {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},

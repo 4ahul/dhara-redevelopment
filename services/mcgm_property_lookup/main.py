@@ -23,7 +23,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Initializing MCGM Property Lookup (ArcGIS Layer Discovery)...")
 
-    # Pre-discover the ArcGIS feature layer URL so the first request is fast.
+    # 1. Initialize DB
+    try:
+        from .services.storage import StorageService
+        storage = StorageService(settings.DATABASE_URL)
+        storage._init_db()
+    except Exception as e:
+        logger.warning("Database initialization failed: %s", e)
+
+    # 2. Pre-discover the ArcGIS feature layer URL so the first request is fast.
     try:
         import httpx
 

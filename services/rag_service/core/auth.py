@@ -3,32 +3,34 @@ import os
 import uuid
 
 import jwt
+from jwt import PyJWKClient
+from jwt.exceptions import InvalidTokenError
+
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
-# Clerk configuration
-CLERK_JWT_KEY = os.environ.get("CLERK_JWT_KEY", "")
 # Fallback for local development/testing without Clerk
 SECRET_KEY = os.environ.get("SECRET_KEY", "temporary-secret-key-for-dhara-rag")
-ALGORITHM = "RS256" if CLERK_JWT_KEY.startswith("-----BEGIN PUBLIC KEY-----") else "HS256"
 
 
 def decode_token(token: str) -> dict | None:
     """
-    Decodes and validates a JWT token, trying Clerk RS256 first, then local HS256.
+    Decodes and validates a JWT token, trying Clerk RS256 first (via JWKS), then local HS256.
     """
-    # 1. Try Clerk RS256 if CLERK_JWT_KEY configured
-    if CLERK_JWT_KEY:
-        try:
-            return jwt.decode(
-                token, CLERK_JWT_KEY, algorithms=["RS256"], options={"verify_aud": False}
-            )
-        except jwt.InvalidTokenError:
-            logger.debug("Clerk RS256 token decoding failed, trying HS256.")
-            pass  # Fall through to HS256
-        except Exception as e:
-            logger.error(f"Unexpected error decoding Clerk RS256 token: {e}")
-            pass  # Fall through in case of other errors
+    # 1. Try Clerk RS256 via dynamic JWKS
+    try:
+        jwks_client = PyJWKClient(settings.CLERK_JWKS_URL)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token, signing_key.key, algorithms=["RS256"], options={"verify_aud": False}
+        )
+    except InvalidTokenError:
+        logger.debug("Clerk RS256 token decoding failed, trying HS256.")
+        pass  # Fall through to HS256
+    except Exception as e:
+        logger.error(f"Unexpected error decoding Clerk RS256 token: {e}")
+        pass  # Fall through in case of other errors
 
     # 2. Try local HS256 (frontend's own login/register flow)
     try:

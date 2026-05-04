@@ -49,6 +49,7 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
         "num_commercial": req.num_commercial,
         "existing_commercial_carpet_sqft": req.existing_commercial_carpet_sqft,
         "existing_residential_carpet_sqft": req.existing_residential_carpet_sqft,
+        "existing_bua_sqft": req.existing_bua_sqft,
         "sale_rate_per_sqft": req.sale_rate_per_sqft,
         # ── Nested dicts from microservices ────────────────────────
         "site_analysis": req.site_analysis or {},

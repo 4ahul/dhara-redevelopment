@@ -16,6 +16,7 @@ from ..core.security import (
     decode_token,
 )
 from ..models.enums import UserRole
+from ..models.user import User
 from ..repositories import user_repository
 from ..schemas.auth import AuthResponse, AuthUserInfo
 

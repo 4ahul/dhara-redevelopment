@@ -18,6 +18,7 @@ async def run_feasibility_analysis(ctx, req: dict, user_id: str, report_id: str)
 
     # 1. Initialize Dossier
     await dossier_service.create_dossier(report_id, req)
+    await dossier_service.update_dossier(report_id, "start", {"status": "processing"})
 
     # 2. Run the actual analysis
     # Note: We pass None for background_tasks as we are already in a background worker

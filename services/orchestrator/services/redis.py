@@ -50,6 +50,19 @@ def get_redis() -> redis.Redis | None:
 
 
 def get_arq():
+    """Return the Arq pool. Returns None if not initialized yet."""
+    return arq_pool
+
+
+async def get_arq_or_init() -> Any:
+    """Return arq pool, lazily initializing it if it's None (e.g. after uvicorn hot-reload)."""
+    global arq_pool
+    if arq_pool is None:
+        try:
+            arq_pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
+            logger.info("Arq task pool lazily re-initialized")
+        except Exception as e:
+            logger.warning("Failed to lazily init Arq pool: %s", e)
     return arq_pool
 
 

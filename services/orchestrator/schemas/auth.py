@@ -67,3 +67,20 @@ class ChangePasswordRequest(BaseModel):
 
     current_password: str = Field(min_length=6)
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    """Email/password login request."""
+
+    email: str
+    password: str
+
+
+class SignupRequest(BaseModel):
+    """User signup request."""
+
+    email: str
+    password: str
+    name: str
+    organization: str | None = None
+    role: str | None = "pmc"

@@ -127,10 +127,10 @@ async def analyze_feasibility(
     """
     from uuid import uuid4
 
-    from services.orchestrator.services.redis import get_arq
+    from services.orchestrator.services.redis import get_arq_or_init
 
     job_id = str(uuid4())
-    arq = get_arq()
+    arq = await get_arq_or_init()
 
     if arq:
         # Enqueue the job (Task 1)
@@ -156,7 +156,7 @@ async def analyze_feasibility_by_society(
     """Trigger full feasibility analysis from an existing society and store results."""
     from uuid import uuid4
 
-    from services.orchestrator.services.redis import get_arq
+    from services.orchestrator.services.redis import get_arq_or_init
 
     society = await society_repository.get_society_by_id(service.db, society_id, user.id)
     if not society:
@@ -179,7 +179,7 @@ async def analyze_feasibility_by_society(
     }
 
     job_id = str(uuid4())
-    arq = get_arq()
+    arq = await get_arq_or_init()
 
     if arq:
         await arq.enqueue_job("run_feasibility_analysis", req_data, str(user.id), job_id)
@@ -211,7 +211,7 @@ async def analyze_feasibility_by_society_with_ocr(
     import base64
     from uuid import uuid4
 
-    from services.orchestrator.services.redis import get_arq
+    from services.orchestrator.services.redis import get_arq_or_init
 
     society = await society_repository.get_society_by_id(service.db, society_id, user.id)
     if not society:
@@ -241,7 +241,7 @@ async def analyze_feasibility_by_society_with_ocr(
         req_data["dp_remark_pdf_b64"] = base64.b64encode(dp_bytes).decode()
 
     job_id = str(uuid4())
-    arq = get_arq()
+    arq = await get_arq_or_init()
 
     if arq:
         await arq.enqueue_job("run_feasibility_analysis", req_data, str(user.id), job_id)
@@ -274,6 +274,8 @@ async def submit_feasibility_form(
     # Land identifier
     land_identifier_type: str | None = Form(None, alias="landIdentifierType"),
     land_identifier_value: str | None = Form(None, alias="landIdentifierValue"),
+    tps_name: str | None = Form(None, alias="tpsScheme"),
+    plot_area_sqm: float | None = Form(None, alias="plotAreaSqM"),
     # Tenement
     tenement_mode: str = Form("manual", alias="tenementMode"),
     number_of_tenements: int | None = Form(None, alias="numberOfTenements"),
@@ -300,6 +302,9 @@ async def submit_feasibility_form(
     # Sale rates
     salable_residential_rate: float | None = Form(None, alias="salableResidentialRatePerSqFt"),
     cars_to_sell_rate: float | None = Form(None, alias="carsToSellRatePerCar"),
+    # Zone/FSI manual overrides
+    zone_code: str | None = Form(None, alias="zone_code"),
+    fsi: float | None = Form(None, alias="fsi"),
 ):
     """Full feasibility form submission.
 
@@ -312,7 +317,7 @@ async def submit_feasibility_form(
     import json
     from uuid import uuid4
 
-    from services.orchestrator.services.redis import get_arq
+    from services.orchestrator.services.redis import get_arq_or_init
 
     society = await society_repository.get_society_by_id(service.db, society_id, user.id)
     if not society:
@@ -412,10 +417,14 @@ async def submit_feasibility_form(
     if land_identifier_type and land_identifier_value:
         if land_identifier_type.upper() == "CTS":
             req_data["cts_no"] = land_identifier_value
+            req_data["fp_no"] = ""
             req_data["use_fp_scheme"] = False
         elif land_identifier_type.upper() == "FP":
             req_data["fp_no"] = land_identifier_value
+            req_data["cts_no"] = ""
             req_data["use_fp_scheme"] = True
+    if tps_name:
+        req_data["tps_name"] = tps_name
 
     # Tenement counts (manual mode)
     if tenement_mode == "manual":
@@ -423,6 +432,10 @@ async def submit_feasibility_form(
             req_data["num_flats"] = number_of_tenements
         if number_of_commercial_shops is not None:
             req_data["num_commercial"] = number_of_commercial_shops
+
+    # Plot area override (ensure it hits top-level for Ready Reckoner/etc)
+    if plot_area_sqm is not None:
+        req_data["plot_area_sqm"] = plot_area_sqm
 
     # Files → base64 for ARQ worker
     if old_plan_bytes:
@@ -473,6 +486,12 @@ async def submit_feasibility_form(
         manual_inputs["salableResidentialRatePerSqFt"] = salable_residential_rate
     if cars_to_sell_rate is not None:
         manual_inputs["carsToSellRatePerCar"] = cars_to_sell_rate
+    if zone_code is not None:
+        manual_inputs["zone_code"] = zone_code
+    if fsi is not None:
+        manual_inputs["fsi"] = fsi
+    if plot_area_sqm is not None:
+        manual_inputs["plot_area_sqm"] = plot_area_sqm
 
     # saleAreaBreakup: parse JSON string, store nested dict + unpack legacy keys
     if sale_area_breakup:
@@ -523,8 +542,10 @@ async def submit_feasibility_form(
     req_data["financial"] = financial
 
     job_id = str(uuid4())
-    arq = get_arq()
+    arq = await get_arq_or_init()
+    logger.error(f"DEBUG: arq is {arq}, type {type(arq)}, bool {bool(arq)}")
     if arq:
+        logger.error("DEBUG: Enqueueing job in arq!")
         await arq.enqueue_job("run_feasibility_analysis", req_data, str(user.id), job_id)
         return FeasibilityAnalyzeResponse(
             job_id=job_id, status="processing", report_generated=False
@@ -563,16 +584,34 @@ async def download_feasibility_report(
     from services.orchestrator.services.dossier_service import dossier_service
     from services.orchestrator.services.feasibility_orchestrator import _REPORT_STORE
 
-    # 1. Try in-memory store (same-process generation, e.g. sync fallback)
+    # 1. Try in-memory store (same-process generation)
     report_path = _REPORT_STORE.get(job_id)
+    
+    # 2. Try DB lookup (canonical source of truth for worker-generated reports)
+    if not report_path:
+        from ..db import async_session_factory
+        from ..models import FeasibilityReport
+        async with async_session_factory() as db:
+            report = await db.get(FeasibilityReport, job_id)
+            if report and report.report_path:
+                report_path = report.report_path
+
+    # 3. Final check on filesystem
+    if not report_path:
+        # Fallback to standard naming convention
+        potential_path = f"generated_reports/feasibility_{job_id}.xlsx"
+        if os.path.exists(potential_path):
+            report_path = potential_path
+
     if report_path and os.path.exists(report_path):
+        from fastapi.responses import FileResponse
         return FileResponse(
             path=report_path,
             filename=f"Feasibility_Report_{job_id}.xlsx",
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-    # 2. Try Cloudinary URL from dossier (worker-generated reports)
+    # 4. Try Cloudinary URL from dossier
     dossier = await dossier_service.get_dossier(job_id)
     if dossier:
         file_url = dossier.get("data", {}).get("final_result", {}).get("report_url")

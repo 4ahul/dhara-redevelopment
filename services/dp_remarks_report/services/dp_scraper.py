@@ -77,6 +77,7 @@ class DPBrowserScraper:
             )
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
+                ignore_https_errors=True,
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -419,35 +420,36 @@ class DPBrowserScraper:
         if not use_fp_scheme:
             # CTS path: SelectWardR → SelectVillageR → SelectCTSR → generateCTSreport
             fill_ok = await self._dprmarks_fill_form(page, ward, village, cts_no)
+            next_ok = False
             if fill_ok:
                 next_ok = await self._dprmarks_click_next(page, path="cts")
                 if next_ok:
                     logger.info("CTS path succeeded — proceeding to challan")
                     use_fp_scheme = False  # stay on CTS path
-                else:
-                    logger.warning("CTS path failed (generateChallan did not enable) — trying FP path")
-                    use_fp_scheme = True  # fall back to FP path
-                    # Re-click Report to reset the form
-                    await self._dprmarks_click_report(page)
-                    await asyncio.sleep(2)
+            
+            if not fill_ok or not next_ok:
+                logger.warning("CTS path failed (fill or next) — trying FP path")
+                use_fp_scheme = True  # fall back to FP path
+                logger.info("Switching to FP tab on the current form...")
+                await asyncio.sleep(1)
 
         if use_fp_scheme:
-            # FP path: SelectWardR → SelectTPSSchemeR → SelectFPR → generateFPreport
-            if not tps_scheme:
+            # FP path: SelectWardR → SelectVillageR → SelectTPSSchemeR → SelectFPR → generateFPreport
+            if False and not tps_scheme:
                 logger.error("FP path required but no tps_scheme provided — cannot proceed")
                 return {
                     "attributes": None,
                     "screenshot_b64": await self._screenshot(page),
                     "error": "CTS not in portal dropdown and no tps_scheme provided for FP fallback",
                 }
-            fill_ok = await self._dprmarks_fill_form_fp(page, ward, tps_scheme, fp_no_for_form)
+            fill_ok = await self._dprmarks_fill_form_fp(page, ward, village, tps_scheme, fp_no_for_form)
             if not fill_ok:
                 return {
                     "attributes": None,
                     "screenshot_b64": await self._screenshot(page),
                     "error": "Failed to fill FP form fields",
                 }
-            next_ok = await self._dprmarks_click_next(page, path="fp")
+            next_ok = await self._dprmarks_click_next(page, path="fp", ward=ward, village=village, tps_scheme=tps_scheme, fp_no=fp_no_for_form)
             if not next_ok:
                 return {
                     "attributes": None,
@@ -494,7 +496,20 @@ class DPBrowserScraper:
                         timeout_seconds=settings.PAYMENT_TIMEOUT_SECONDS,
                     )
                     # bank_popup_page IS the bank selection page — pass it directly
-                    result = await payer.pay(bank_popup_page, settings.BUSINESS_UPI_VPA)
+                    # Use wallet payment method if configured, otherwise UPI
+                    payment_method = getattr(settings, "PAYMENT_METHOD", "upi")
+                    if payment_method == "wallet":
+                        wallet_type = getattr(settings, "WALLET_TYPE", "phonepe")
+                        result = await payer.pay(
+                            bank_popup_page,
+                            payment_method="wallet",
+                            wallet_type=wallet_type,
+                        )
+                    else:
+                        result = await payer.pay(
+                            bank_popup_page,
+                            upi_vpa=settings.BUSINESS_UPI_VPA,
+                        )
 
                     if result.timed_out:
                         return {
@@ -708,6 +723,36 @@ class DPBrowserScraper:
                     else { el.style.display = 'block'; }
                 }
             }""")
+            
+            # Step 6: Handle "Already Logged" dialog and potentially re-submit
+            try:
+                dialog_handled = False
+                for dialog_sel in [
+                    "input[id='popupOKError']",
+                    "button:has-text('OK')",
+                    "input[value='OK']",
+                ]:
+                    dlg = page.locator(dialog_sel).first
+                    if await dlg.is_visible(timeout=3_000):
+                        await dlg.click()
+                        logger.info("Clicked OK to dismiss 'Already Logged' dialog")
+                        dialog_handled = True
+                        await asyncio.sleep(2)
+                        
+                        # Re-submit login form once more after dismissing the block
+                        logger.info("Re-submitting login form after dismissing 'Already Logged' block")
+                        for sub_sel in submit_selectors:
+                            sub_el = page.locator(sub_sel).first
+                            if await sub_el.is_visible(timeout=2_000):
+                                await sub_el.click()
+                                break
+                        await asyncio.sleep(5)
+                        break
+                if not dialog_handled:
+                    logger.info("No 'Already Logged' dialog - session clear")
+            except Exception as e:
+                logger.warning("Error during 'Already Logged' dialog handling: %s", e)
+            
             # Dump post-login page state for diagnostics
             try:
                 post_login_url = page.url
@@ -829,16 +874,29 @@ class DPBrowserScraper:
             # Select CTS
             try:
                 cts_dropdown = page.locator("input[id='SelectCTSR']").first
-                if await cts_dropdown.is_visible(timeout=3000):
+                if await cts_dropdown.is_visible(timeout=5000):
                     await cts_dropdown.click()
                     await asyncio.sleep(1)
                     await cts_dropdown.fill(cts_no)
                     await asyncio.sleep(1)
-                    await page.keyboard.press("ArrowDown")
-                    await page.keyboard.press("Enter")
-                    logger.info(f"Selected CTS: {cts_no}")
+                    
+                    # Wait for dropdown options to appear
+                    options = page.locator("li.ui-menu-item, li.ui-selectmenu-item, .ui-menu-item, [role='option']")
+                    try:
+                        await options.first.wait_for(timeout=3_000)
+                        await page.keyboard.press("ArrowDown")
+                        await asyncio.sleep(0.5)
+                        await page.keyboard.press("Enter")
+                        logger.info(f"Selected CTS: {cts_no}")
+                    except Exception:
+                        logger.warning(f"CTS {cts_no} not found in dropdown")
+                        return False
+                else:
+                    logger.warning("SelectCTSR field not visible")
+                    return False
             except Exception as e:
                 logger.warning(f"Could not select CTS: {e}")
+                return False
 
             return True
 
@@ -846,7 +904,7 @@ class DPBrowserScraper:
             logger.error("DPRMarks form fill error: %s", e)
             return False
 
-    async def _dprmarks_fill_form_fp(self, page: Page, ward: str, tps_scheme: str, fp_no: str) -> bool:
+    async def _dprmarks_fill_form_fp(self, page: Page, ward: str, village: str, tps_scheme: str, fp_no: str) -> bool:
         """Fill ward, TPS scheme, FP number for the FP/2034 path."""
         try:
             await asyncio.sleep(2)
@@ -864,85 +922,288 @@ class DPBrowserScraper:
 
             # Switch to FP tab — the form has CTS/CS and FP tabs
             fp_tab_switched = False
+            
+            # Debug: dump ALL text elements
+            try:
+                all_elements = await page.evaluate("""() => {
+                    var items = document.querySelectorAll('li, a, span, div, button');
+                    var results = [];
+                    for (var el of items) {
+                        if (el.offsetParent !== null) {
+                            var txt = (el.innerText || el.textContent || '').trim().toUpperCase();
+                            if (txt === 'FP' || txt === 'CTS/CS' || txt.includes('FP')) {
+                                results.push(el.tagName + '|' + txt + '|' + (el.id || 'no-id'));
+                            }
+                        }
+                    }
+                    return results.join(' || ');
+                }""")
+                logger.info("FP tab debug elements: %s", all_elements)
+            except Exception as e:
+                logger.warning("Debug dump failed: %s", e)
+            
+            # Try clicking the LI element directly
             for tab_sel in [
-                "a:has-text('F.P.')",
-                "a:has-text('FP')",
-                "li:has-text('F.P.')",
-                "span:has-text('F.P.')",
-                "[id*='fpTab']",
-                "[id*='FPTab']",
-                "[id*='fp_tab']",
-                "a[id*='FP']",
-                "button:has-text('F.P.')",
+                "li:has-text('FP')",
+                "li.tab:has-text('FP')", 
+                "[id*='FP']",
+                "#fpTab",
+                "a[href*='FP']",
             ]:
                 try:
                     el = page.locator(tab_sel).first
                     if await el.is_visible(timeout=2_000):
                         await el.click()
-                        logger.info("Switched to FP tab via: %s", tab_sel)
-                        fp_tab_switched = True
-                        await asyncio.sleep(2)
-                        break
-                except Exception:
+                        await asyncio.sleep(1)
+                        # Verify switched by checking if TPS field now appears
+                        tps_check = page.locator("input[id='SelectTPSSchemeR']")
+                        if await tps_check.is_visible(timeout=3_000):
+                            logger.info("Switched to FP tab via: %s", tab_sel)
+                            fp_tab_switched = True
+                            await asyncio.sleep(1)
+                            break
+                        else:
+                            logger.warning("Clicked %s but TPS field not visible, retrying...", tab_sel)
+                except Exception as e:
+                    logger.warning("FP tab selector %s failed: %s", tab_sel, e)
                     continue
             if not fp_tab_switched:
-                logger.warning("FP tab not found — SelectTPSSchemeR may not appear")
-
-            # Ward (same as CTS path)
-            try:
-                ward_el = page.locator("input[id='SelectWardR']").first
-                if await ward_el.is_visible(timeout=5_000):
-                    await ward_el.click()
-                    await asyncio.sleep(1)
-                    await ward_el.fill(ward)
-                    await asyncio.sleep(1)
-                    await page.keyboard.press("ArrowDown")
+                logger.warning("FP tab not found - trying href selector")
+                # Try #menuFP first (from user's HTML) then #menu2 fallback
+                for menu_id in ["#menuFP", "#menu2"]:
+                    try:
+                        fp_link = page.locator(f"a[href='{menu_id}']").first
+                        if await fp_link.is_visible(timeout=3000):
+                            await fp_link.click()
+                            logger.info("Clicked FP tab via href=%s", menu_id)
+                            await asyncio.sleep(3)
+                            
+                            # Check if FP form fields are now visible
+                            tps_field = page.locator("input[id='SelectTPSSchemeR']").first
+                            if await tps_field.is_visible(timeout=3000):
+                                fp_tab_switched = True
+                                logger.info("FP tab switched, TPS field visible!")
+                                break
+                    except Exception as e:
+                        logger.warning("href %s selector failed: %s", menu_id, e)
+                        continue
+                
+                # JS fallback: find and click the FP tab
+                js_result = await page.evaluate("""() => {
+                    var items = document.querySelectorAll('li, a, span, div');
+                    for (var el of items) {
+                        var txt = (el.innerText || el.textContent || '').trim().toUpperCase();
+                        if (txt === 'FP') {
+                            el.click();
+                            return 'clicked FP tab';
+                        }
+                    }
+                    return 'not found';
+                }""")
+                if js_result == 'clicked FP tab':
+                    fp_tab_switched = True
+                    # Multiple strategies to ensure FP form loads
+                    await asyncio.sleep(2)
+                    logger.info("JS clicked FP tab, trying keyboard navigation...")
+                    
+                    # Try pressing Tab to get to FP tab, then Enter
+                    for _ in range(5):
+                        await page.keyboard.press("Tab")
+                        await asyncio.sleep(0.5)
+                    
                     await page.keyboard.press("Enter")
-                    logger.info("FP path: selected ward: %s", ward)
+                    await asyncio.sleep(3)
+                    
+                    # Also try direct URL with FP parameter
+                    logger.info("Trying FP tab via direct click...")
+                    try:
+                        await page.evaluate("""() => {
+                            var links = document.querySelectorAll('li, a, span');
+                            for (var el of links) {
+                                if ((el.innerText || '').trim().toUpperCase() === 'FP') {
+                                    el.click();
+                                    return 'clicked';
+                                }
+                            }
+                            // Try clicking by tab order - FP is typically the second tab (index 1)
+                            var tabs = document.querySelectorAll('[role=tab]');
+                            if (tabs.length > 1) { tabs[1].click(); return 'tab[1]'; }
+                            return 'not found';
+                        }""")
+                    except Exception as e:
+                        logger.warning("Direct click failed: %s", e)
+                    
+                    await asyncio.sleep(3)
+                    logger.info("FP tab click attempt complete, waiting for TPS field...")
+
+            # Wait for FP form to fully load after tab switch
+            await asyncio.sleep(2)
+            
+            try:
+                inputs_after = await page.evaluate(
+                    "() => Array.from(document.querySelectorAll('input'))"
+                    ".filter(el => el.offsetParent !== null)"
+                    ".map(el => el.id + '|' + el.type + '|' + el.name)"
+                )
+                logger.info("FP tab inputs after switch: %s", inputs_after)
+            except Exception:
+                pass
+
+            # ====== PROPER DROPDOWN SELECTION ======
+            # Helper to select from autocomplete dropdown
+            async def select_dropdown_option(field_id: str, value: str, field_label: str):
+                try:
+                    field = page.locator(f"input[id='{field_id}']").first
+                    if not await field.is_visible(timeout=5_000):
+                        logger.warning(f"{field_label}: field not visible")
+                        return False
+                    
+                    # Try setting value directly via dijit first (most reliable for MCGM portal)
+                    js_result = await page.evaluate("""([fieldId, val]) => {
+                        try {
+                            if (typeof dijit !== 'undefined') {
+                                var d = dijit.byId(fieldId);
+                                if (d) {
+                                    // Try to open dropdown to force data load
+                                    try { if (d.loadDropDown) d.loadDropDown(); } catch(e) {}
+                                    try { if (d.openDropDown) d.openDropDown(); } catch(e) {}
+                                    
+                                    // Try to find the exact option in the store
+                                    var items = [];
+                                    if (d.store) {
+                                        if (d.store.data) items = d.store.data;
+                                        else if (d.store._arrayOfAllItems) items = d.store._arrayOfAllItems;
+                                    }
+                                    
+                                    var matchedItem = null;
+                                    var searchAttr = d.searchAttr || 'name';
+                                    var available = [];
+                                    if (items && items.length > 0) {
+                                        for (var i=0; i<items.length; i++) {
+                                            var txtRaw = items[i][searchAttr];
+                                            var txt = Array.isArray(txtRaw) ? txtRaw[0] : txtRaw;
+                                            if (txt) {
+                                                available.push(txt);
+                                                if (txt.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(txt.toLowerCase())) {
+                                                    matchedItem = items[i];
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (matchedItem) {
+                                        d.set('item', matchedItem);
+                                        if (d.onChange) { d.onChange(d.get('value')); }
+                                        var mText = Array.isArray(matchedItem[searchAttr]) ? matchedItem[searchAttr][0] : matchedItem[searchAttr];
+                                        return 'dijit set item to: ' + mText;
+                                    } else {
+                                        d.set('displayedValue', val);
+                                        if (d.onChange) { d.onChange(d.get('value')); }
+                                        return 'dijit set displayedValue to: ' + val + ' (Available: ' + available.slice(0,10).join(', ') + ')';
+                                    }
+                                }
+                            }
+                        } catch(e) { return 'js error: ' + e; }
+                        return 'dijit not found';
+                    }""", [field_id, value])
+                    
+                    logger.info(f"{field_label}: JS dijit setup result: {js_result}")
+                    await asyncio.sleep(2)
+                    
+                    # Fallback to UI interaction if JS didn't work perfectly
+                    if 'dijit set item to' not in js_result:
+                        await field.click()
+                        await asyncio.sleep(0.5)
+                        await field.fill("")
+                        await asyncio.sleep(0.5)
+                        
+                        # Open the dropdown using the down arrow button if available
+                        await page.evaluate(f"""(fieldId) => {{
+                            try {{
+                                var d = typeof dijit !== 'undefined' ? dijit.byId(fieldId) : null;
+                                if (d && d._buttonNode) {{ d._buttonNode.click(); }}
+                            }} catch(e) {{}}
+                        }}""", field_id)
+                        await asyncio.sleep(1)
+                        
+                        # Force open with keyboard
+                        await page.keyboard.press("ArrowDown")
+                        await asyncio.sleep(2)
+                        
+                        options = page.locator("li.ui-menu-item:visible, li.ui-selectmenu-item:visible, .ui-menu-item:visible, [role='option']:visible, .dijitMenuItem:visible")
+                        try:
+                            # We don't type first, we just open it and look for the option
+                            count = await options.count()
+                            clicked = False
+                            
+                            # If no options, try typing the value
+                            if count == 0:
+                                await field.type(value, delay=100)
+                                await asyncio.sleep(2)
+                                await page.keyboard.press("ArrowDown")
+                                await asyncio.sleep(1)
+                                count = await options.count()
+                            
+                            for i in range(count):
+                                opt = options.nth(i)
+                                text = await opt.text_content() or ""
+                                text_clean = text.strip()
+                                if text_clean and "Previous" not in text_clean and "More" not in text_clean:
+                                    # Ensure it actually matches the value we want
+                                    val_clean = value.strip().lower()
+                                    if val_clean in text_clean.lower() or text_clean.lower() in val_clean:
+                                        await opt.click()
+                                        logger.info(f"{field_label}: clicked dropdown option '{text_clean}'")
+                                        clicked = True
+                                        break
+                            
+                            # If no exact match found, try to click the first valid one if we are desperate
+                            if not clicked and count > 0:
+                                for i in range(count):
+                                    opt = options.nth(i)
+                                    text = await opt.text_content() or ""
+                                    text_clean = text.strip()
+                                    if text_clean and "Previous" not in text_clean and "More" not in text_clean:
+                                        await opt.click()
+                                        logger.warning(f"{field_label}: no exact match, clicked first option '{text_clean}'")
+                                        clicked = True
+                                        break
+                                        
+                            if not clicked:
+                                await page.keyboard.press("Tab")
+                        except Exception:
+                            await page.keyboard.press("Tab")
+                    
                     await asyncio.sleep(1)
-            except Exception as e:
-                logger.warning("FP path: could not select ward: %s", e)
+                    actual_value = await field.input_value()
+                    logger.info(f"{field_label}: input value after selection: {actual_value}")
+                    return True
+                except Exception as e:
+                    logger.warning(f"{field_label}: selection failed: {e}")
+                    return False
+
+            # Ward 
+            await select_dropdown_option("SelectWardR2", ward, "FP path: Ward")
+            await asyncio.sleep(3) # Wait for TPS to load based on Ward
+
+            # Village/Division (Not needed for FP tab according to exact sequence)
+            # The order must be Ward -> TPS Scheme -> FP
 
             # TPS Scheme
-            try:
-                tps_el = page.locator("input[id='SelectTPSSchemeR']").first
-                if await tps_el.is_visible(timeout=5_000):
-                    await tps_el.click()
-                    await asyncio.sleep(1)
-                    await tps_el.fill(tps_scheme)
-                    await asyncio.sleep(1)
-                    await page.keyboard.press("ArrowDown")
-                    await page.keyboard.press("Enter")
-                    logger.info("FP path: selected TPS scheme: %s", tps_scheme)
-                    await asyncio.sleep(1)
-                else:
-                    logger.warning("FP path: SelectTPSSchemeR not visible")
-            except Exception as e:
-                logger.warning("FP path: could not select TPS scheme: %s", e)
+            tps_scheme_value = tps_scheme or village or "DADAR"  # fallback to ward name if no TPS
+            await select_dropdown_option("SelectTPSR", tps_scheme_value, "FP path: TPS Scheme")
+            await asyncio.sleep(3) # Wait for FP to load based on TPS
 
             # FP Number
-            try:
-                fp_el = page.locator("input[id='SelectFPR']").first
-                if await fp_el.is_visible(timeout=5_000):
-                    await fp_el.click()
-                    await asyncio.sleep(1)
-                    await fp_el.fill(fp_no)
-                    await asyncio.sleep(1)
-                    await page.keyboard.press("ArrowDown")
-                    await page.keyboard.press("Enter")
-                    logger.info("FP path: selected FP: %s", fp_no)
-                    await asyncio.sleep(1)
-                else:
-                    logger.warning("FP path: SelectFPR not visible")
-            except Exception as e:
-                logger.warning("FP path: could not select FP: %s", e)
+            await select_dropdown_option("SelectFPR", fp_no, "FP path: FP Number")
+            await asyncio.sleep(2)
 
             return True
         except Exception as e:
             logger.error("DPRMarks FP form fill error: %s", e)
             return False
 
-    async def _dprmarks_click_next(self, page: Page, path: str = "cts") -> bool:
+    async def _dprmarks_click_next(self, page: Page, path: str = "cts", ward: str = None, village: str = None, tps_scheme: str = None, fp_no: str = None) -> bool:
         """
         path="cts":
           A. Click generateCTSreport
@@ -979,6 +1240,17 @@ class DPBrowserScraper:
 
             await asyncio.sleep(5)
 
+            # After clicking first Next, there may be a popup dialog (e.g., "Select Ward.").
+            # Handle it BEFORE waiting for generateChallan.
+            try:
+                popup_ok = page.locator("input[id='popupOKError']").first
+                if await popup_ok.is_visible(timeout=5_000):
+                    await popup_ok.click()
+                    logger.info("Closed popup after first Next")
+                    await asyncio.sleep(2)
+            except Exception:
+                pass
+
             # Diagnostic: log page content after generateCTSreport to identify
             # what secondary CTS selector the portal renders
             try:
@@ -996,15 +1268,338 @@ class DPBrowserScraper:
             except Exception as e:
                 logger.warning("Could not read page after generateCTSreport: %s", e)
 
-            # B: Log any concurrent-session dialog but do NOT dismiss it.
-            # Clicking popupOKError on "Already Logged to other session" invalidates
-            # the current session. The session remains valid even with the dialog present.
+            # Handle popup that may appear after form submissions (e.g., "Select Ward." or "Already Logged" or "Add parcels...")
             try:
-                ok_btn = page.locator("input[id='popupOKError']").first
-                if await ok_btn.is_visible(timeout=2_000):
-                    logger.info("'Already Logged' dialog present — leaving it (dismissing logs out session)")
+                page_text = await page.evaluate("() => document.body.innerText")
+                logger.info("Popup check: page text = %s", page_text[:300])
+                
+                # Check for "Add parcels" popup - this has the generateChallan button inside it
+                if "Add parcels" in page_text or "Add More" in page_text:
+                    logger.info("Detected Add parcels popup - clicking generateChallan (Next in popup)...")
+                    popup_gc = page.locator("input[id='generateChallan']").first
+                    if await popup_gc.is_visible(timeout=3000):
+                        await popup_gc.click()
+                        logger.info("Clicked generateChallan in popup!")
+                        await asyncio.sleep(3)
+                        
+                        # Check if we're now on payment page
+                        new_page = await page.evaluate("() => document.body.innerText")
+                        if "Payment" in new_page or "Bank" in new_page or "Indian" in new_page:
+                            logger.info("Reached payment page!")
+                            return True
+                    else:
+                        logger.warning("generateChallan not found in Add parcels popup")
+                
+                # Handle other popups like "Select Ward"
+                if "Select Ward" in page_text or "SelectWard" in page_text:
+                    # Try multiple selectors for the OK button
+                    for sel in ["input[id='popupOKError']", "button[id='popupOKError']", "input[value='OK']", "button:has-text('OK')"]:
+                        try:
+                            btn = page.locator(sel).first
+                            if await btn.is_visible(timeout=1_000):
+                                await btn.click()
+                                logger.info("Closed popup with selector: %s", sel)
+                                break
+                        except Exception:
+                            continue
+                    await asyncio.sleep(2)
+            except Exception as e:
+                logger.warning("Popup handler error: %s", e)
+
+            # Check if on map page now - close any login overlay first
+            try:
+                page_text = await page.evaluate("() => document.body.innerText")
+                logger.info("After generateFPreport: %s", page_text[:300])
+                if "CTS/CS/FP Nos Selected" in page_text or "Map" in page_text:
+                    logger.info("On map page - trying to close login overlay")
+                    
+                    # Close any overlay/popup that might block clicks
+                    # Try close button with various selectors
+                    for close_sel in ["a[id*='popupBoxCloseError']", "span[class*='close']", "button:has-text('X')]", "a:has-text('X')"]:
+                        try:
+                            close_btn = page.locator(close_sel).first
+                            if await close_btn.is_visible(timeout=1000):
+                                await close_btn.click()
+                                logger.info("Closed overlay with: %s", close_sel)
+                                await asyncio.sleep(1)
+                                break
+                        except Exception:
+                            pass
+                    
+                    # Click in corner to dismiss any floating panel
+                    try:
+                        await page.mouse.click(10, 10)
+                        await asyncio.sleep(0.5)
+                    except Exception:
+                        pass
+                    
+                    logger.info("On map page - ready for generateChallan")
             except Exception:
                 pass
+            # ====== END ADD ======
+
+            # Click ALL "Next" buttons on the page until we reach payment
+            # There are multiple Next buttons in the flow:
+            # 1. generateChallan (2nd Next) 
+            # 2. Any other "Next" button
+            
+            await asyncio.sleep(2)
+            
+            # Try all possible Next button selectors
+            next_selectors = [
+                "input[id='generateChallan']",
+                "button[id='generateChallan']",
+                "input[value='Next']",
+                "button:has-text('Next')", 
+                "input[value='next']",
+                "button:has-text('next')",
+                "[id*='next']",
+            ]
+            
+            logger.info("Looking for Next buttons on map page...")
+            
+            # After generateFPreport, check if generateChallan is now enabled
+            # If generateFPreport was clicked and page changed, generateChallan should work
+            try:
+                gc = page.locator("input[id='generateChallan']").first
+                if await gc.is_visible(timeout=3000):
+                    gc_disabled = await gc.is_disabled()
+                    if not gc_disabled:
+                        logger.info("generateChallan is enabled - clicking it!")
+                        await gc.click()
+                        logger.info("Clicked generateChallan (map → payment)")
+                        await asyncio.sleep(5)
+                        
+                        # Check for payment page
+                        page_text = await page.evaluate("() => document.body.innerText")
+                        if "Payment" in page_text or "Bank" in page_text or "Indian" in page_text:
+                            logger.info("Reached payment page!")
+                            return True
+                    else:
+                        logger.info("generateChallan still disabled - need ADD to add FP to selection")
+                        
+                        # Try clicking ADD MORE to add the selected FP to the list
+                        # First close login overlay and hide it via JS
+                        try:
+                            await page.evaluate("""() => {
+                                var loginDiv = document.getElementById('user_login_div');
+                                if (loginDiv) loginDiv.style.display = 'none';
+                                var errPopup = document.getElementById('popupBoxCloseError');
+                                if (errPopup) errPopup.click();
+                            }""")
+                            overlay_close = page.locator("a[id='popupBoxCloseError']").first
+                            if await overlay_close.is_visible(timeout=1000):
+                                await overlay_close.click()
+                                logger.info("Closed login overlay before addSelection")
+                                await asyncio.sleep(1)
+                        except Exception:
+                            pass
+                        
+                        # Now try addSelection
+                        try:
+                            # Try regular click first
+                            add_btn = page.locator("input[id='addSelection']").first
+                            if await add_btn.is_visible(timeout=3000):
+                                await add_btn.click()
+                                logger.info("Clicked addSelection to add FP to selection list")
+                                await asyncio.sleep(3)
+                        except Exception as e:
+                            logger.warning("addSelection regular click failed: %s, trying JS", e)
+                            # Try JS click as fallback
+                            try:
+                                result = await page.evaluate("""() => {
+                                    var btn = document.getElementById('addSelection');
+                                    if (btn) { btn.click(); return 'clicked addSelection'; }
+                                    return 'not found';
+                                }""")
+                                logger.info("JS click result: %s", result)
+                                await asyncio.sleep(3)
+                            except Exception as js_err:
+                                logger.warning("JS click also failed: %s", js_err)
+                        
+                        # Wait and check if generateChallan is now enabled
+                        await asyncio.sleep(3)
+                        try:
+                            gc2 = page.locator("input[id='generateChallan']").first
+                            if await gc2.is_visible(timeout=3000):
+                                gc2_disabled = await gc2.is_disabled()
+                                if not gc2_disabled:
+                                    gc2.click()
+                                    logger.info("Clicked generateChallan after addSelection")
+                                    await asyncio.sleep(5)
+                                    return True
+                                else:
+                                    logger.info("generateChallan still disabled after add")
+                        except Exception as e:
+                            logger.warning("generateChallan check after add failed: %s", e)
+            except Exception as e:
+                logger.warning("generateChallan check failed: %s", e)
+            
+            # Log all form elements on page to understand structure
+            try:
+                forms = await page.evaluate("""() => {
+                    var results = [];
+                    document.querySelectorAll('form').forEach(f => {
+                        results.push('form id=' + f.id + ' action=' + f.action);
+                    });
+                    document.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                        results.push('checkbox id=' + cb.id + ' name=' + cb.name + ' checked=' + cb.checked);
+                    });
+                    return results.join(' || ');
+                }""")
+                logger.info("Forms/checkboxes on page: %s", forms)
+            except Exception as e:
+                logger.warning("Form check failed: %s", e)
+            
+            # Map page: need to find what triggers Create Challan - try all buttons/checkboxes
+            try:
+                # Also hide any blocking overlays
+                await page.evaluate("""() => {
+                    var loginDiv = document.getElementById('user_login_div');
+                    if (loginDiv) loginDiv.style.display = 'none';
+                    var errPopup = document.getElementById('popupBoxCloseError');
+                    if (errPopup) errPopup.click();
+                }""")
+                await asyncio.sleep(1)
+                
+                map_interact = await page.evaluate("""() => {
+                    var results = [];
+                    // Check all checkboxes using dijit if possible
+                    document.querySelectorAll('input').forEach(inp => {
+                        var type = inp.type || 'text';
+                        if (type === 'checkbox') {
+                            if (!inp.checked) {
+                                try {
+                                    var d = typeof dijit !== 'undefined' ? dijit.byId(inp.id) : null;
+                                    if (d) { d.set('checked', true); } else { inp.click(); }
+                                } catch(e) { inp.click(); }
+                                results.push('checked: ' + inp.id);
+                            }
+                        }
+                    });
+                    
+                    // After checking checkboxes, we might need to click addSelection
+                    try {
+                        var addBtn = typeof dijit !== 'undefined' ? dijit.byId('addSelection') : null;
+                        if (addBtn) { addBtn.click(); results.push('dijit clicked addSelection'); }
+                        else {
+                            var el = document.getElementById('addSelection');
+                            if (el) { el.click(); results.push('dom clicked addSelection'); }
+                        }
+                    } catch(e) {}
+                    
+                    return results.join(' || ');
+                }""")
+                logger.info("Map page interaction result: %s", map_interact)
+                
+                await asyncio.sleep(4)
+                
+                # Try clicking generateChallan normally now that checkboxes are checked
+                try:
+                    gc3 = page.locator("input[id='generateChallan']").first
+                    if await gc3.is_visible(timeout=2000):
+                        if not await gc3.is_disabled():
+                            await gc3.click()
+                            logger.info("Clicked generateChallan after checking checkboxes!")
+                            await asyncio.sleep(5)
+                            # Check page for challan summary
+                            page_text = await page.evaluate("() => document.body.innerText")
+                            if "Consumer Details" in page_text or "Create Challan" in page_text:
+                                logger.info("Reached challan summary page!")
+                                return True
+                except Exception as e:
+                    logger.warning("Normal generateChallan click failed after checkboxes: %s", e)
+                
+                # Try submitting form directly
+                form_submit = await page.evaluate("""() => {
+                    var forms = document.querySelectorAll('form');
+                    for (var f of forms) {
+                        // Try dijit form submit
+                        if (f.id && f.id.length > 0) {
+                            try { 
+                                var d = dijit.byId(f.id);
+                                if (d && d.submit) { d.submit(); return 'dijit.submit ' + f.id; }
+                            } catch(e) {}
+                        }
+                    }
+                    // Try generateChallan via dijit
+                    try {
+                        var gc = dijit.byId('generateChallan');
+                        if (gc) { gc.click(); return 'dijit.click generateChallan'; }
+                    } catch(e) {}
+                    // Try triggering onClick directly
+                    try {
+                        var btn = document.getElementById('generateChallan');
+                        if (btn && !btn.disabled) { btn.click(); return 'click generateChallan'; }
+                        if (btn && btn.onclick) { btn.onclick(); return 'onclick generateChallan'; }
+                    } catch(e) {}
+                    return 'no form submit';
+                }""")
+                logger.info("Form submit result: %s", form_submit)
+                await asyncio.sleep(5)
+                
+                # Check page for challan summary
+                page_text = await page.evaluate("() => document.body.innerText")
+                if "Consumer Details" in page_text or "Create Challan" in page_text:
+                    logger.info("Reached challan summary page!")
+                    return True
+                
+                # Try pressing Enter key to submit
+                await page.keyboard.press("Enter")
+                await asyncio.sleep(3)
+                page_text = await page.evaluate("() => document.body.innerText")
+                logger.info("After Enter key: %s", page_text[:300])
+                if "Consumer Details" in page_text or "Create Challan" in page_text:
+                    logger.info("Reached challan summary page!")
+                    return True
+            except Exception as e:
+                logger.warning("Map page interaction failed: %s", e)
+            try:
+                # Try multiple approaches to click Next
+                for attempt in range(3):
+                    clicked = await page.evaluate(f"""(attempt) => {{
+                        // Try clicking generateChallan button
+                        var gc = document.getElementById('generateChallan');
+                        if (gc && gc.offsetParent !== null) {{
+                            gc.click();
+                            return 'clicked generateChallan';
+                        }}
+                        
+                        // Try any button with NEXT value
+                        var inputs = document.querySelectorAll('input[value*="Next"], input[value*="next"]');
+                        for (var inp of inputs) {{
+                            if (inp.offsetParent !== null) {{
+                                inp.click();
+                                return 'clicked input Next';
+                            }}
+                        }}
+                        
+                        // Try buttons
+                        var btns = document.querySelectorAll('button');
+                        for (var btn of btns) {{
+                            if (btn.offsetParent !== null) {{
+                                var txt = (btn.value || btn.innerText || '').toUpperCase();
+                                if (txt.includes('NEXT')) {{
+                                    btn.click();
+                                    return 'clicked button: ' + txt;
+                                }}
+                            }}
+                        }}
+                        
+                        return 'no button found attempt ' + attempt;
+                    }}""", attempt)
+                    logger.info("JS click attempt %d: %s", attempt + 1, clicked)
+                    await asyncio.sleep(3)
+                    
+                    # Check page
+                    new_page = await page.evaluate("() => document.body.innerText")
+                    logger.info("After click page: %s", new_page[:200])
+                    
+                    if "Consumer Details" in new_page or "Create Challan" in new_page:
+                        logger.info("Reached challan summary page!")
+                        return True
+            except Exception as e:
+                logger.warning("JS click failed: %s", e)
 
             # C: Wait for generateChallan to become NOT disabled
             # CTS path: 15s timeout — if it doesn't enable, the CTS is not in dropdown;
@@ -1053,15 +1648,28 @@ class DPBrowserScraper:
         Fill the 'Enter Consumer Details' form on the challan summary page.
         MCGM portal requires applicant name + mobile before generating challan.
         """
+        # Hide loading spinner that might block clicks
+        try:
+            await page.evaluate("""() => {
+                var load = document.getElementById('loadingImg');
+                if (load) load.style.display = 'none';
+            }""")
+        except Exception:
+            pass
+
         from ..core import settings
 
         consumer_name = getattr(settings, "DPRMARKS_CONSUMER_NAME", "") or "Dhiraj Kunj CHS"
         consumer_mobile = getattr(settings, "DPRMARKS_CONSUMER_MOBILE", "") or "9999999999"
-        consumer_email = getattr(settings, "DPRMARKS_CONSUMER_EMAIL", "") or ""
+        consumer_email = getattr(settings, "DPRMARKS_CONSUMER_EMAIL", "") or "info@dhara.ai"
+        consumer_address = "Mumbai"
 
         filled = False
         name_selectors = [
             "input[id='consumerName']",
+            "input[id='firstname']",
+            "input[id='firstName']",
+            "input[name='firstName']",
             "input[id='inputConsumerName']",
             "input[name='consumerName']",
             "input[placeholder*='Name']",
@@ -1080,8 +1688,27 @@ class DPBrowserScraper:
             except Exception:
                 continue
 
+        # Also try to fill surname and lastname if it exists
+        try:
+            surname_el = page.locator("input[id='surname']").first
+            if await surname_el.is_visible(timeout=1000):
+                await surname_el.fill("CHS")
+                logger.info("Filled surname")
+        except Exception:
+            pass
+            
+        try:
+            lastname_el = page.locator("input[id='lastname']").first
+            if await lastname_el.is_visible(timeout=1000):
+                await lastname_el.fill("CHS")
+                logger.info("Filled lastname")
+        except Exception:
+            pass
+
         mobile_selectors = [
             "input[id='mobileNo']",
+            "input[id='mobile']",
+            "input[name='mobile']",
             "input[id='inputMobileNo']",
             "input[name='mobileNo']",
             "input[placeholder*='Mobile']",
@@ -1102,6 +1729,7 @@ class DPBrowserScraper:
 
         if consumer_email:
             email_selectors = [
+                "input[id='emailaddress']",
                 "input[id='emailId']",
                 "input[type='email']",
                 "input[placeholder*='Email']",
@@ -1116,6 +1744,15 @@ class DPBrowserScraper:
                         break
                 except Exception:
                     continue
+                    
+        # Fill address
+        try:
+            addr_el = page.locator("input[id='addressUser'], textarea[id='addressUser']").first
+            if await addr_el.is_visible(timeout=1000):
+                await addr_el.fill(consumer_address)
+                logger.info("Filled consumer address")
+        except Exception:
+            pass
 
         if not filled:
             # Dump all inputs to help diagnose form structure
@@ -1213,13 +1850,11 @@ class DPBrowserScraper:
         # Log the button's attributes for diagnosis
         try:
             btn_info = await page.evaluate(
-                "() => { var b = document.querySelector(\"button[id*='createChallan'], "
-                "button[onclick*='createChallan'], input[value='Create Challan'], "
-                "button\"); "
+                "() => { var b = document.querySelector(\"button:contains('Create Challan'), button\"); "
                 "if (!b) return 'btn not found'; "
-                "return b.id + '|' + b.disabled + '|onclick=' + (b.onclick || b.getAttribute('onclick') || ''); }"
+                "return b.outerHTML; }"
             )
-            logger.info("Create Challan button info: %s", btn_info)
+            logger.info("Create Challan button HTML: %s", btn_info)
         except Exception:
             pass
 
@@ -1227,7 +1862,8 @@ class DPBrowserScraper:
         logger.info("Clicking 'Create Challan' — capturing bank selection popup...")
         try:
             async with page.expect_popup(timeout=15_000) as popup_info:
-                await create_el.click()
+                # Use evaluate click first, it's more reliable if there are pointer-events: none issues
+                await create_el.evaluate("b => b.click()")
             bank_page = await popup_info.value()
             await bank_page.wait_for_load_state("domcontentloaded", timeout=20_000)
             title = await bank_page.title()

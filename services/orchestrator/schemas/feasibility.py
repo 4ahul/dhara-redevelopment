@@ -123,6 +123,7 @@ class FeasibilityReportResponse(BaseModel):
     status: str
     input_data: dict | None = None
     output_data: dict | None = None
+    data_buffer: dict | None = None
     llm_analysis: str | None = None
     error_message: str | None = None
     created_at: datetime

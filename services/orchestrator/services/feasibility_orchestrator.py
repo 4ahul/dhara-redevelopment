@@ -9,11 +9,13 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+from typing import Any, Coroutine, Dict, List, Optional, Tuple, Union
 from fastapi import BackgroundTasks
 
 from dhara_shared.services.cache import redis_cache
 from dhara_shared.services.http import AsyncHTTPClient
 
+from sqlalchemy.orm.attributes import flag_modified
 from ..core.config import settings
 from ..db import async_session_factory
 from ..models import FeasibilityReport, ReportStatus
@@ -25,8 +27,8 @@ logger = logging.getLogger(__name__)
 # In-memory store: job_id -> report file path (survives request lifecycle)
 _REPORT_STORE: dict[str, str] = {}
 
-# Where to write generated reports (inside the orchestrator's working dir)
-_REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "./generated_reports"))
+# Where to write generated reports (inside the shared volume)
+_REPORTS_DIR = Path(os.getenv("REPORTS_DIR", "./services/orchestrator/generated_reports"))
 _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 MCGM_URL = settings.MCGM_PROPERTY_URL
@@ -90,6 +92,149 @@ def _rr_locality_from_req(req: dict) -> tuple[str, str]:
 class FeasibilityOrchestrator:
     """Orchestrates all microservices for feasibility analysis."""
 
+    async def _update_buffer(self, job_id: str, key: str, data: dict):
+        """Update the data_buffer in the DB incrementally."""
+        try:
+            async with async_session_factory() as db:
+                report = await db.get(FeasibilityReport, job_id)
+                if report:
+                    buffer = report.data_buffer or {}
+                    buffer[key] = data
+                    report.data_buffer = buffer
+                    # Also update output_data for backward compatibility during processing
+                    report.output_data = {**(report.output_data or {}), **buffer}
+                    flag_modified(report, "data_buffer")
+                    flag_modified(report, "output_data")
+                    await db.commit()
+                    logger.debug(f"[{job_id}] Updated buffer key: {key}")
+        except Exception as e:
+            logger.warning(f"[{job_id}] Failed to update buffer: {e}")
+
+    async def _refresh_report(self, job_id: str, req: dict):
+        """Re-generate the report based on current data_buffer and update DB."""
+        try:
+            async with async_session_factory() as db:
+                report = await db.get(FeasibilityReport, job_id)
+                if not report:
+                    return
+                
+                buffer = report.data_buffer or {}
+                
+                # Map buffer back to round1/round2 structure for call_report_generator
+                round1 = {
+                    "pr_card": buffer.get("pr_card", {}),
+                    "mcgm": buffer.get("mcgm", {}),
+                    "site_analysis": buffer.get("site_analysis", {}),
+                    "dp_remarks": buffer.get("dp_remarks", {}),
+                    "ocr": buffer.get("ocr", {}),
+                    "tenements_ocr": buffer.get("tenements_ocr", {}),
+                }
+                round2 = {
+                    "aviation_height": buffer.get("aviation_height", {}),
+                    "ready_reckoner": buffer.get("ready_reckoner", {}),
+                }
+
+                async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
+                    report_bytes = await self.call_report_generator(
+                        client, round1, round2, req, job_id=job_id
+                    )
+                
+                report_filename = f"feasibility_{job_id}.xlsx"
+                report_path = str(_REPORTS_DIR / report_filename)
+                Path(report_path).write_bytes(report_bytes)
+                _REPORT_STORE[job_id] = report_path
+                
+                report.report_path = report_path
+                await db.commit()
+                logger.info(f"[{job_id}] Report refreshed at {report_path}")
+        except Exception as e:
+            logger.warning(f"[{job_id}] Failed to refresh report: {e}")
+
+    async def run_round1(self, req: dict, job_id: str | None = None) -> dict:
+        """Call Round 1 services and update buffer incrementally."""
+        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
+            tasks = [
+                ("pr_card", self.call_pr_card(client, req)),
+                ("mcgm", self.call_mcgm(client, req)),
+                ("site_analysis", self.call_site_analysis(client, req)),
+                ("dp_remarks", self.call_dp_remarks(client, req)),
+            ]
+            
+            import base64
+            ocr_pdf_bytes = req.get("ocr_pdf_bytes")
+            if not ocr_pdf_bytes and req.get("ocr_pdf_b64"):
+                ocr_pdf_bytes = base64.b64decode(req["ocr_pdf_b64"])
+            if ocr_pdf_bytes:
+                tasks.append(("ocr", self.call_ocr_service(
+                    client, ocr_pdf_bytes, doc_type="old_plan", 
+                    filename="old_plan.pdf", content_type="application/pdf"
+                )))
+
+            tenements_pdf_bytes = None
+            if req.get("tenements_sheet_b64"):
+                tenements_pdf_bytes = base64.b64decode(req["tenements_sheet_b64"])
+                tasks.append(("tenements_ocr", self.call_ocr_service(
+                    client, tenements_pdf_bytes, doc_type="tenements_sheet",
+                    filename=req.get("tenements_sheet_filename", "tenements.pdf"),
+                    content_type=req.get("tenements_sheet_content_type", "application/pdf")
+                )))
+
+            results = await self._run_parallel(tasks, req, job_id=job_id)
+            return results
+
+    async def run_round2(
+        self,
+        lat: float | None,
+        lng: float | None,
+        zone: str | None,
+        req: dict = None,
+        job_id: str | None = None,
+    ) -> dict:
+        """Call Round 2 dependent services and update buffer incrementally."""
+        req = req or {}
+        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
+            tasks = []
+
+            # Aviation Height needs lat/lng
+            if lat and lng:
+                tasks.append(("aviation_height", self.call_aviation_height(client, lat, lng)))
+            
+            # Ready Reckoner needs zone + req context (Fallback to 'Residential' if missing)
+            effective_zone = zone or "Residential"
+            tasks.append(("ready_reckoner", self.call_ready_reckoner(client, effective_zone, req)))
+
+            results = await self._run_parallel(tasks, req, job_id=job_id)
+            return results
+
+    async def _run_parallel(
+        self, tasks: list[tuple[str, asyncio.Task | Coroutine]], req: dict, job_id: str | None = None
+    ) -> dict:
+        """Run tasks in parallel, updating buffer and refreshing report after each."""
+        results_out = {}
+        pending = {asyncio.create_task(t[1]): t[0] for t in tasks}
+        
+        while pending:
+            done, _ = await asyncio.wait(
+                pending.keys(), return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                name = pending.pop(task)
+                try:
+                    res = await task
+                    results_out[name] = res
+                    if job_id:
+                        await self._update_buffer(job_id, name, res)
+                        from .dossier_service import dossier_service
+                        # Preserve progress tracking by using round1_ prefix for round 1 tasks
+                        # Round 2 tasks go into 'round2' eventually, but here we can just update
+                        stage_name = f"round1_{name}" if name in ("mcgm", "dp_remarks", "pr_card", "ocr", "tenements_ocr", "site_analysis") else name
+                        await dossier_service.update_dossier(job_id, stage_name, res)
+                        await self._refresh_report(job_id, req)
+                except Exception as e:
+                    logger.warning(f"[{job_id}] Task {name} failed: {e}")
+                    results_out[name] = {"error": str(e)}
+        return results_out
+
     async def analyze(
         self,
         req: dict,
@@ -98,29 +243,86 @@ class FeasibilityOrchestrator:
         report_id: str | None = None,
     ) -> dict:
         """
-        Main orchestration method. Now supports persistence via user_id and report_id.
+        Main entry point for feasibility analysis.
         """
+        # Step 0: Normalize request fields to prevent 'None' strings or type errors
+        for k in ["ward", "village", "cts_no", "fp_no", "tps_name"]:
+            val = req.get(k)
+            if val is None:
+                req[k] = ""
+            else:
+                req[k] = str(val).strip()
+
         job_id = report_id or str(uuid4())
-        logger.info(f"[{job_id}] Starting feasibility analysis")
+        logger.info(f"[{job_id}] Starting feasibility analysis for society_id={req.get('society_id')}")
 
         # Step 0: Ensure a DB record exists if we have a user_id
-        if user_id and not report_id:
+        if user_id:
             try:
                 async with async_session_factory() as db:
-                    new_report = FeasibilityReport(
-                        id=job_id,
-                        user_id=user_id,
-                        society_id=req.get("society_id"),
-                        title=req.get("title", f"Analysis: {req.get('society_name', 'Unnamed')}"),
-                        status=ReportStatus.PROCESSING,
-                        input_data=req,
-                    )
-                    db.add(new_report)
-                    await db.commit()
+                    report = await db.get(FeasibilityReport, job_id)
+                    if not report:
+                        new_report = FeasibilityReport(
+                            id=job_id,
+                            user_id=user_id,
+                            society_id=req.get("society_id"),
+                            title=req.get("title", f"Analysis: {req.get('society_name', 'Unnamed')}"),
+                            status=ReportStatus.PROCESSING,
+                            input_data=req,
+                            data_buffer=req.get("manual_inputs", {}), # Start with manual inputs
+                        )
+                        db.add(new_report)
+                        await db.commit()
+
+                # Store in REPORT_STORE for immediate access
+                _REPORT_STORE[job_id] = f"generated_reports/feasibility_{job_id}.xlsx"
+                
+                # Persist manual_inputs to DB buffer so they are available for all refreshes
+                await self._update_buffer(job_id, "manual_inputs", req)
+                
+                # Initial refresh with just manual inputs
+                await self._refresh_report(job_id, req)
             except Exception as e:
                 logger.warning(f"[{job_id}] Could not create initial report record: {e}")
 
-        # Step 0: Resolve CTS/FP
+        # Step 0a: If ward/village empty, resolve from address FIRST to provide context for CTS/FP
+        if not req.get("ward") or not req.get("village"):
+            address = req.get("address")
+            
+            # Fetch address from society if not provided in req
+            if not address and req.get("society_id"):
+                try:
+                    from ..models.society import Society
+                    async with async_session_factory() as db:
+                        soc = await db.get(Society, req.get("society_id"))
+                        if soc and soc.address:
+                            address = soc.address
+                except Exception as e:
+                    logger.warning(f"[{job_id}] Failed to fetch society address: {e}")
+            
+            if not address:
+                address = req.get("society_name", "")
+            if address:
+                try:
+                    from .address_resolver import resolve_address_from_input
+
+                    resolved = await resolve_address_from_input(address)
+                    if resolved:
+                        if resolved.get("ward") and not req.get("ward"):
+                            req["ward"] = resolved["ward"]
+                        if resolved.get("village") and not req.get("village"):
+                            req["village"] = resolved["village"]
+                        if resolved.get("taluka") and not req.get("taluka"):
+                            req["taluka"] = resolved["taluka"]
+                        if resolved.get("district") and not req.get("district"):
+                            req["district"] = resolved["district"]
+                        logger.info(
+                            f"[{job_id}] Address resolved: ward={req.get('ward')} village={req.get('village')}"
+                        )
+                except Exception as addr_err:
+                    logger.warning(f"[{job_id}] Address resolution failed: {addr_err}")
+
+        # Step 0b: Resolve CTS/FP using ward/village context if available
         cts_no = req.get("cts_no")
         fp_no = req.get("fp_no")
         if cts_no or fp_no:
@@ -155,6 +357,17 @@ class FeasibilityOrchestrator:
                     if not req.get("plot_area_sqm") and ext.get("area_sqm"):
                         req["plot_area_sqm"] = float(ext["area_sqm"])
                 logger.info(f"[{job_id}] CTS/FP resolved: {req.get('cts_no')} / {req.get('fp_no')}")
+                
+                # Update buffer with resolved land details immediately
+                await self._update_buffer(job_id, "resolved_identifiers", {
+                    "cts_no": req.get("cts_no"),
+                    "fp_no": req.get("fp_no"),
+                    "tps_name": req.get("tps_name"),
+                    "ward": req.get("ward"),
+                    "village": req.get("village")
+                })
+                await self._refresh_report(job_id, req)
+
                 # Persist resolved CTS/FP/TPS back to society DB record
                 society_id = req.get("society_id")
                 if society_id:
@@ -189,74 +402,47 @@ class FeasibilityOrchestrator:
                     except Exception as db_err:
                         logger.warning(f"[{job_id}] Could not save CTS/FP to DB: {db_err}")
 
-        # Round 1: parallel calls to 4 services
+        # Round 1: parallel calls with incremental buffer updates
         round1_results = await self.run_round1(req, job_id=job_id)
         await dossier_service.update_dossier(job_id, "round1", round1_results)
-        logger.info(f"[{job_id}] Round 1 completed and saved to dossier")
 
         # Extract dependencies for Round 2
-        # Try multiple sources for lat/lng (MCGM, site_analysis)
         mc_result = round1_results.get("mcgm", {})
         sa_result = round1_results.get("site_analysis", {})
 
-        # Prioritize explicit lat/lng from request, fallback to MCGM or Site Analysis
         lat = req.get("lat") or mc_result.get("centroid_lat") or mc_result.get("lat") or sa_result.get("lat")
         lng = req.get("lng") or mc_result.get("centroid_lng") or mc_result.get("lng") or sa_result.get("lng")
 
-        # DP Remarks may return zone_code or zone
         zone = round1_results.get("dp_remarks", {}).get("zone_code") or round1_results.get(
             "dp_remarks", {}
         ).get("zone")
 
         logger.info(f"[{job_id}] Round 1 extracted: lat={lat}, lng={lng}, zone={zone}")
 
-        # Round 2: dependent services — pass req for locality context
+        # Round 2: dependent services with incremental updates
         round2_results = await self.run_round2(lat, lng, zone, req, job_id=job_id)
         await dossier_service.update_dossier(job_id, "round2", round2_results)
-        logger.info(f"[{job_id}] Round 2 completed and saved to dossier")
 
-        # Round 3: forward aggregated data to report generator
-        report_path = None
+        # Round 3: Final upload to Cloudinary if needed (Excel already saved locally by refreshes)
+        report_path = _REPORT_STORE.get(job_id)
         report_url = None
         report_error = None
-        try:
-            async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
-                report_bytes = await self.call_report_generator(
-                    client, round1_results, round2_results, req
-                )
-            # 1. Save locally as fallback/cache
-            report_filename = f"feasibility_{job_id}.xlsx"
-            report_path = str(_REPORTS_DIR / report_filename)
-            Path(report_path).write_bytes(report_bytes)
-            _REPORT_STORE[job_id] = report_path
-
-            # 2. Upload to Cloudinary only when SAVE_REPORTS_LOCALLY is False
+        
+        if report_path and os.path.exists(report_path):
             if not getattr(settings, "SAVE_REPORTS_LOCALLY", True):
                 try:
+                    report_bytes = Path(report_path).read_bytes()
                     upload_res = await upload_content(
                         content=report_bytes,
-                        filename=report_filename,
+                        filename=f"feasibility_{job_id}.xlsx",
                         folder="dhara/reports",
                         resource_type="raw",
                     )
                     report_url = upload_res.get("secure_url")
-                    logger.info(f"[{job_id}] Report uploaded to Cloudinary: {report_url}")
                 except Exception as ue:
-                    logger.warning(
-                        f"[{job_id}] Cloudinary upload failed (falling back to local): {ue}"
-                    )
-            else:
-                logger.info(
-                    f"[{job_id}] SAVE_REPORTS_LOCALLY=True — skipping Cloudinary, report at {report_path}"
-                )
-
-            logger.info(f"[{job_id}] Round 3 done — generated report for {job_id}")
-
-            if background_tasks:
-                background_tasks.add_task(self._check_expiries, job_id, req)
-        except Exception as e:
-            report_error = str(e)
-            logger.error(f"[{job_id}] Round 3 (report generation) failed: {e}")
+                    logger.warning(f"[{job_id}] Final Cloudinary upload failed: {ue}")
+        else:
+            report_error = "Report file missing after rounds"
 
         final_result = {
             "job_id": job_id,
@@ -270,7 +456,7 @@ class FeasibilityOrchestrator:
 
         await dossier_service.update_dossier(job_id, "final_result", final_result)
 
-        # Update DB with final results if we have a job_id record
+        # Update DB with final results
         try:
             async with async_session_factory() as db:
                 report = await db.get(FeasibilityReport, job_id)
@@ -279,148 +465,20 @@ class FeasibilityOrchestrator:
                         ReportStatus.COMPLETED if not report_error else ReportStatus.FAILED
                     )
                     report.report_path = report_path
-                    report.file_url = report_url  # Cloudinary URL
-                    report.output_data = {
-                        "round1": round1_results,
-                        "round2": round2_results,
-                        "report_generated": report_path is not None,
-                        "report_url": report_url,
-                        "report_error": report_error,
-                    }
+                    report.file_url = report_url
+                    report.output_data = final_result
                     if report_error:
                         report.error_message = report_error
                     await db.commit()
         except Exception as e:
             logger.warning(f"[{job_id}] Could not finalize report record: {e}")
 
-        return {
-            "job_id": job_id,
-            "status": "completed" if not report_error else "failed",
-            "round1_results": round1_results,
-            "round2_results": round2_results,
-            "report_generated": report_path is not None,
-            "report_url": report_url,
-            "report_error": report_error,
-        }
+        if background_tasks:
+            background_tasks.add_task(self._check_expiries, job_id, req)
 
-    async def run_round1(self, req: dict, job_id: str | None = None) -> dict:
-        """Call all Round 1 services in parallel (4 core + optional OCR)."""
+        return final_result
 
-        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
-            tasks = [
-                self.call_pr_card(client, req),
-                self.call_mcgm(client, req),
-                self.call_site_analysis(client, req),
-                self.call_dp_remarks(client, req),
-            ]
-            # OCR service: old building plan / occupancy certificate
-            import base64
 
-            ocr_pdf_bytes = req.get("ocr_pdf_bytes")
-            if not ocr_pdf_bytes and req.get("ocr_pdf_b64"):
-                ocr_pdf_bytes = base64.b64decode(req["ocr_pdf_b64"])
-            if ocr_pdf_bytes:
-                tasks.append(
-                    self.call_ocr_service(
-                        client,
-                        ocr_pdf_bytes,
-                        doc_type="old_plan",
-                        filename="old_plan.pdf",
-                        content_type="application/pdf",
-                    )
-                )
-
-            # Tenements sheet: CSV/XLSX/PDF listing units for flat/commercial counts
-            tenements_pdf_bytes = None
-            tenements_filename = req.get("tenements_sheet_filename", "tenements.pdf")
-            tenements_content_type = req.get("tenements_sheet_content_type", "application/pdf")
-            if req.get("tenements_sheet_b64"):
-                tenements_pdf_bytes = base64.b64decode(req["tenements_sheet_b64"])
-                tasks.append(
-                    self.call_ocr_service(
-                        client,
-                        tenements_pdf_bytes,
-                        doc_type="tenements_sheet",
-                        filename=tenements_filename,
-                        content_type=tenements_content_type,
-                    )
-                )
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            out = {
-                "pr_card": results[0]
-                if not isinstance(results[0], Exception)
-                else {"error": str(results[0])},
-                "mcgm": results[1]
-                if not isinstance(results[1], Exception)
-                else {"error": str(results[1])},
-                "site_analysis": results[2]
-                if not isinstance(results[2], Exception)
-                else {"error": str(results[2])},
-                "dp_remarks": results[3]
-                if not isinstance(results[3], Exception)
-                else {"error": str(results[3])},
-            }
-            idx = 4
-            if ocr_pdf_bytes:
-                out["ocr"] = (
-                    results[idx]
-                    if not isinstance(results[idx], Exception)
-                    else {"error": str(results[idx])}
-                )
-                idx += 1
-            if tenements_pdf_bytes:
-                out["tenements_ocr"] = (
-                    results[idx]
-                    if not isinstance(results[idx], Exception)
-                    else {"error": str(results[idx])}
-                )
-            return out
-
-    async def run_round2(
-        self,
-        lat: float | None,
-        lng: float | None,
-        zone: str | None,
-        req: dict = None,
-        job_id: str | None = None,
-    ) -> dict:
-        """Call Round 2 dependent services."""
-        req = req or {}
-        async with AsyncHTTPClient(timeout=300.0, request_id=job_id) as client:
-            tasks = []
-
-            # Aviation Height needs lat/lng
-            if lat and lng:
-                tasks.append(self.call_aviation_height(client, lat, lng))
-            else:
-
-                async def no_lat_lng():
-                    return {"error": "No lat/lng available"}
-
-                tasks.append(no_lat_lng())
-
-            # Ready Reckoner needs zone + req context
-            if zone:
-                tasks.append(self.call_ready_reckoner(client, zone, req))
-            else:
-
-                async def no_zone():
-                    return {"error": "No zone available"}
-
-                tasks.append(no_zone())
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            return {
-                "aviation_height": results[0]
-                if not isinstance(results[0], Exception)
-                else {"error": str(results[0])},
-                "ready_reckoner": results[1]
-                if not isinstance(results[1], Exception)
-                else {"error": str(results[1])},
-            }
 
     # ─── Individual service calls ─────────────────────────────────────
 
@@ -453,18 +511,17 @@ class FeasibilityOrchestrator:
         """Call MCGM Property Lookup service."""
         try:
             cts_no = req.get("cts_no") or req.get("fp_no", "")
+            print(f"DEBUG CALL_MCGM: cts_no={cts_no} use_fp={req.get('use_fp_scheme')}", flush=True)
+            payload = {
+                "ward": str(req.get("ward") or "M/E"),
+                "village": str((req.get("village") or "")).replace("-WEST", "").replace("-EAST", "").strip(),
+                "cts_no": str(cts_no) if cts_no else "",
+                "use_fp": bool(req.get("use_fp_scheme", False)),
+                "tps_name": str(req.get("tps_name")) if req.get("tps_name") else None,
+            }
             resp = await client.post(
                 f"{MCGM_URL}/lookup/sync",
-                json={
-                    "ward": req.get("ward", "M/E"),
-                    "village": req.get("village", "")
-                    .replace("-WEST", "")
-                    .replace("-EAST", "")
-                    .strip(),
-                    "cts_no": cts_no,
-                    "use_fp": req.get("use_fp_scheme", False),
-                    "tps_name": req.get("tps_name"),
-                },
+                json=payload,
             )
             resp.raise_for_status()
             return resp.json()
@@ -528,15 +585,15 @@ class FeasibilityOrchestrator:
         cts_no = req.get("cts_no")
         fp_no = req.get("fp_no", "")
         base_payload = {
-            "ward": req.get("ward", "M/E"),
-            "village": req.get("village", ""),
-            "lat": req.get("lat"),
-            "lng": req.get("lng"),
+            "ward": str(req.get("ward") or "M/E"),
+            "village": str(req.get("village") or ""),
+            "lat": float(req.get("lat")) if req.get("lat") is not None else None,
+            "lng": float(req.get("lng")) if req.get("lng") is not None else None,
         }
         try:
             resp = await client.post(
                 f"{DP_REMARKS_URL}/fetch/sync",
-                json={**base_payload, "cts_no": cts_no or fp_no, "use_fp_scheme": False},
+                json={**base_payload, "cts_no": str(cts_no or fp_no or ""), "use_fp_scheme": bool(req.get("use_fp_scheme", False))},
             )
             resp.raise_for_status()
             result = resp.json()
@@ -661,6 +718,7 @@ class FeasibilityOrchestrator:
         round1: dict,
         round2: dict,
         req: dict,
+        job_id: str | None = None,
     ) -> bytes:
         """
         Map orchestrator results to TemplateReportRequest and call
@@ -690,6 +748,7 @@ class FeasibilityOrchestrator:
         society_name = (
             pr_card.get("society_name")
             or mcgm.get("society_name")
+            or req.get("society_name")
             or req.get("address", "Unknown Society")
         )
         # Plot area: PR Card > MCGM area_sqm > ArcGIS area > req override
@@ -805,6 +864,9 @@ class FeasibilityOrchestrator:
             "salableResidentialRatePerSqFt",
             "carsToSellRatePerCar",
             "saleAreaBreakup",
+            "plot_area_sqm",
+            "zone_code",
+            "fsi",
         ):
             if _field not in manual_inputs and req.get(_field) is not None:
                 manual_inputs[_field] = req[_field]
@@ -865,6 +927,7 @@ class FeasibilityOrchestrator:
             "bua": {},
         }
 
+        logger.info(f"[REPORT] Generating 33(7)(B) report for job {job_id} with plot_area={plot_area_sqm}, zone={manual_inputs.get('zone_code')}, fsi={manual_inputs.get('fsi')}")
         resp = await client.post(
             f"{REPORT_GENERATOR_URL}/generate/feasibility-report",
             json=payload,

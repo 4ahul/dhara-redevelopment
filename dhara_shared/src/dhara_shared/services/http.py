@@ -13,7 +13,7 @@ class CircuitBreaker:
 
     _registry = {}  # host -> breaker instance
 
-    def __init__(self, failure_threshold=5, recovery_timeout=30):
+    def __init__(self, failure_threshold=20, recovery_timeout=5):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.failures = 0

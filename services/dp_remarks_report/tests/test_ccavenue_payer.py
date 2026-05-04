@@ -49,7 +49,7 @@ async def test_pay_success():
     mcgm_page = _make_mcgm_page(ccavenue_page)
 
     payer = CCAvenuePayer(timeout_seconds=5, poll_interval=0.01)
-    result = await payer.pay(mcgm_page, "test@okaxis")
+    result = await payer.pay(mcgm_page, upi_vpa="test@okaxis")
 
     assert isinstance(result, PaymentResult)
     assert result.success is True
@@ -81,7 +81,7 @@ async def test_pay_timeout():
     ccavenue_page.locator = MagicMock(side_effect=_locator_factory)
 
     payer = CCAvenuePayer(timeout_seconds=0.05, poll_interval=0.01)
-    result = await payer.pay(mcgm_page, "test@okaxis")
+    result = await payer.pay(mcgm_page, upi_vpa="test@okaxis")
 
     assert result.success is False
     assert result.timed_out is True
@@ -98,7 +98,7 @@ async def test_pay_returns_transaction_id():
     mcgm_page = _make_mcgm_page(ccavenue_page)
 
     payer = CCAvenuePayer(timeout_seconds=5, poll_interval=0.01)
-    result = await payer.pay(mcgm_page, "test@okaxis")
+    result = await payer.pay(mcgm_page, upi_vpa="test@okaxis")
 
     assert result.transaction_id == "CC20260427ABC"
 
@@ -126,3 +126,44 @@ def test_extract_order_no_from_url():
     assert _extract_order_no(url) == "TXN_ABC123"
 
     assert _extract_order_no("https://example.com/no-params") is None
+
+
+@pytest.mark.asyncio
+async def test_pay_wallet_success():
+    """pay() with wallet payment method selects wallet tab and wallet, returns success."""
+    from services.dp_remarks_report.services.ccavenue_payer import CCAvenuePayer, PaymentResult
+
+    ccavenue_page = _make_ccavenue_page(
+        url="https://secure.ccavenue.com/?orderStatus=Success&orderNo=TXN456"
+    )
+    mcgm_page = _make_mcgm_page(ccavenue_page)
+
+    payer = CCAvenuePayer(timeout_seconds=5, poll_interval=0.01)
+    result = await payer.pay(
+        mcgm_page,
+        payment_method="wallet",
+        wallet_type="phonepe",
+    )
+
+    assert isinstance(result, PaymentResult)
+    assert result.success is True
+
+
+@pytest.mark.asyncio
+async def test_pay_wallet_unknown_type():
+    """pay() with unknown wallet type returns failure."""
+    from services.dp_remarks_report.services.ccavenue_payer import CCAvenuePayer, PaymentResult
+
+    ccavenue_page = _make_ccavenue_page()
+    mcgm_page = _make_mcgm_page(ccavenue_page)
+
+    payer = CCAvenuePayer(timeout_seconds=5, poll_interval=0.01)
+    result = await payer.pay(
+        mcgm_page,
+        payment_method="wallet",
+        wallet_type="unknown_wallet",
+    )
+
+    assert isinstance(result, PaymentResult)
+    assert result.success is False
+    assert "Failed to select wallet: unknown_wallet" in result.error
