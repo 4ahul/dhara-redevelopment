@@ -144,7 +144,10 @@ class MahabhumiFormHandler:
             # Clear all session artifacts to avoid "Already logged in" errors
             context = self.page.context
             await context.clear_cookies()
-            await self.page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+            try:
+                await self.page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+            except Exception:
+                logger.warning("Could not clear localStorage/sessionStorage (access denied)")
 
             # Bhulekh site is notoriously slow; wait for initial commit then settle
             await self.page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=60000)
@@ -199,6 +202,8 @@ class MahabhumiFormHandler:
                 await asyncio.sleep(2)
 
         return False
+
+    async def _wait_for_loading(self):
         """Wait for ASP.NET UpdatePanel / overlays to settle."""
         await asyncio.sleep(0.5)
         # Only wait on selectors that actually exist; presence-check first avoids

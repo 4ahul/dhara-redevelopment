@@ -137,34 +137,35 @@ class MahabhumiScraper:
 
             # ── 6. Extract Image URL and Navigate Directly ─────────────────
             # Primary: wait for #ContentPlaceHolder1_ImgPC (45s)
-            _, image_url = await active_extractor.wait_for_pr_card_image(timeout=45)
+            # Returns (image_bytes, image_url) — image_bytes may be populated from base64 decode
+            image_bytes, image_url = await active_extractor.wait_for_pr_card_image(timeout=45)
 
-            if not image_url or "base64" in image_url:
-                logger.info("Primary URL extraction failed — trying get_best_image fallback")
-                _, image_url = await active_extractor.get_best_image(timeout=20)
+            # If we already have image bytes (e.g., from base64 decode), skip URL navigation
+            if not image_bytes:
+                if not image_url or "base64" in image_url:
+                    logger.info("Primary URL extraction failed — trying get_best_image fallback")
+                    _, image_url = await active_extractor.get_best_image(timeout=20)
 
-            if image_url and image_url.startswith("http"):
-                logger.info(f"Navigating directly to public image URL: {image_url}")
-                # Create a new page for the image to ensure session isolation
-                img_page = await self.browser.new_page()
-                try:
-                    # Direct navigation to the image URL
-                    img_resp = await img_page.goto(image_url, wait_until="load", timeout=30000)
-                    if img_resp and img_resp.ok:
-                        image_bytes = await img_resp.body()
-                        logger.info(
-                            f"Successfully downloaded image from direct URL ({len(image_bytes):,} bytes)"
-                        )
-                    else:
-                        logger.warning("Direct navigation failed, falling back to capture")
+                if image_url and image_url.startswith("http"):
+                    logger.info(f"Navigating directly to public image URL: {image_url}")
+                    # Create a new page for the image to ensure session isolation
+                    img_page = await self.browser.new_page()
+                    try:
+                        # Direct navigation to the image URL
+                        img_resp = await img_page.goto(image_url, wait_until="load", timeout=30000)
+                        if img_resp and img_resp.ok:
+                            image_bytes = await img_resp.body()
+                            logger.info(
+                                f"Successfully downloaded image from direct URL ({len(image_bytes):,} bytes)"
+                            )
+                        else:
+                            logger.warning("Direct navigation failed, falling back to capture")
+                            image_bytes = None
+                    except Exception as e:
+                        logger.warning(f"Error navigating to image URL: {e}")
                         image_bytes = None
-                except Exception as e:
-                    logger.warning(f"Error navigating to image URL: {e}")
-                    image_bytes = None
-                finally:
-                    await img_page.close()
-            else:
-                image_bytes = None
+                    finally:
+                        await img_page.close()
 
             # ── 7. Save result ─────────────────────────────────────────────
             timestamp = int(time.time())

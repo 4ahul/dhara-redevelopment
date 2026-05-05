@@ -275,7 +275,7 @@ Document:
 {text[:10000]}"""
 
         resp = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=os.getenv("GEMINI_MODEL", ""),
             contents=prompt,
             config=types_mod.GenerateContentConfig(temperature=0.0, max_output_tokens=256),
         )
@@ -392,7 +392,7 @@ Document:
 {text[:6000]}"""
 
         resp = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=os.getenv("GEMINI_MODEL", ""),
             contents=prompt,
             config=types_mod.GenerateContentConfig(temperature=0.0, max_output_tokens=128),
         )

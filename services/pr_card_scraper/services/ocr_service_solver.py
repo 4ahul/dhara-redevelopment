@@ -2,7 +2,10 @@ import logging
 
 import httpx
 
-from ..core import settings
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core import settings
 
 logger = logging.getLogger(__name__)
 

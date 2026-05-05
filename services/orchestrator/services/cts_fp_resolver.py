@@ -175,7 +175,7 @@ Address: {address or "N/A"}
 Return ONLY valid JSON. No markdown, no explanation."""
 
             response = genai_client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=os.getenv("GEMINI_MODEL", ""),
                 contents=prompt,
                 config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=256),
             )

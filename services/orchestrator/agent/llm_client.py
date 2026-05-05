@@ -282,14 +282,15 @@ class GeminiClient(LLMClient):
             raise ValueError("GEMINI_API_KEY must be set to use GeminiClient.")
 
         genai.configure(api_key=self.api_key)
-        self.model_name = model or os.getenv("GEMINI_MODEL") or "gemini-3.1-pro-preview"
+        self.model_name = model or os.getenv("GEMINI_MODEL") or ""
 
         try:
             self.client = genai.GenerativeModel(model_name=self.model_name)
         except Exception as e:
             logger.exception("Failed to initialize Gemini model %s: %s", self.model_name, e)
-            # Fallback to a very safe model name
-            self.client = genai.GenerativeModel(model_name="gemini-3-flash-preview")
+            # Fallback:
+            if self.model_name:
+                self.client = genai.GenerativeModel(model_name=self.model_name)
 
     async def chat(
         self,
@@ -464,7 +465,7 @@ def get_llm_client() -> LLMClient:
     if gemini_key and not gemini_key.startswith("your_"):
         logger.info("Using GeminiClient")
         return GeminiClient(
-            api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+            api_key=gemini_key, model=os.getenv("GEMINI_MODEL", "")
         )
 
     if anthropic_key and not anthropic_key.startswith("sk-ant-your-"):

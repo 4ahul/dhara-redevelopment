@@ -12,22 +12,28 @@ import sys
 
 # ── make service modules importable ──────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
+_WORKSPACE_ROOT = os.path.dirname(os.path.dirname(_HERE))
+sys.path.insert(0, _WORKSPACE_ROOT)
 sys.path.insert(0, _HERE)
 
 import contextlib
+from dotenv import load_dotenv
 
-from services.pr_card_scraper.services.browser import BaseBrowser, MahabhumiScraper
+dotenv_path = os.path.join(_WORKSPACE_ROOT, ".env")
+load_dotenv(dotenv_path)
+
+from services.browser import BaseBrowser, MahabhumiScraper
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  SCRAPE TARGETS
 # ═════════════════════════════════════════════════════════════════════════════
 TARGETS = [
-    # Narhe is in Haveli taluka (न-हे visible in dropdown, CTS survey type)
+    # FP 63, TPS VI, Vile Parle West (CTS 1103)
     {
-        "district": "pune",
-        "taluka": "Haveli",
-        "village": "Narhe",
-        "survey_no": "1",
+        "district": "mumbai suburban",
+        "taluka": "vile parle",  # नगर भूमापन अधिकारी,विलेपार्ले
+        "village": "vile parle",
+        "survey_no": "1103",  # CTS 1103 = FP 63, TPS VI
         "survey_no_part1": None,
         "mobile": "9999999999",
     },
@@ -52,7 +58,6 @@ async def run_one_target(target: dict, headless: bool) -> dict:
         async def on_captcha(img_bytes: bytes) -> str:
             """Prompt user to solve CAPTCHA when auto-solver fails."""
             import subprocess
-            import sys
 
             captcha_path = os.path.join(OUTPUT_DIR, "captcha_manual.png")
             with open(captcha_path, "wb") as f:
@@ -60,22 +65,28 @@ async def run_one_target(target: dict, headless: bool) -> dict:
             # Open the image automatically
             with contextlib.suppress(Exception):
                 subprocess.Popen(["explorer", captcha_path])
-            if not sys.stdin.isatty():
-                # Non-interactive: poll for a captcha_answer.txt file (30s timeout)
-                answer_file = os.path.join(OUTPUT_DIR, "captcha_answer.txt")
+            
+            # Wait for captcha_answer.txt file to be created (120s timeout)
+            answer_file = os.path.join(OUTPUT_DIR, "captcha_answer.txt")
+            if os.path.exists(answer_file):
+                os.remove(answer_file)
+            
+            print(f"\n=== MANUAL CAPTCHA REQUIRED ===")
+            print(f"CAPTCHA image saved to: {captcha_path}")
+            print(f"Please create file: {answer_file}")
+            print(f"With the CAPTCHA text as content. Waiting 120 seconds...\n")
+            
+            for _ in range(120):
+                await asyncio.sleep(1)
                 if os.path.exists(answer_file):
+                    with open(answer_file) as f:
+                        answer = f.read().strip()
                     os.remove(answer_file)
-                for _ in range(120):
-                    await asyncio.sleep(1)
-                    if os.path.exists(answer_file):
-                        with open(answer_file) as f:
-                            answer = f.read().strip()
-                        os.remove(answer_file)
-                        return answer
-                return None
-            loop = asyncio.get_running_loop()
-            answer = await loop.run_in_executor(None, input)
-            return answer.strip()
+                    print(f"CAPTCHA answer received: {answer}")
+                    return answer
+            
+            print("Timeout waiting for CAPTCHA answer")
+            return None
 
         return await scraper.scrape_pr_card(on_captcha=on_captcha, **target)
     except Exception as exc:

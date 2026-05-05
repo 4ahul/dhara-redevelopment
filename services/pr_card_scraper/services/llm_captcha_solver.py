@@ -52,7 +52,7 @@ class LLMCaptchaSolver:
         openai_base_url: str | None = None,
     ):
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = openai_base_url or os.getenv(
             "OPENAI_BASE_URL", "https://api.openai.com/v1"

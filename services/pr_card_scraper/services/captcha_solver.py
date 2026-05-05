@@ -156,6 +156,12 @@ class CaptchaSolver:
         gray = img.convert("L")
         yield gray, "gray"
 
+        # Upscale early to help OCR read small characters
+        w, h = gray.size
+        if w < 200:
+            gray = gray.resize((w * 2, h * 2), Image.LANCZOS)
+            w, h = gray.size
+
         enhanced = ImageEnhance.Contrast(gray).enhance(3.0)
         yield enhanced, "high_contrast"
 
@@ -169,22 +175,32 @@ class CaptchaSolver:
 
             arr = np.array(gray)
 
+            # Denoise first
+            denoised = cv2.medianBlur(arr, 3)
+            yield Image.fromarray(denoised), "denoised"
+
             adaptive = cv2.adaptiveThreshold(
-                arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+                denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
             )
             yield Image.fromarray(adaptive), "adaptive_thresh"
 
-            _, binary = cv2.threshold(arr, 127, 255, cv2.THRESH_BINARY_INV)
+            # Morphological cleaning to remove horizontal/vertical lines
+            _, binary = cv2.threshold(denoised, 127, 255, cv2.THRESH_BINARY_INV)
             h_kernel = np.ones((1, 15), np.uint8)
             h_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel, iterations=1)
-            cleaned = binary - h_lines
+            cleaned = cv2.subtract(binary, h_lines)
             v_kernel = np.ones((15, 1), np.uint8)
             v_lines = cv2.morphologyEx(cleaned, cv2.MORPH_OPEN, v_kernel, iterations=1)
-            cleaned = cleaned - v_lines
+            cleaned = cv2.subtract(cleaned, v_lines)
+            # Dilate to make characters bolder
             kernel_dilate = np.ones((2, 2), np.uint8)
             dilated = cv2.dilate(cleaned, kernel_dilate, iterations=1)
             result_cv2 = cv2.bitwise_not(dilated)
             yield Image.fromarray(result_cv2), "cv2_cleaned"
+
+            # Otsu thresholding
+            _, otsu = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            yield Image.fromarray(otsu), "otsu"
 
         except ImportError:
             pass
@@ -192,11 +208,6 @@ class CaptchaSolver:
         for t in [100, 128, 160]:
             thresh = gray.point(lambda p, th=t: 255 if p > th else 0)
             yield thresh, f"binary_{t}"
-
-        w, h = gray.size
-        big = gray.resize((w * 2, h * 2), Image.LANCZOS)
-        big_enhanced = ImageEnhance.Contrast(big).enhance(2.0)
-        yield big_enhanced, "upscaled_2x"
 
     def _crop_captcha_region(self, img):
         w, h = img.size

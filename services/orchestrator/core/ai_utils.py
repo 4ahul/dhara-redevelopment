@@ -2,6 +2,7 @@
 AI Client utilities - Shared helpers for AI imports and clients.
 """
 
+import os
 import sys
 import sysconfig
 from typing import Any
@@ -78,7 +79,7 @@ Address: {address}
 Return ONLY valid JSON, no markdown, no explanation."""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=os.getenv("GEMINI_MODEL", ""),
             contents=prompt,
             config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=512),
         )
@@ -125,7 +126,7 @@ FP Number: {fp_no or "unknown"}
 Return ONLY valid JSON, no markdown, no explanation."""
 
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=os.getenv("GEMINI_MODEL", ""),
             contents=prompt,
             config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=256),
         )
