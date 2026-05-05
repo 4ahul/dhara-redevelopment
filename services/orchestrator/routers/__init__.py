@@ -7,6 +7,7 @@ from .landing import router as landing_router
 from .profile import router as profile_router
 from .search import router as search_router
 from .societies import router as societies_router
+from .subscription import router as subscription_router
 from .team import router as team_router
 from .websocket import router as ws_router_module
 
@@ -21,6 +22,7 @@ app_router.include_router(landing_router)
 app_router.include_router(profile_router)
 app_router.include_router(search_router)
 app_router.include_router(societies_router)
+app_router.include_router(subscription_router)
 app_router.include_router(team_router)
 
 # Add to main API router

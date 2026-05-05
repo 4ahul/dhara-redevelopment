@@ -1,0 +1,13 @@
+# Force LF line endings for shell scripts (prevents CRLF issues in Docker)
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+
+# Dockerfiles should also be LF
+Dockerfile text eol=lf
+
+# Python files
+*.py text eol=lf
+
+# Keep Windows line endings for batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf

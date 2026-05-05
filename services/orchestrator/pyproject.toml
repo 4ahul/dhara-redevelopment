@@ -30,6 +30,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "tenacity>=8.5.0",
     "psycopg2-binary>=2.9.0",
+    "razorpay>=1.4.0",
     "dhara_shared",
     "arq>=0.28.0",
 ]

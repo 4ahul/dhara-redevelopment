@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     DP_REPORT_URL: str = f"http://{_HOST or 'dp_remarks_report'}:8008"
     READY_RECKONER_URL: str = f"http://{_HOST or 'ready_reckoner'}:8003"
 
+    # ── Razorpay (Payments) ────────────────────────────────
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "orchestrator"
     APP_VERSION: str = "3.0.0"
@@ -92,6 +97,15 @@ class Settings(BaseSettings):
     # ── Pagination Defaults ──────────────────────────────
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
+
+    def validate_critical_keys(self, keys: list[str]) -> None:
+        """Log warnings for missing critical env vars (non-blocking)."""
+        import logging
+        logger = logging.getLogger("gateway")
+        for key in keys:
+            val = getattr(self, key, None)
+            if not val:
+                logger.warning("Missing env var: %s (some features may not work)", key)
 
     class Config:
         env_file = os.path.join(os.path.dirname(__file__), "..", ".env")

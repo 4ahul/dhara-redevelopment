@@ -23,7 +23,7 @@ def setup_sentry(service_name: str, dsn: Optional[str] = None):
     """Initializes Sentry for error tracking."""
     import sentry_sdk
     import os
-    from sentry_sdk.integrations.fastapi import FastAPIIntegration
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
     
     sentry_dsn = dsn or os.getenv("SENTRY_DSN")
     if not sentry_dsn:
@@ -31,7 +31,7 @@ def setup_sentry(service_name: str, dsn: Optional[str] = None):
         
     sentry_sdk.init(
         dsn=sentry_dsn,
-        integrations=[FastAPIIntegration()],
+        integrations=[FastApiIntegration()],
         traces_sample_rate=1.0,
         profiles_sample_rate=1.0,
         environment=os.getenv("ENV", "development"),

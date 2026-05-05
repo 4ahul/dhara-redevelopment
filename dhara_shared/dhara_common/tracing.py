@@ -2,7 +2,8 @@ import os
 import logging
 from fastapi import FastAPI
 from opentelemetry import trace
-from opentelemetry.sdk.resources import RESOURCE_ATTRIBUTES, Resource
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.semconv.resource import ResourceAttributes
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -17,7 +18,7 @@ def setup_tracing(app: FastAPI, service_name: str):
     
     # 1. Initialize Resource and Provider
     resource = Resource.create(attributes={
-        RESOURCE_ATTRIBUTES.SERVICE_NAME: service_name
+        ResourceAttributes.SERVICE_NAME: service_name
     })
     
     provider = TracerProvider(resource=resource)
