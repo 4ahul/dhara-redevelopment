@@ -15,25 +15,26 @@ from services.orchestrator.core.config import settings
 async def fix_version():
     engine = create_async_engine(settings.db_url)
     async with engine.connect() as conn:
+        # Check for audit_logs table (new baseline indicator)
         result = await conn.execute(text(
-            "SELECT EXISTS (SELECT FROM information_schema.columns "
-            "WHERE table_name='societies' AND column_name='year_built')"
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='audit_logs')"
         ))
-        year_built_exists = result.scalar()
-        if not year_built_exists:
+        baseline_exists = result.scalar()
+        
+        # Current version check
+        result2 = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+        current_version = result2.scalar()
+        
+        # Broken/Missing revisions that should be re-stamped to new baseline
+        broken_revisions = {'e1f2a3b4c5d6', '299bcff565b9'}
+        
+        if baseline_exists and (current_version is None or current_version in broken_revisions):
             await conn.execute(text("DELETE FROM alembic_version"))
-            await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('299bcff565b9')"))
+            await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('821429fd75aa')"))
             await conn.commit()
-            print("Re-stamped alembic_version to 299bcff565b9 (missing columns detected, will apply outstanding migrations)")
+            print(f"Re-stamped alembic_version to 821429fd75aa (detected broken/missing version {current_version})")
         else:
-            result2 = await conn.execute(text("SELECT COUNT(*) FROM alembic_version"))
-            count = result2.scalar()
-            if count == 0:
-                await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('299bcff565b9')"))
-                await conn.commit()
-                print("Stamped alembic_version to 299bcff565b9 (empty table)")
-            else:
-                print("Schema up to date, no re-stamp needed")
+            print(f"Schema status: baseline_exists={baseline_exists}, current_version={current_version}")
 
 asyncio.run(fix_version())
 EOF
