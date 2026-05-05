@@ -15,26 +15,52 @@ from services.orchestrator.core.config import settings
 async def fix_version():
     engine = create_async_engine(settings.db_url)
     async with engine.connect() as conn:
-        # Check for audit_logs table (new baseline indicator)
-        result = await conn.execute(text(
+        # 1. Check for tender_proposals table (Indicator of latest version a1b2c3d4e5f6)
+        res_tenders = await conn.execute(text(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='tender_proposals')"
+        ))
+        tenders_exists = res_tenders.scalar()
+
+        # 2. Check for num_commercial column (Indicator of version 5586ce5e7607)
+        res_comm = await conn.execute(text(
+            "SELECT EXISTS (SELECT FROM information_schema.columns "
+            "WHERE table_name='societies' AND column_name='num_commercial')"
+        ))
+        num_comm_exists = res_comm.scalar()
+        
+        # 3. Check for audit_logs table (Indicator of baseline 821429fd75aa)
+        res_audit = await conn.execute(text(
             "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name='audit_logs')"
         ))
-        baseline_exists = result.scalar()
+        baseline_exists = res_audit.scalar()
+
+        # Current recorded version
+        res_ver = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+        current_version = res_ver.scalar()
         
-        # Current version check
-        result2 = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
-        current_version = result2.scalar()
-        
-        # Broken/Missing revisions that should be re-stamped to new baseline
         broken_revisions = {'e1f2a3b4c5d6', '299bcff565b9'}
         
-        if baseline_exists and (current_version is None or current_version in broken_revisions):
-            await conn.execute(text("DELETE FROM alembic_version"))
-            await conn.execute(text("INSERT INTO alembic_version (version_num) VALUES ('821429fd75aa')"))
-            await conn.commit()
-            print(f"Re-stamped alembic_version to 821429fd75aa (detected broken/missing version {current_version})")
+        # Determine target version to stamp
+        target_version = None
+        if tenders_exists:
+            target_version = 'a1b2c3d4e5f6'
+        elif num_comm_exists:
+            target_version = '5586ce5e7607'
+        elif baseline_exists:
+            target_version = '821429fd75aa'
+
+        if target_version and (current_version is None or current_version in broken_revisions or current_version != target_version):
+            # Only re-stamp if we are in a broken state or if the schema is ahead of the recorded version
+            # But be careful: only stamp if current version is missing or broken.
+            if current_version in broken_revisions or current_version is None:
+                await conn.execute(text("DELETE FROM alembic_version"))
+                await conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{target_version}')"))
+                await conn.commit()
+                print(f"Re-stamped alembic_version to {target_version} (detected schema state with broken/missing current version)")
+            else:
+                print(f"Schema status: current_version={current_version}, detected_state={target_version}. No action taken.")
         else:
-            print(f"Schema status: baseline_exists={baseline_exists}, current_version={current_version}")
+            print(f"Schema status: current_version={current_version}, tenders_exists={tenders_exists}, num_comm_exists={num_comm_exists}")
 
 asyncio.run(fix_version())
 EOF
