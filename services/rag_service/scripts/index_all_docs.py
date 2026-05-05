@@ -19,7 +19,6 @@ from services.rag_service.services.rag import DocumentLoader, RAGAgent
 def load_and_chunk(filepath):
     """Load a file and return chunks"""
     try:
-        print(f"  Processing: {filepath.name}")
         text = ""
         if filepath.suffix.lower() == ".pdf":
             text = DocumentLoader.load_pdf(filepath)
@@ -37,10 +36,8 @@ def load_and_chunk(filepath):
         if not text:
             return []
 
-        chunks = DocumentLoader.chunk_text(text)
-        return chunks
-    except Exception as e:
-        print(f"  Error processing {filepath.name}: {e}")
+        return DocumentLoader.chunk_text(text)
+    except Exception:
         return []
 
 
@@ -55,7 +52,6 @@ def main():
 
     docs_dir = Path("data/docs")
     if not docs_dir.exists():
-        print(f"Directory not found: {docs_dir}")
         return
 
     # Find all supported files
@@ -65,19 +61,16 @@ def main():
         files.extend(list(docs_dir.glob(f"**/*{ext}")))
 
     if not files:
-        print("No documents found to index.")
         return
 
-    print(f"Found {len(files)} documents. Initializing RAG Agent...")
     agent = RAGAgent(use_milvus=True)
 
     # We want to be fast. Batching is already done in agent.vectorstore.add_documents
     # But we can parallelize the LOAD and CHUNK phase which is CPU intensive.
 
     all_chunks = []
-    print(f"Extracting text from {len(files)} files using ThreadPool...")
 
-    start_time = time.time()
+    time.time()
 
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         results = list(executor.map(load_and_chunk, files))
@@ -85,25 +78,19 @@ def main():
     for chunks in results:
         all_chunks.extend(chunks)
 
-    print(f"Total chunks created: {len(all_chunks)}")
-
     if not all_chunks:
-        print("No text extracted. Exiting.")
         return
 
     # Index in batches (RAGAgent does this internally, but we'll do it in larger chunks for Milvus efficiency if needed)
     # The current RAGAgent.add_documents uses a batch_size of 10 for embeddings.
     # We'll just pass all chunks to it.
 
-    print(f"Indexing {len(all_chunks)} chunks to Milvus...")
     batch_size = 500  # Larger batches for the high-level call
     for i in range(0, len(all_chunks), batch_size):
         batch = all_chunks[i : i + batch_size]
         agent.vectorstore.add_documents(batch)
-        print(f"  Progress: {min(i + batch_size, len(all_chunks))}/{len(all_chunks)}")
 
-    end_time = time.time()
-    print(f"\nIndexing complete in {end_time - start_time:.2f} seconds!")
+    time.time()
 
 
 if __name__ == "__main__":

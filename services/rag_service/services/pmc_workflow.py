@@ -581,7 +581,7 @@ Date: {date}
         return project
 
     def generate_document(
-        self, project: Project, doc_type: str, output_dir: Path = None
+        self, project: Project, doc_type: str, output_dir: Path | None = None
     ) -> Document:
         """Generate document from template"""
         if output_dir is None:
@@ -907,7 +907,9 @@ class TenderManager:
             for criterion in comparison["criteria"]:
                 score = float(bid.get(criterion.lower().replace(" ", "_"), 0))
                 scores.append(score)
-            bid["total_score"] = sum(s * w for s, w in zip(scores, comparison["weights"], strict=False))
+            bid["total_score"] = sum(
+                s * w for s, w in zip(scores, comparison["weights"], strict=False)
+            )
 
         # Sort by score
         comparison["bids"] = sorted(bids, key=lambda x: x["total_score"], reverse=True)

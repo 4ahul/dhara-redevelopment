@@ -968,13 +968,9 @@ def build_annexure_iii(story, data):
         vals = []
         for s in schemes:
             v = fin.get(s, {}).get(key, 0)
-            if v:
-                txt = f"₹{cr(v)}"
-            else:
-                txt = "—"
+            txt = f"₹{cr(v)}" if v else "—"
             vals.append(bold_num(txt) if (bold or subtotal) else num_cell(txt))
-        row = [(bold_num(label) if (bold or subtotal) else body_cell(label))] + vals
-        return row
+        return [bold_num(label) if bold or subtotal else body_cell(label), *vals]
 
     def crore_row(label, key):
         vals = []
@@ -986,7 +982,7 @@ def build_annexure_iii(story, data):
             else:
                 txt = "—"
             vals.append(num_cell(txt))
-        return [P(f"<i>{label}</i>", "ReportItalic")] + vals
+        return [P(f"<i>{label}</i>", "ReportItalic"), *vals]
 
     hdr = [hdr_cell("Description")] + [hdr_cell(f"{s}\nAmount (₹)") for s in schemes]
     col_w = [190, 80, 80, 80, 66]
@@ -1005,7 +1001,7 @@ def build_annexure_iii(story, data):
             )
         )
         story.append(sec)
-        rows = [hdr] + rows_data
+        rows = [hdr, *rows_data]
         t = Table(rows, colWidths=col_w)
         ts = section_table_style()
         ts.add("ALIGN", (1, 1), (-1, -1), "RIGHT")
@@ -1162,7 +1158,7 @@ def build_additional_area(story, data):
             else:
                 txt = str(v)
             vals.append(bold_num(txt) if bold else num_cell(txt))
-        return [(bold_num(label) if bold else body_cell(label))] + vals
+        return [bold_num(label) if bold else body_cell(label), *vals]
 
     hdr = [hdr_cell("#")] + [hdr_cell(s) for s in schemes]
     col_w = [190, 80, 80, 80, 66]
@@ -1346,17 +1342,17 @@ def build_conclusion(story, data):
         story.append(sec_heading("AI-Generated Feasibility Analysis"))
         story.append(SP(6))
         for line in llm.split("\n"):
-            line = line.strip()
-            if not line:
+            stripped_line = line.strip()
+            if not stripped_line:
                 story.append(SP(4))
-            elif line.startswith("━") or line.startswith("─"):
+            elif stripped_line.startswith(("━", "─")):
                 story.append(HR())
-            elif line.isupper() and len(line) > 5:
-                story.append(P(f"<b>{line}</b>", "Body"))
-            elif line.startswith("•") or line.startswith("-"):
-                story.append(P(line, "BulletBody"))
+            elif stripped_line.isupper() and len(stripped_line) > 5:
+                story.append(P(f"<b>{stripped_line}</b>", "Body"))
+            elif stripped_line.startswith(("•", "-")):
+                story.append(P(stripped_line, "BulletBody"))
             else:
-                story.append(P(line, "Body"))
+                story.append(P(stripped_line, "Body"))
             story.append(SP(1))
 
     story.append(SP(24))

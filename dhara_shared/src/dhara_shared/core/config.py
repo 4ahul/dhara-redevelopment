@@ -48,6 +48,7 @@ def validate_config(settings: BaseSettings, keys: list[str]):
     missing = [k for k in keys if not getattr(settings, k, None)]
     if missing:
         import logging
+
         logger = logging.getLogger("config")
         app_name = getattr(settings, "APP_NAME", "unknown_service")
         error_msg = (
@@ -57,4 +58,3 @@ def validate_config(settings: BaseSettings, keys: list[str]):
             + "\n\nPlease check your .env file or Render dashboard variables."
         )
         logger.warning(error_msg)
-

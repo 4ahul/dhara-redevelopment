@@ -27,22 +27,18 @@ async def list_societies(
     user_id: UUID,
     page: int = 1,
     page_size: int = 20,
-    status: str = None,
-    ward: str = None,
-    search: str = None,
+    status: str | None = None,
+    search: str | None = None,
 ) -> tuple[Sequence[Society], int]:
     """List societies with owner, filters, search, and pagination."""
     base = select(Society).where(Society.created_by == user_id)
     if status:
         base = base.where(Society.status == status)
-    if ward:
-        base = base.where(Society.ward == ward)
     if search:
         base = base.where(
             or_(
                 Society.name.ilike(f"%{search}%"),
                 Society.address.ilike(f"%{search}%"),
-                Society.cts_no.ilike(f"%{search}%"),
             )
         )
 
@@ -166,8 +162,8 @@ async def list_feasibility_reports(
     user_id: UUID,
     page: int = 1,
     page_size: int = 20,
-    status: str = None,
-    society_id: UUID = None,
+    status: str | None = None,
+    society_id: UUID | None = None,
 ) -> tuple[Sequence[FeasibilityReport], int]:
     base = select(FeasibilityReport).where(FeasibilityReport.user_id == user_id)
     if status:

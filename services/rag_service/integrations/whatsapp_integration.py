@@ -407,13 +407,12 @@ class WhatsAppIntegration:
 
             if response.status_code == 200:
                 return response.json()
-            else:
-                return {"error": f"HTTP {response.status_code}: {response.text}"}
+            return {"error": f"HTTP {response.status_code}: {response.text}"}
 
         except Exception as e:
             return {"error": str(e)}
 
-    def send_template(self, to: str, template_name: str, components: dict = None) -> dict:
+    def send_template(self, to: str, template_name: str, components: dict | None = None) -> dict:
         """Send WhatsApp template message"""
         if not self.phone_number_id or not self.access_token:
             return {"error": "WhatsApp API not configured"}
@@ -435,8 +434,7 @@ class WhatsAppIntegration:
 
             if response.status_code == 200:
                 return response.json()
-            else:
-                return {"error": f"HTTP {response.status_code}: {response.text}"}
+            return {"error": f"HTTP {response.status_code}: {response.text}"}
 
         except Exception as e:
             return {"error": str(e)}

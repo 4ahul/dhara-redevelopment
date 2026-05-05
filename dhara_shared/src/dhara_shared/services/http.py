@@ -120,10 +120,10 @@ class AsyncHTTPClient:
             breaker.record_failure()
             logger.warning(f"Request failed to {url}: {e}. Retrying if eligible...")
             raise e from e
-        except Exception as e:
+        except Exception:
             # Other errors don't necessarily trigger the breaker but we still log
-            logger.error(f"Unexpected error for {url}: {e}")
-            raise e from e
+            logger.exception(f"Unexpected error for {url}")
+            raise
 
     async def get(self, url: str, **kwargs) -> httpx.Response:
         return await self.request("GET", url, **kwargs)

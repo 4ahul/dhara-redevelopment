@@ -161,8 +161,18 @@ class AddressResolver:
         """Fallback: Parse address manually for common Mumbai patterns."""
         address_lower = address.lower()
 
-        # Extract area name
+        # Extract area name (Specific matches first)
         areas = [
+            "andheri west",
+            "andheri east",
+            "vile parle west",
+            "vile parle east",
+            "bandra west",
+            "bandra east",
+            "santacruz west",
+            "santacruz east",
+            "khar west",
+            "khar east",
             "colaba",
             "fort",
             "marine lines",
@@ -171,7 +181,7 @@ class AddressResolver:
             "prabhadevi",
             "dadar",
             "parel",
-            "Lower parel",
+            "lower parel",
             "girgaon",
             "chowpatty",
             "walkeshwar",
@@ -182,7 +192,7 @@ class AddressResolver:
             "andheri",
             "vile parle",
             "ville parle",
-            " Goregaon",
+            "goregaon",
             "malad",
             "borivali",
             "kandivali",
@@ -250,4 +260,30 @@ address_resolver = AddressResolver()
 
 async def resolve_address_from_input(address: str) -> dict[str, str | None]:
     """Utility function to resolve address to ward/village."""
-    return await address_resolver.resolve_address(address)
+    res = {"ward": None, "village": None, "district": None, "taluka": None}
+
+    # Primary: AI Resolver
+    try:
+        from services.orchestrator.services.society_service import resolve_address_with_ai
+
+        ai_res = await resolve_address_with_ai(address)
+        if ai_res and ai_res.get("ward"):
+            res.update(ai_res)
+            logger.info(f"Primary AI resolved address: {address} -> {res}")
+    except Exception as e:
+        logger.warning(f"Primary AI address resolution failed: {e}")
+
+    # Fallback: SerpAPI + Regex if primary failed
+    if not res.get("ward") or not res.get("village"):
+        try:
+            fallback_res = await address_resolver.resolve_address(address)
+            if fallback_res:
+                # Update only missing fields
+                for k, v in fallback_res.items():
+                    if v and not res.get(k):
+                        res[k] = v
+                logger.info(f"Fallback resolution used for: {address} -> {res}")
+        except Exception as e:
+            logger.warning(f"Fallback address resolution failed: {e}")
+
+    return res

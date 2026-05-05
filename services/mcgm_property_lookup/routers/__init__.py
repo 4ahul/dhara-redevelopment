@@ -1,4 +1,3 @@
-
 """
 MCGM Property Lookup — FastAPI Router
 Endpoints:
@@ -9,7 +8,10 @@ Endpoints:
 """
 
 import base64
+import contextlib
 import logging
+import os
+import tempfile
 from datetime import datetime
 
 import httpx
@@ -23,6 +25,7 @@ from ..schemas import (
     PropertyLookupStatus,
 )
 from ..services import ArcGISClient, MCGMBrowserScraper
+from ..services.dp_gis_metrics import compute_all_gis_metrics
 from ..services.geometry import (
     polygon_area_sqm,
     polygon_centroid_mercator,
@@ -30,6 +33,7 @@ from ..services.geometry import (
     web_mercator_to_wgs84,
 )
 from ..services.storage import AsyncStorageService as StorageService
+from ..services.visualization import generate_plot_map
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +56,7 @@ async def _do_lookup(
     ward: str,
     village: str,
     cts_no: str,
-    tps_name: str = None,
+    tps_name: str | None = None,
     use_fp: bool = False,
     include_nearby: bool = True,
     storage: StorageService | None = None,
@@ -198,6 +202,32 @@ async def _do_lookup(
     fp_no = attrs.get("FP_NO") or attrs.get("CTS_CS_NO")
     result_ward = attrs.get("WARD", ward)
 
+    # ── Step 3.5: GIS Metrics & Map Generation ────────────────────────────
+    gis_metrics = {}
+    if rings:
+        try:
+            gis_metrics = await compute_all_gis_metrics(rings)
+            # Generate high-fidelity map
+            with tempfile.TemporaryDirectory() as tmpdir:
+                filepath = generate_plot_map(
+                    rings=rings,
+                    output_dir=tmpdir,
+                    setback_polys=gis_metrics.get("setback_polys"),
+                    max_road_polys=gis_metrics.get("max_road_polys"),
+                    abutting_lines=gis_metrics.get("abutting_lines"),
+                    setback_area_m2=gis_metrics.get("setback_area_m2"),
+                    max_road_width_m=gis_metrics.get("max_road_width_m"),
+                    abutting_length_m=gis_metrics.get("abutting_length_m"),
+                    roads_touching=gis_metrics.get("roads_touching"),
+                    carriageway_entrances=gis_metrics.get("carriageway_entrances"),
+                )
+                if filepath and os.path.exists(filepath):
+                    with open(filepath, "rb") as f:
+                        map_bytes = f.read()
+                        screenshot_b64 = base64.b64encode(map_bytes).decode("utf-8")
+        except Exception as e:
+            logger.warning("GIS metrics / Map generation failed: %s", e)
+
     # ── Step 4: Nearby properties ─────────────────────────────────────────
     nearby: list[NearbyProperty] = []
     if include_nearby and rings:
@@ -224,10 +254,8 @@ async def _do_lookup(
     # ── Step 5: Persist ───────────────────────────────────────────────────
     screenshot_bytes: bytes | None = None
     if screenshot_b64:
-        try:
+        with contextlib.suppress(Exception):
             screenshot_bytes = base64.b64decode(screenshot_b64)
-        except Exception:
-            pass
 
     nearby_dicts = [n.model_dump() for n in nearby] if nearby else []
 
@@ -262,6 +290,15 @@ async def _do_lookup(
         "area_sqm": area_sqm_val,
         "nearby_properties": nearby_dicts,
         "building_data": building_data,
+        "setback_area_m2": gis_metrics.get("setback_area_m2"),
+        "max_road_width_m": gis_metrics.get("max_road_width_m"),
+        "abutting_length_m": gis_metrics.get("abutting_length_m"),
+        "reservation_area_m2": gis_metrics.get("reservation_area_m2"),
+        "nalla_present": gis_metrics.get("nalla_present"),
+        "industrial_present": gis_metrics.get("industrial_present"),
+        "zone_code": gis_metrics.get("zone_code"),
+        "roads_touching": gis_metrics.get("roads_touching"),
+        "carriageway_entrances": gis_metrics.get("carriageway_entrances"),
     }
 
 
@@ -269,10 +306,43 @@ async def _do_lookup(
 
 
 @router.post("/lookup", response_model=PropertyLookupResponse)
-async def lookup_property(req: PropertyLookupRequest, background_tasks: BackgroundTasks):
+async def lookup_property(req: PropertyLookupRequest, background_tasks: BackgroundTasks, request: Request):
     """Submit a property lookup (processed in background). Poll GET /status/{id}."""
     storage = get_storage()
     ward_str = req.ward.value
+
+    if storage:
+        # 1. Check completed (30-day TTL)
+        existing = await storage.find_completed_lookup(
+            ward=ward_str, village=req.village, cts_no=req.cts_no
+        )
+        if existing:
+            logger.info("Found completed lookup within 30 days. Returning existing ID: %s", existing["id"])
+            return PropertyLookupResponse(
+                id=str(existing["id"]),
+                status=PropertyLookupStatus.COMPLETED,
+                ward=req.ward,
+                village=req.village,
+                cts_no=req.cts_no,
+                created_at=existing["created_at"],
+            )
+
+        # 2. Check processing
+        processing = await storage.find_processing_lookup(
+            ward=ward_str, village=req.village, cts_no=req.cts_no
+        )
+        if processing:
+            logger.info("Found in-flight lookup. Returning existing ID: %s", processing["id"])
+            return PropertyLookupResponse(
+                id=str(processing["id"]),
+                status=PropertyLookupStatus.PROCESSING,
+                ward=req.ward,
+                village=req.village,
+                cts_no=req.cts_no,
+                created_at=processing["created_at"],
+            )
+
+    # 3. Start new
     lookup_id = await storage.create_lookup(
         ward=ward_str,
         village=req.village,
@@ -285,6 +355,8 @@ async def lookup_property(req: PropertyLookupRequest, background_tasks: Backgrou
         ward_str,
         req.village,
         req.cts_no,
+        req.tps_name,
+        req.use_fp,
         req.include_nearby,
         storage,
     )
@@ -298,76 +370,6 @@ async def lookup_property(req: PropertyLookupRequest, background_tasks: Backgrou
         ward=req.ward,
         village=req.village,
         cts_no=req.cts_no,
-        created_at=created_at,
-    )
-
-
-# ── Sync endpoint ─────────────────────────────────────────────────────────────
-
-
-@router.post("/lookup/sync", response_model=PropertyLookupResponse)
-async def lookup_property_sync(req: PropertyLookupRequest, request: Request):
-    """Synchronous lookup — waits for full result. Suited for orchestrator calls."""
-    try:
-        storage = get_storage()
-        ward_str = req.ward.value
-
-        # Only create DB record if storage is available
-        lookup_id = None
-        if storage:
-            try:
-                lookup_id = await storage.create_lookup(
-                    ward=ward_str,
-                    village=req.village,
-                    cts_no=req.cts_no,
-                )
-            except Exception as e:
-                logger.warning("Could not create lookup record: %s", e)
-
-        result = await _do_lookup(
-            lookup_id,
-            ward_str,
-            req.village,
-            req.cts_no,
-            req.tps_name,
-            req.use_fp,
-            req.include_nearby,
-            storage,
-        )
-
-        if storage and lookup_id:
-            row = await storage.get_lookup(lookup_id)
-            created_at = row["created_at"] if row else datetime.utcnow()
-        else:
-            created_at = datetime.utcnow()
-
-        status = PropertyLookupStatus(result.get("status", "failed"))
-    except Exception as e:
-        logger.error("Lookup sync failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Lookup failed: {str(e)}") from e
-    nearby = [NearbyProperty(**n) for n in (result.get("nearby_properties") or [])]
-
-    download_url = (
-        f"{str(request.base_url).rstrip('/')}/download/{lookup_id}/screenshot"
-        if lookup_id
-        else None
-    )
-
-    return PropertyLookupResponse(
-        id=lookup_id,
-        status=status,
-        ward=result.get("ward", req.ward),
-        village=result.get("village", req.village),
-        cts_no=result.get("cts_no", req.cts_no),
-        tps_name=result.get("tps_name"),
-        fp_no=result.get("fp_no"),
-        geometry_wgs84=result.get("geometry_wgs84"),
-        centroid_lat=result.get("centroid_lat"),
-        centroid_lng=result.get("centroid_lng"),
-        area_sqm=result.get("area_sqm"),
-        nearby_properties=nearby if nearby else None,
-        download_url=download_url,
-        error_message=result.get("error"),
         created_at=created_at,
     )
 

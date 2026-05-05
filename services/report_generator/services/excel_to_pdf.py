@@ -25,7 +25,7 @@ def generate_report_with_pdf(
     excel_filename = f"Feasibility_{scheme}_{redevelopment_type}_{safe_name}.xlsx"
     excel_path = str(output_dir / excel_filename)
 
-    excel_bytes, saved_path = template_service.generate_full_report(
+    _excel_bytes, saved_path = template_service.generate_full_report(
         scheme=scheme,
         all_data=all_data,
         output_path=excel_path,

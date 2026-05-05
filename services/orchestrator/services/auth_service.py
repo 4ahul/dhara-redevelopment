@@ -4,7 +4,7 @@ Handles Clerk-backed user provisioning and legacy admin password auth.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException
@@ -47,7 +47,12 @@ class AuthService:
 
         if not user:
             # Fallback: try by email from token (if webhook hasn't fired yet)
-            email = payload.get("email") or payload.get("email_addresses", [{}])[0].get("email_address", "") if isinstance(payload.get("email_addresses"), list) else ""
+            email = (
+                payload.get("email")
+                or payload.get("email_addresses", [{}])[0].get("email_address", "")
+                if isinstance(payload.get("email_addresses"), list)
+                else ""
+            )
             if email:
                 user = await user_repository.get_user_by_email(self.db, email)
 
@@ -55,7 +60,7 @@ class AuthService:
             user = await self._auto_create_from_claims(payload)
 
         # Update last login
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(UTC)
         await self.db.flush()
 
         access_token = create_access_token(
@@ -103,7 +108,7 @@ class AuthService:
                 "role": UserRole.PMC,
                 "avatar_url": avatar_url,
                 "is_active": True,
-                "last_login_at": datetime.utcnow(),
+                "last_login_at": datetime.now(UTC),
             },
         )
 
@@ -121,8 +126,12 @@ class AuthService:
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as exc:
-            logger.error("Clerk API error %s: %s", exc.response.status_code, exc.response.text)
-            raise HTTPException(status_code=502, detail="Failed to verify identity with Clerk") from exc
+            logger.exception("Clerk API error %s: %s", exc.response.status_code, exc.response.text)
+            raise HTTPException(
+                status_code=502, detail="Failed to verify identity with Clerk"
+            ) from exc
         except httpx.RequestError as exc:
-            logger.error("Clerk API unreachable: %s", exc)
-            raise HTTPException(status_code=502, detail="Auth service temporarily unavailable") from exc
+            logger.exception("Clerk API unreachable: %s", exc)
+            raise HTTPException(
+                status_code=502, detail="Auth service temporarily unavailable"
+            ) from exc

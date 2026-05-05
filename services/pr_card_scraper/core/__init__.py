@@ -9,6 +9,7 @@ class Settings(BaseServiceSettings):
     DATABASE_URL: str = "postgresql://redevelopment:redevelopment@localhost:5435/pr_card_scraper_db"
 
     MAHABHUMI_URL: str = "https://bhulekh.mahabhumi.gov.in"
+    OCR_URL: str = "http://ocr_service:8009"
 
     TESSERACT_CMD: str = os.environ.get(
         "TESSERACT_CMD",

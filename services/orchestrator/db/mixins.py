@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime
 from sqlalchemy.dialects.postgresql import UUID
@@ -11,7 +11,7 @@ def _uuid():
 
 
 def _now():
-    return datetime.utcnow()
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class TimestampMixin:

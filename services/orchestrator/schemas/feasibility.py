@@ -1,132 +1,233 @@
-"""
-Feasibility Analyze Request/Response Schemas
-"""
-
+import contextlib
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from fastapi import File, Form, UploadFile
+from pydantic import BaseModel, Field, BeforeValidator
+from typing_extensions import Annotated
 
-
-class FeasibilityAnalyzeRequest(BaseModel):
-    """Request for full feasibility analysis - orchestrates all microservices."""
-
-    society_name: str | None = Field(
-        default=None, max_length=255, description="Name of the society"
-    )
-    address: str = Field(min_length=5, max_length=2000, description="Society address")
-    cts_no: str | None = Field(default=None, max_length=100, description="CTS number (1991 scheme)")
-    fp_no: str | None = Field(default=None, max_length=100, description="FP number (2034 scheme)")
-    ward: str | None = Field(default=None, max_length=20, description="MCGM ward code")
-    village: str | None = Field(default=None, max_length=255, description="Village name")
-    tps_name: str | None = Field(
-        default=None, max_length=255, description="TPS scheme name (e.g. TPS-VI Vileparle)"
-    )
-    use_fp_scheme: bool = Field(
-        default=False, description="Use FP scheme (2034) instead of CTS (1991)"
-    )
-    # Optional override fields passed through to report generator
-    scheme: str | None = Field(
-        default="33(7)(B)", max_length=50, description="Regulation scheme for report template"
-    )
-    redevelopment_type: str | None = Field(default="CLUBBING", description="CLUBBING or INSITU")
-    num_flats: int | None = Field(default=None, ge=0)
-    num_commercial: int | None = Field(default=None, ge=0)
-    society_age: int | None = Field(default=None, ge=0)
-    existing_bua_sqft: float | None = Field(default=None, ge=0)
-    plot_area_sqm: float | None = Field(default=None, ge=0)
-    road_width_m: float | None = Field(default=None, ge=0)
-    manual_inputs: dict | None = Field(
-        default=None, description="Manual overrides for yellow cells"
-    )
-    financial: dict | None = Field(default=None, description="Financial inputs override")
-    bankGuranteeCommercial: float | None = Field(
-        default=None, ge=0, description="Bank guarantee input commercial (cell gets 15% of this)"
-    )
-    bankGuranteeResidential: float | None = Field(
-        default=None, ge=0, description="Bank guarantee input residential (cell gets 15% of this)"
-    )
-    costAcquisition79a: float | None = Field(
-        default=None, ge=0, description="79A land acquisition cost (SUMMARY 1!I98)"
-    )
-    salableResidentialRatePerSqFt: float | None = Field(
-        default=None, ge=0, description="Residential sale rate per sqft (P&L!D28)"
-    )
-    carsToSellRatePerCar: float | None = Field(
-        default=None, ge=0, description="Parking sale rate per car (P&L!D30)"
-    )
-    saleAreaBreakup: dict | None = Field(
-        default=None,
-        description="Commercial floor-wise area+rate: {groundFloor,firstFloor,secondFloor,otherFloors} each {area,rate}",
-    )
+def _coerce_society(v: Any) -> str | None:
+    """Convert Society ORM object to its name, or pass through strings/None."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v
+    # Assume it's a Society ORM object with a .name attribute
+    return getattr(v, "name", None)
 
 
 class FeasibilityAnalyzeResponse(BaseModel):
-    """Response for feasibility analysis."""
+    """Unified response for feasibility analysis lifecycle."""
 
-    job_id: str
+    job_id: str = Field(serialization_alias="jobId")
     status: str = "processing"
-    round1_results: dict | None = None
-    round2_results: dict | None = None
-    report_generated: bool | None = None
-    report_error: str | None = None
+    progress: float | None = 0.0
+    file_url: str | None = Field(default=None, serialization_alias="fileUrl")
+    report_generated: bool | None = Field(default=False, serialization_alias="reportGenerated")
+    report_error: str | None = Field(default=None, serialization_alias="reportError")
 
-
-# --- Feasibility Reports ----------------------------------------------------
-
-
-class FeasibilityReportCreate(BaseModel):
-    society_id: UUID
-    title: str | None = Field(default="Feasibility Report", max_length=500)
-    cts_no: str | None = Field(
-        default=None, max_length=100, description="CTS/CS number (1991 scheme)"
-    )
-    fp_no: str | None = Field(
-        default=None, max_length=100, description="Final Plot number (2034 scheme)"
-    )
-    num_flats: int | None = Field(default=None, ge=0)
-    num_commercial: int | None = Field(default=None, ge=0)
-    basement_required: bool | None = None
-    corpus_commercial: float | None = Field(default=None, ge=0)
-    corpus_residential: float | None = Field(default=None, ge=0)
-    sale_commercial_bua_sqft: float | None = Field(default=None, ge=0)
-    const_rate_commercial: float | None = Field(default=None, ge=0)
-    const_rate_residential: float | None = Field(default=None, ge=0)
-    const_rate_podium: float | None = Field(default=None, ge=0)
-    const_rate_basement: float | None = Field(default=None, ge=0)
-    cost_79a_acquisition: float | None = Field(default=None, ge=0)
-    commercial_gf_area: float | None = Field(default=None, ge=0)
-    sale_rate_commercial_gf: float | None = Field(default=None, ge=0)
-    commercial_1f_area: float | None = Field(default=None, ge=0)
-    sale_rate_commercial_1f: float | None = Field(default=None, ge=0)
-    commercial_2f_area: float | None = Field(default=None, ge=0)
-    sale_rate_commercial_2f: float | None = Field(default=None, ge=0)
-    commercial_other_area: float | None = Field(default=None, ge=0)
-    sale_rate_commercial_other: float | None = Field(default=None, ge=0)
-    sale_rate_residential: float | None = Field(default=None, ge=0)
-    parking_price_per_unit: float | None = Field(default=None, ge=0)
-
-
-class FeasibilityReportUpdate(BaseModel):
-    title: str | None = Field(default=None, max_length=500)
-    status: str | None = None
-    llm_analysis: str | None = None
+    model_config = {"populate_by_name": True}
 
 
 class FeasibilityReportResponse(BaseModel):
-    id: UUID
-    society_id: UUID
-    user_id: UUID
-    title: str
-    report_path: str | None = None
-    file_url: str | None = None
-    status: str
-    input_data: dict | None = None
-    output_data: dict | None = None
-    data_buffer: dict | None = None
-    llm_analysis: str | None = None
-    error_message: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    """Technical snapshot of a completed feasibility report."""
 
-    model_config = {"from_attributes": True}
+    id: UUID
+    society_id: UUID = Field(serialization_alias="societyId")
+    user_id: UUID = Field(serialization_alias="userId")
+    title: str
+    report_path: str | None = Field(default=None, serialization_alias="reportPath")
+    file_url: str | None = Field(default=None, serialization_alias="fileUrl")
+    status: str
+
+    ward: str | None = None
+    village: str | None = None
+    cts_no: str | None = Field(default=None, serialization_alias="ctsNo")
+    fp_no: str | None = Field(default=None, serialization_alias="fpNo")
+
+    fsi: float | None = None
+    plot_area: float | None = Field(default=None, serialization_alias="plotArea")
+    estimated_value: str | None = Field(default=None, serialization_alias="estimatedValue")
+
+    input_data: dict | None = Field(default=None, serialization_alias="inputData")
+    output_data: dict | None = Field(default=None, serialization_alias="outputData")
+    llm_analysis: str | None = Field(default=None, serialization_alias="aiSummary")
+    error_message: str | None = Field(default=None, serialization_alias="errorMessage")
+
+    created_at: datetime = Field(serialization_alias="createdAt")
+    updated_at: datetime = Field(serialization_alias="updatedAt")
+
+    society: Annotated[str | None, BeforeValidator(_coerce_society)] = None
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+
+class FeasibilityReportUpdate(BaseModel):
+    """Metadata updates for reports."""
+
+    title: str | None = Field(default=None, max_length=500)
+    status: str | None = None
+    llm_analysis: str | None = Field(default=None, alias="aiSummary")
+
+    model_config = {"populate_by_name": True}
+
+
+class FeasibilityAnalyzeRequest(BaseModel):
+    """Direct JSON request for feasibility (primarily for internal/admin use)."""
+
+    society_id: UUID = Field(alias="societyId")
+    society_name: str | None = Field(default=None, alias="societyName")
+    address: str | None = None
+    cts_no: str | None = Field(default=None, alias="ctsNo")
+    fp_no: str | None = Field(default=None, alias="fpNo")
+    ward: str | None = None
+    village: str | None = None
+
+    fsi: float | None = None
+    plot_area_sqm: float | None = Field(default=None, alias="plotAreaSqM")
+    salable_residential_rate: float | None = Field(
+        default=None, alias="salableResidentialRatePerSqFt"
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class FeasibilityForm:
+    """Dependency class to handle the massive multipart form submission."""
+
+    def __init__(
+        self,
+        society_id: UUID,
+        old_plan: UploadFile | None = File(None, alias="oldPlan"),
+        tenements_sheet: UploadFile | None = File(None, alias="tenementsSheet"),
+        dp_remark_pdf: UploadFile | None = File(None, alias="dpRemarkPdf"),
+        land_identifier_type: str | None = Form(None, alias="landIdentifierType"),
+        land_identifier_value: str | None = Form(None, alias="landIdentifierValue"),
+        tps_name: str | None = Form(None, alias="tpsScheme"),
+        plot_area_sqm: float | None = Form(None, alias="plotAreaSqM"),
+        tenement_mode: str = Form("manual", alias="tenementMode"),
+        number_of_tenements: int | None = Form(None, alias="numberOfTenements"),
+        number_of_commercial_shops: int | None = Form(None, alias="numberOfCommercialShops"),
+        basement_required: str | None = Form(None, alias="basementRequired"),
+        corpus_commercial: float | None = Form(None, alias="corpusCommercial"),
+        corpus_residential: float | None = Form(None, alias="corpusResidential"),
+        bank_guarantee_commercial: float | None = Form(None, alias="bankGuranteeCommercial"),
+        bank_guarantee_residential: float | None = Form(None, alias="bankGuranteeResidential"),
+        sale_commercial_mun_bua_sqft: float | None = Form(None, alias="saleCommercialMunBuaSqFt"),
+        commercial_area_cost_per_sqft: float | None = Form(None, alias="commercialAreaCostPerSqFt"),
+        residential_area_cost_per_sqft: float | None = Form(
+            None, alias="residentialAreaCostPerSqFt"
+        ),
+        podium_parking_cost_per_sqft: float | None = Form(None, alias="podiumParkingCostPerSqFt"),
+        basement_cost_per_sqft: float | None = Form(None, alias="basementCostPerSqFt"),
+        cost_acquisition_79a: float | None = Form(None, alias="costAcquisition79a"),
+        salable_residential_rate: float | None = Form(None, alias="salableResidentialRatePerSqFt"),
+        cars_to_sell_rate: float | None = Form(None, alias="carsToSellRatePerCar"),
+        sale_area_breakup: str | None = Form(None, alias="saleAreaBreakup"),
+        gf_area: float | None = Form(None, alias="saleAreaBreakup[groundFloor][area]"),
+        gf_rate: float | None = Form(None, alias="saleAreaBreakup[groundFloor][rate]"),
+        f1_area: float | None = Form(None, alias="saleAreaBreakup[firstFloor][area]"),
+        f1_rate: float | None = Form(None, alias="saleAreaBreakup[firstFloor][rate]"),
+        f2_area: float | None = Form(None, alias="saleAreaBreakup[secondFloor][area]"),
+        f2_rate: float | None = Form(None, alias="saleAreaBreakup[secondFloor][rate]"),
+        other_area: float | None = Form(None, alias="saleAreaBreakup[otherFloors][area]"),
+        other_rate: float | None = Form(None, alias="saleAreaBreakup[otherFloors][rate]"),
+        fsi: float | None = Form(None, alias="fsi"),
+        zone_code: str | None = Form(None, alias="zone_code"),
+    ):
+        self.society_id = society_id
+        self.old_plan = old_plan
+        self.tenements_sheet = tenements_sheet
+        self.dp_remark_pdf = dp_remark_pdf
+        self.land_identifier_type = land_identifier_type
+        self.land_identifier_value = land_identifier_value
+        self.tps_name = tps_name
+        self.plot_area_sqm = plot_area_sqm
+        self.tenement_mode = tenement_mode
+        self.number_of_tenements = number_of_tenements
+        self.number_of_commercial_shops = number_of_commercial_shops
+        self.basement_required = basement_required
+        self.corpus_commercial = corpus_commercial
+        self.corpus_residential = corpus_residential
+        self.bank_guarantee_commercial = bank_guarantee_commercial
+        self.bank_guarantee_residential = bank_guarantee_residential
+        self.sale_commercial_mun_bua_sqft = sale_commercial_mun_bua_sqft
+        self.commercial_area_cost_per_sqft = commercial_area_cost_per_sqft
+        self.residential_area_cost_per_sqft = residential_area_cost_per_sqft
+        self.podium_parking_cost_per_sqft = podium_parking_cost_per_sqft
+        self.basement_cost_per_sqft = basement_cost_per_sqft
+        self.cost_acquisition_79a = cost_acquisition_79a
+        self.salable_residential_rate = salable_residential_rate
+        self.cars_to_sell_rate = cars_to_sell_rate
+        self.sale_area_breakup = sale_area_breakup
+        self.gf_area = gf_area
+        self.gf_rate = gf_rate
+        self.f1_area = f1_area
+        self.f1_rate = f1_rate
+        self.f2_area = f2_area
+        self.f2_rate = f2_rate
+        self.other_area = other_area
+        self.other_rate = other_rate
+        self.fsi = fsi
+        self.zone_code = zone_code
+
+    def to_orchestrator_payload(self, society_record: Any) -> dict:
+        import json
+
+        payload = {
+            "society_id": str(society_record.id),
+            "society_name": society_record.name,
+            "address": society_record.address,
+            "num_flats": self.number_of_tenements or 0,
+        }
+
+        if self.land_identifier_type and self.land_identifier_value:
+            if self.land_identifier_type.upper() == "CTS":
+                payload["cts_no"] = self.land_identifier_value
+            elif self.land_identifier_type.upper() == "FP":
+                payload["fp_no"] = self.land_identifier_value
+                payload["use_fp_scheme"] = True
+
+        if self.tps_name:
+            payload["tps_name"] = self.tps_name
+        if self.plot_area_sqm:
+            payload["plot_area_sqm"] = self.plot_area_sqm
+        if self.number_of_commercial_shops:
+            payload["num_commercial"] = self.number_of_commercial_shops
+
+        manual = {
+            "basementRequired": self.basement_required,
+            "basement_count": 2 if self.basement_required == "yes" else 0,
+            "corpus_commercial": self.corpus_commercial,
+            "corpus_residential": self.corpus_residential,
+            "bankGuranteeCommercial": self.bank_guarantee_commercial,
+            "bankGuranteeResidential": self.bank_guarantee_residential,
+            "commercial_bua_sqft": self.sale_commercial_mun_bua_sqft,
+            "const_rate_commercial": self.commercial_area_cost_per_sqft,
+            "const_rate_residential": self.residential_area_cost_per_sqft,
+            "const_rate_podium": self.podium_parking_cost_per_sqft,
+            "const_rate_basement": self.basement_cost_per_sqft,
+            "costAcquisition79a": self.cost_acquisition_79a,
+            "salableResidentialRatePerSqFt": self.salable_residential_rate,
+            "carsToSellRatePerCar": self.cars_to_sell_rate,
+            "fsi": self.fsi,
+            "zone_code": self.zone_code,
+        }
+
+        breakup_json = self.sale_area_breakup
+        if not breakup_json:
+            recon = {}
+            if self.gf_area is not None:
+                recon["groundFloor"] = {"area": self.gf_area or 0, "rate": self.gf_rate or 0}
+            if self.f1_area is not None:
+                recon["firstFloor"] = {"area": self.f1_area or 0, "rate": self.f1_rate or 0}
+            if recon:
+                breakup_json = json.dumps(recon)
+
+        if breakup_json:
+            with contextlib.suppress(Exception):
+                manual["saleAreaBreakup"] = json.loads(breakup_json)
+
+        payload["manual_inputs"] = {k: v for k, v in manual.items() if v is not None}
+        return payload

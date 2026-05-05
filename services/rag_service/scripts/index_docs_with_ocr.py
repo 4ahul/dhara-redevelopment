@@ -30,8 +30,6 @@ COLLECTION_NAME = "documents"
 EMBEDDING_DIM = 1536
 
 DOCS_DIR = Path(__file__).parent.parent / "data" / "docs"
-print(f"DOCS_DIR resolved to: {DOCS_DIR.absolute()}")
-print(f"Does it exist? {DOCS_DIR.exists()}")
 VECTOR_CACHE_DIR = Path("data/vectors")
 VECTOR_CACHE_DIR.mkdir(exist_ok=True)
 
@@ -44,9 +42,8 @@ try:
 
     reader = easyocr.Reader(["en", "mr"], gpu=False, verbose=False)
     EASYOCR_AVAILABLE = True
-    print("EasyOCR initialized with English + Marathi")
 except ImportError:
-    print("EasyOCR not available, will use text extraction only")
+    pass
 
 embeddings = OpenAIEmbeddings(
     model="text-embedding-3-small", openai_api_key=os.environ.get("OPENAI_API_KEY")
@@ -58,19 +55,14 @@ def get_embedding_dimension():
 
 
 def setup_local_milvus():
-    print(f"Connecting to local Milvus at {MILVUS_HOST}:{MILVUS_PORT}...")
     try:
         connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=10)
-        print("Connected to local Milvus")
-    except Exception as e:
-        print(f"Failed to connect: {e}")
+    except Exception:
         raise
 
     dim = get_embedding_dimension()
-    print(f"Embedding dimension: {dim}")
 
     if utility.has_collection(COLLECTION_NAME):
-        print(f"Dropping existing collection: {COLLECTION_NAME}")
         utility.drop_collection(COLLECTION_NAME)
 
     fields = [
@@ -89,7 +81,6 @@ def setup_local_milvus():
     }
     collection.create_index(field_name="embedding", index_params=index_params)
     collection.load()
-    print(f"Created collection: {COLLECTION_NAME}")
     return collection
 
 
@@ -112,8 +103,7 @@ def extract_text_with_ocr(filepath):
     try:
         result = reader.readtext(str(filepath), detail=0)
         return "\n".join(result).strip()
-    except Exception as e:
-        print(f"  OCR failed for {filepath.name}: {e}")
+    except Exception:
         return None
 
 
@@ -123,13 +113,8 @@ def process_file(filepath):
     if filename in SKIP_FILES or filepath.suffix.lower() in SKIP_EXTENSIONS:
         return []
 
-    if (
-        filepath.suffix.lower() in {".db", ".tif", ".tiff"}
-        and not filepath.suffix.lower() == ".tif"
-    ):
+    if filepath.suffix.lower() in {".db", ".tif", ".tiff"} and filepath.suffix.lower() != ".tif":
         return []
-
-    print(f"  Processing: {filepath.name}")
 
     text = ""
     method = ""
@@ -138,7 +123,6 @@ def process_file(filepath):
         text = extract_text_from_pdf(filepath)
         method = "pypdf"
         if not text or len(text) < 100:
-            print("    Text extraction weak, trying OCR...")
             text = extract_text_with_ocr(filepath)
             method = "ocr" if text else method
     elif filepath.suffix.lower() == ".txt":
@@ -164,17 +148,13 @@ def process_file(filepath):
         return []
 
     if not text or len(text) < 50:
-        print(f"    Skipping (too little text: {len(text) if text else 0} chars)")
         return []
-
-    print(f"    Extracted {len(text)} chars via {method}")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, chunk_overlap=200, separators=["\n\n", "\n", ". ", " ", ""]
     )
 
     chunks = splitter.split_text(text)
-    print(f"    Created {len(chunks)} chunks")
 
     source = str(filepath.relative_to(DOCS_DIR))
     return [(chunk, source) for chunk in chunks]
@@ -187,32 +167,23 @@ def find_all_files():
     files = []
     for root, _dirs, filenames in os.walk(DOCS_DIR):
         for f in filenames:
-            if any(f.lower().endswith(ext) for ext in extensions):
-                if f not in SKIP_FILES:
-                    files.append(Path(root) / f)
-    print(f"Found {len(files)} files using os.walk")
+            if any(f.lower().endswith(ext) for ext in extensions) and f not in SKIP_FILES:
+                files.append(Path(root) / f)
     return files
 
 
 def main():
-    print("=" * 60)
-    print("DOCUMENT INDEXER WITH OCR FALLBACK")
-    print("Using: OpenAI text-embedding-3-small")
-    print("=" * 60)
 
     setup_local_milvus()
     collection = Collection(COLLECTION_NAME)
 
     files = find_all_files()
-    print(f"\nFound {len(files)} files to process")
 
     if not files:
-        print("No files found!")
         return
 
     all_chunks = []
 
-    print("\n--- Phase 1: Text Extraction ---")
     time.time()
 
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -221,16 +192,11 @@ def main():
             try:
                 chunks = future.result()
                 all_chunks.extend(chunks)
-            except Exception as e:
-                print(f"Error: {e}")
-
-    print(f"\nTotal chunks: {len(all_chunks)}")
+            except Exception:
+                pass
 
     if not all_chunks:
-        print("No text extracted. Exiting.")
         return
-
-    print("\n--- Phase 2: Embedding & Indexing ---")
 
     batch_size = 50
     total_inserted = 0
@@ -247,14 +213,11 @@ def main():
 
             collection.insert(entities)
             total_inserted += len(texts)
-            print(f"  Indexed {min(i + batch_size, len(all_chunks))}/{len(all_chunks)} chunks")
 
-        except Exception as e:
-            print(f"  Batch error: {e}")
+        except Exception:
             continue
 
     collection.flush()
-    print(f"\nTotal inserted: {total_inserted} chunks")
 
 
 def index_document(filepath: str, description: str = "") -> str:
@@ -274,18 +237,15 @@ def index_document(filepath: str, description: str = "") -> str:
             reader = PdfReader(file_path)
             for page in reader.pages:
                 text += page.extract_text() or ""
-        except Exception as e:
-            print(f"Error reading PDF: {e}")
+        except Exception:
             return None
     elif file_path.suffix.lower() == ".txt":
         try:
             with open(file_path, encoding="utf-8", errors="ignore") as f:
                 text = f.read()
-        except Exception as e:
-            print(f"Error reading text: {e}")
+        except Exception:
             return None
     else:
-        print(f"Unsupported file type: {file_path.suffix}")
         return None
 
     if not text:
@@ -308,11 +268,8 @@ def index_document(filepath: str, description: str = "") -> str:
         collection.insert(entities)
         collection.flush()
 
-        doc_id = str(uuid.uuid4())[:8]
-        print(f"[INDEX] Indexed {len(chunks)} chunks from {filename}")
-        return doc_id
-    except Exception as e:
-        print(f"[INDEX] Error: {e}")
+        return str(uuid.uuid4())[:8]
+    except Exception:
         return None
 
 

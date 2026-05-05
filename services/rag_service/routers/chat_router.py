@@ -51,7 +51,7 @@ def _save_chat_messages(
     answer_confidence: float,
     thought_process: list,
     update_title: bool = False,
-    new_title: str = None,
+    new_title: str | None = None,
 ):
     db = SessionLocal()
     try:

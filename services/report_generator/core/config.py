@@ -15,15 +15,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "report_generator"
     APP_VERSION: str = "1.0.0"
     # ── Financial / FSI Constants (Default to Mumbai Standard) ──────────────────
-    ZONAL_FSI: float = float(os.getenv("ZONAL_FSI", 1.33))
-    CONST_RATE_PER_SQFT: float = float(os.getenv("CONST_RATE_PER_SQFT", 4000.0))
-    PROF_FEE_PER_SQFT: float = float(os.getenv("PROF_FEE_PER_SQFT", 125.0))
-    CORPUS_PER_SQFT: float = float(os.getenv("CORPUS_PER_SQFT", 1250.0))
-    TEMP_RESI_Y1_SQFT: float = float(os.getenv("TEMP_RESI_Y1_SQFT", 1800.0))
-    TEMP_COMM_Y1_SQFT: float = float(os.getenv("TEMP_COMM_Y1_SQFT", 300.0))
+    ZONAL_FSI: float = float(os.getenv("ZONAL_FSI", "1.33"))
+    CONST_RATE_PER_SQFT: float = float(os.getenv("CONST_RATE_PER_SQFT", "4000.0"))
+    PROF_FEE_PER_SQFT: float = float(os.getenv("PROF_FEE_PER_SQFT", "125.0"))
+    CORPUS_PER_SQFT: float = float(os.getenv("CORPUS_PER_SQFT", "1250.0"))
+    TEMP_RESI_Y1_SQFT: float = float(os.getenv("TEMP_RESI_Y1_SQFT", "1800.0"))
+    TEMP_COMM_Y1_SQFT: float = float(os.getenv("TEMP_COMM_Y1_SQFT", "300.0"))
 
-    SALE_RATE_FALLBACK: float = float(os.getenv("SALE_RATE_FALLBACK", 65000.0))
-    RR_OPEN_LAND_FALLBACK: float = float(os.getenv("RR_OPEN_LAND_FALLBACK", 200000.0))
+    SALE_RATE_FALLBACK: float = float(os.getenv("SALE_RATE_FALLBACK", "65000.0"))
+    RR_OPEN_LAND_FALLBACK: float = float(os.getenv("RR_OPEN_LAND_FALLBACK", "200000.0"))
 
     # ── Flat scheme key → template (kept for backward compatibility) ──
     # Internal lookup key is "{scheme}|{CLUBBING|INSITU}"

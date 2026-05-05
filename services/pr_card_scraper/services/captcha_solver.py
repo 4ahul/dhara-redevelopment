@@ -1,9 +1,9 @@
 """
-CAPTCHA solver — 3-tier strategy:
-  1. LLM Vision (Gemini Flash → GPT-4o-mini) — fast, accurate
-  2. ddddocr (primary OCR) — offline fallback
-  3. pytesseract — last resort
-Returns a list of candidate strings (most likely first).
+CAPTCHA solver — 4-tier strategy:
+  1. LLM Vision (Gemini/OpenAI) — highest accuracy, recommended
+  2. Internal OCR Service — project-specific
+  3. ddddocr (Primary OCR) — local fallback
+  4. pytesseract — last resort
 """
 
 import io
@@ -12,6 +12,7 @@ import logging
 from PIL import Image, ImageEnhance
 
 from .llm_captcha_solver import LLMCaptchaSolver
+from .ocr_service_solver import OCRServiceSolver
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,13 @@ _CONFUSION_PAIRS = [
 
 
 class CaptchaSolver:
-    """3-tier CAPTCHA solver: LLM → ddddocr → pytesseract."""
+    """4-tier CAPTCHA solver: LLM Vision → Internal OCR → ddddocr → pytesseract."""
 
     def __init__(self, use_gpu: bool = False):
         self.use_gpu = use_gpu
         self._reader = None
         self._tesseract_available = None
+        self._ocr_service_solver = OCRServiceSolver()
         self._llm_solver = LLMCaptchaSolver()
 
     def _reader_instance(self):
@@ -65,21 +67,29 @@ class CaptchaSolver:
 
     async def solve(self, image_bytes: bytes) -> list[str]:
         """
-        Solve CAPTCHA — tries LLM first (high accuracy), falls back to OCR.
+        Solve CAPTCHA — tries LLM Vision first (highest accuracy), then falls back.
         Returns a deduplicated list of candidate strings (most likely first).
         """
         candidates: list[str] = []
 
-        # ── Tier 1: LLM Vision (Gemini Flash → GPT-4o-mini) ─────────────
+        # ── Tier 1: LLM Vision (Gemini/OpenAI) ───────────────────────────
         try:
             llm_result = await self._llm_solver.solve(image_bytes)
             if llm_result:
-                logger.info("LLM CAPTCHA result: '%s'", llm_result)
                 candidates.append(llm_result)
+                logger.info("LLM Vision CAPTCHA solved: '%s'", llm_result)
         except Exception as e:
-            logger.warning("LLM CAPTCHA solver error: %s", e)
+            logger.warning("LLM Vision solver error: %s", e)
 
-        # ── Tier 2 & 3: OCR fallback ────────────────────────────────────
+        # ── Tier 2: Internal OCR Service ────────────────────────────────
+        try:
+            ocr_svc_result = await self._ocr_service_solver.solve(image_bytes)
+            if ocr_svc_result:
+                candidates.append(ocr_svc_result)
+        except Exception as e:
+            logger.warning("Internal OCR Service solver error: %s", e)
+
+        # ── Tier 3 & 4: Local OCR fallback ─────────────────────────────
         ocr_candidates = self._ocr_solve(image_bytes)
         for c in ocr_candidates:
             if c not in candidates:

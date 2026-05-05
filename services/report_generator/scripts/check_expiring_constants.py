@@ -23,7 +23,7 @@ MAPPINGS_DIR = HERE.parent / "mappings"
 def send_alert_email(admin_email: str, alerts: list):
     """Send an email alert to the admin."""
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    smtp_port = int(os.environ.get("SMTP_PORT", "587"))
     smtp_user = os.environ.get("SMTP_USERNAME", "")
     smtp_pass = os.environ.get("SMTP_PASSWORD", "")
     smtp_from = os.environ.get("SMTP_FROM_EMAIL", "noreply@dharaai.com")
@@ -53,7 +53,7 @@ def send_alert_email(admin_email: str, alerts: list):
             server.send_message(msg)
         logger.info(f"Sent expiry alert email to {admin_email}")
     except Exception as e:
-        logger.error(f"Failed to send email: {e}")
+        logger.exception(f"Failed to send email: {e}")
 
 
 def main():
@@ -91,11 +91,11 @@ def main():
                                 f"{filename} -> {const['cell']} ({desc}): {status} on {exp_date_str}"
                             )
                     except Exception as e:
-                        logger.error(
+                        logger.exception(
                             f"Invalid expiry date format for {filename} {const.get('cell')}: {e}"
                         )
         except Exception as e:
-            logger.error(f"Failed to process {yaml_file}: {e}")
+            logger.exception(f"Failed to process {yaml_file}: {e}")
 
     if alerts:
         send_alert_email(admin_email, alerts)

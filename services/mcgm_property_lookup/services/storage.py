@@ -75,7 +75,7 @@ class StorageService:
             conn.close()
             logger.info("Database initialized (property_lookups table ready)")
         except Exception as e:
-            logger.error("Database initialization error: %s", e)
+            logger.exception("Database initialization error: %s", e)
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -100,7 +100,7 @@ class StorageService:
             )
             return lookup_id
         except Exception as e:
-            logger.error("Failed to create lookup: %s", e)
+            logger.exception("Failed to create lookup: %s", e)
             raise
 
     def update_lookup(
@@ -159,7 +159,7 @@ class StorageService:
             conn.close()
             logger.info("Updated lookup %s: status=%s", lookup_id, status)
         except Exception as e:
-            logger.error("Failed to update lookup %s: %s", lookup_id, e)
+            logger.exception("Failed to update lookup %s: %s", lookup_id, e)
             raise
 
     # ── Read ──────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ class StorageService:
             conn.close()
             return dict(row) if row else None
         except Exception as e:
-            logger.error("Failed to get lookup %s: %s", lookup_id, e)
+            logger.exception("Failed to get lookup %s: %s", lookup_id, e)
             return None
 
     def get_screenshot(self, lookup_id: str) -> bytes | None:
@@ -202,8 +202,73 @@ class StorageService:
             conn.close()
             return bytes(row[0]) if row and row[0] else None
         except Exception as e:
-            logger.error("Failed to get screenshot for %s: %s", lookup_id, e)
+            logger.exception("Failed to get screenshot for %s: %s", lookup_id, e)
             return None
+
+    def find_completed_lookup(self, ward: str, village: str, cts_no: str) -> dict | None:
+        """Find the most recent completed lookup for these parameters within 30 days."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Standardize inputs
+            w = ward.strip().upper()
+            v = village.strip().upper()
+            c = cts_no.strip()
+
+            cur.execute(
+                """
+                SELECT id, ward, village, cts_no, tps_name, fp_no,
+                       centroid_lat, centroid_lng, area_sqm,
+                       geometry_wgs84, nearby_properties,
+                       raw_data, status, error_message, created_at
+                FROM property_lookups
+                WHERE ward = %s AND village = %s AND cts_no = %s 
+                  AND status = 'completed'
+                  AND created_at > NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (w, v, c),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception("Failed to find completed lookup: %s", e)
+            return None
+
+    def find_processing_lookup(self, ward: str, village: str, cts_no: str) -> dict | None:
+        """Find an in-flight processing job (started in the last 10 mins)."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            w = ward.strip().upper()
+            v = village.strip().upper()
+            c = cts_no.strip()
+
+            cur.execute(
+                """
+                SELECT id, status, created_at
+                FROM property_lookups
+                WHERE ward = %s AND village = %s AND cts_no = %s 
+                  AND status = 'processing'
+                  AND created_at > NOW() - INTERVAL '10 minutes'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (w, v, c),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception("Failed to find processing lookup: %s", e)
+            return None
+
 
 class AsyncStorageService(StorageService):
     """
@@ -224,3 +289,13 @@ class AsyncStorageService(StorageService):
 
     async def get_screenshot(self, lookup_id: str):
         return await _asyncio.to_thread(StorageService.get_screenshot, self, lookup_id)
+
+    async def find_completed_lookup(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_completed_lookup, self, **kwargs)
+        )
+
+    async def find_processing_lookup(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_processing_lookup, self, **kwargs)
+        )

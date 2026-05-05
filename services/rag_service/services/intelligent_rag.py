@@ -4,6 +4,7 @@ Enhanced Intelligent RAG System with Dynamic Knowledge Graph
 Builds knowledge graph from DCPR document parsing
 """
 
+import contextlib
 import dataclasses
 import hashlib
 import json
@@ -388,10 +389,8 @@ class ConversationMemory:
 
     def _persist_to_redis(self):
         if self.session_id:
-            try:
+            with contextlib.suppress(Exception):
                 SessionRAG._set_in_cache(self._redis_key(), self.messages, ttl=86400)
-            except Exception:
-                pass
 
     def add(self, role: str, content: str):
         self.messages.append(
@@ -563,7 +562,7 @@ class SessionRAG:
         return None
 
     @classmethod
-    def _set_in_cache(cls, key: str, value, ttl: int = None):
+    def _set_in_cache(cls, key: str, value, ttl: int | None = None):
         """Set value in Redis cache with optional TTL override."""
         client = cls._get_redis_client()
         if client:
@@ -686,18 +685,14 @@ class SessionRAG:
             # Get SerpApi results (primary)
             serp_text, serp_sources = "", []
             if serp_future:
-                try:
+                with contextlib.suppress(Exception):
                     serp_text, serp_sources = serp_future.result(timeout=10)
-                except Exception:
-                    pass
 
             # Get DuckDuckGo results (extra sources)
             ddg_text, ddg_sources = "", []
             if ddg_future:
-                try:
+                with contextlib.suppress(Exception):
                     ddg_text, ddg_sources = ddg_future.result(timeout=6)
-                except Exception:
-                    pass
 
         combined_text = serp_text or ddg_text
         combined_sources = serp_sources + ddg_sources
@@ -911,8 +906,8 @@ class SessionRAG:
         self,
         query: str,
         k: int = 10,
-        doc_type_filter: str = None,
-        precomputed_vector: list[float] = None,
+        doc_type_filter: str | None = None,
+        precomputed_vector: list[float] | None = None,
     ):
         """Search local Milvus with full metadata schema."""
         try:
@@ -1474,9 +1469,7 @@ IMPORTANT: If the query is about "side margins", "setbacks", "height limits", or
             combined_results.append((combined_score, r))
 
         combined_results.sort(key=lambda x: x[0], reverse=True)
-        fused_results = [r for _, r in combined_results[: k * 2]]
-
-        return fused_results
+        return [r for _, r in combined_results[: k * 2]]
 
     def _rerank_results(self, question: str, results: list[SearchResult]) -> list[SearchResult]:
         """Re-rank results using cross-encoder with pre-filtering and timeout guard."""
@@ -1970,7 +1963,7 @@ Return JSON:
         web_context: str,
         synthesis: dict,
         context: QueryContext,
-        web_sources: list[dict] = None,
+        web_sources: list[dict] | None = None,
     ) -> str:
         """Generate answer with proper citations from source metadata."""
         # Build context with source metadata for each result. Keep per-doc text
@@ -2128,7 +2121,7 @@ EXTRA:
 
             return answer
         except Exception as e:
-            return f"Error generating answer: {str(e)}"
+            return f"Error generating answer: {e!s}"
 
     def _stream_dynamic_answer(
         self,
@@ -2137,7 +2130,7 @@ EXTRA:
         web_context: str,
         synthesis: dict,
         context: QueryContext,
-        web_sources: list[dict] = None,
+        web_sources: list[dict] | None = None,
     ):
         # Build context with source metadata so the model can cite inline.
         # Keep per-doc text long enough for DCPR tables.
@@ -2260,9 +2253,11 @@ EXTRA:
                 if content:
                     yield content
         except Exception as e:
-            yield f"\n\n[Streaming Error]: {str(e)}"
+            yield f"\n\n[Streaming Error]: {e!s}"
 
-    def _calculate_confidence(self, results: list[SearchResult], synthesis: dict = None) -> float:
+    def _calculate_confidence(
+        self, results: list[SearchResult], synthesis: dict | None = None
+    ) -> float:
         if not results:
             return 0.0
 

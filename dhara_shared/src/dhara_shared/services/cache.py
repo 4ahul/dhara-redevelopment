@@ -74,10 +74,7 @@ def redis_cache(prefix: str, ttl: int = 3600, key_builder: Callable | None = Non
                 return await func(*args, **kwargs)
 
             # Build cache key
-            if key_builder:
-                k_part = key_builder(*args, **kwargs)
-            else:
-                k_part = f"{args}:{kwargs}"
+            k_part = key_builder(*args, **kwargs) if key_builder else f"{args}:{kwargs}"
 
             cache_key = f"{prefix}:{k_part}"
 
@@ -102,10 +99,7 @@ def redis_cache(prefix: str, ttl: int = 3600, key_builder: Callable | None = Non
             if not cache.client:
                 return func(*args, **kwargs)
 
-            if key_builder:
-                k_part = key_builder(*args, **kwargs)
-            else:
-                k_part = f"{args}:{kwargs}"
+            k_part = key_builder(*args, **kwargs) if key_builder else f"{args}:{kwargs}"
 
             cache_key = f"{prefix}:{k_part}"
 

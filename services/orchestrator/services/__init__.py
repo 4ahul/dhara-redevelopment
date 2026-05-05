@@ -8,6 +8,8 @@ from .profile_service import ProfileService
 from .search_service import SearchService
 from .society_service import SocietyService
 from .team_service import TeamService
+from .verification_service import VerificationService
+from .webhook_service import WebhookService
 
 __all__ = [
     "AdminService",
@@ -20,4 +22,6 @@ __all__ = [
     "SearchService",
     "SocietyService",
     "TeamService",
+    "VerificationService",
+    "WebhookService",
 ]

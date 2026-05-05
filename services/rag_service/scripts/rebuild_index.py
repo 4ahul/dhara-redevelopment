@@ -48,15 +48,15 @@ def load_text(filepath: Path) -> str:
             reader = PdfReader(filepath)
             pages = [p.extract_text() or "" for p in reader.pages]
             return "\n".join(pages)
-        elif filepath.suffix.lower() == ".txt":
+        if filepath.suffix.lower() == ".txt":
             return filepath.read_text(encoding="utf-8", errors="ignore")
-        elif filepath.suffix.lower() == ".docx":
+        if filepath.suffix.lower() == ".docx":
             import docx
 
             doc = docx.Document(str(filepath))
             return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-    except Exception as e:
-        print(f"  [WARN] Could not load {filepath.name}: {e}")
+    except Exception:
+        pass
     return ""
 
 
@@ -79,9 +79,6 @@ def chunk_text(text: str):
 
 
 def main():
-    print("=" * 60)
-    print("Rebuild Vector Index - nomic-embed-text (768 dim)")
-    print("=" * 60)
 
     load_env()
 
@@ -90,16 +87,13 @@ def main():
     port = os.environ.get("MILVUS_PORT", "19530")
     token = os.environ.get("MILVUS_TOKEN", "")
 
-    print(f"\nConnecting to Milvus at {host}:{port}...")
     if token:
         connections.connect(alias="default", host=host, port=port, token=token, secure=True)
     else:
         connections.connect(alias="default", host=host, port=port)
-    print("[OK] Connected")
 
     # Drop + recreate collection
     if utility.has_collection("documents"):
-        print("Dropping old collection...")
         utility.drop_collection("documents")
 
     fields = [
@@ -112,7 +106,6 @@ def main():
         "embedding",
         {"index_type": "IVF_FLAT", "metric_type": "COSINE", "params": {"nlist": 128}},
     )
-    print(f"[OK] Collection created ({DIM}-dim COSINE)")
 
     # Find documents - primary regulation files only
     docs_dir = Path("data/docs")
@@ -137,32 +130,25 @@ def main():
         # fallback: any DCPR PDF in root
         files = [f for f in docs_dir.glob("*.pdf") if "DCPR" in f.name.upper()]
 
-    print(f"\nFound {len(files)} documents to index:")
     for f in files:
-        mb = f.stat().st_size / 1024 / 1024
-        print(f"  {f.name} ({mb:.1f}MB)")
+        f.stat().st_size / 1024 / 1024
 
     # Init embeddings
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
     vec = embeddings.embed_query("test")
     assert len(vec) == DIM, f"Expected dim {DIM}, got {len(vec)}"
-    print(f"\n[OK] Ollama embeddings: {len(vec)} dim")
 
     total_indexed = 0
     overall_start = time.time()
 
-    for i, filepath in enumerate(files):
-        print(f"\n[{i + 1}/{len(files)}] {filepath.name}")
+    for _i, filepath in enumerate(files):
         t0 = time.time()
 
         text = load_text(filepath)
         if not text.strip():
-            print("  [SKIP] No text")
             continue
-        print(f"  {len(text):,} chars loaded")
 
         chunks = chunk_text(text)
-        print(f"  {len(chunks)} chunks created")
 
         indexed = 0
         for j in range(0, len(chunks), BATCH_SIZE):
@@ -174,17 +160,12 @@ def main():
                 collection.flush()
                 indexed += len(texts)
                 total_indexed += len(texts)
-                rate = indexed / (time.time() - t0)
-                print(f"  {indexed}/{len(chunks)} ({rate:.1f}/s)")
-            except Exception as e:
-                print(f"  [ERROR] batch {j}: {e}")
+                indexed / (time.time() - t0)
+            except Exception:
+                pass
 
     collection.load()
-    elapsed = time.time() - overall_start
-
-    print("\n" + "=" * 60)
-    print(f"DONE: {total_indexed} chunks in {elapsed:.0f}s")
-    print("=" * 60)
+    time.time() - overall_start
 
 
 if __name__ == "__main__":

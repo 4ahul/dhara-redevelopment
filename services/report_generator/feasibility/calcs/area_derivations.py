@@ -64,15 +64,13 @@ def commercial_bua_formula(ctx, total_fsi_cell: str, pct_path: str) -> str:
     """Return an Excel formula string to calculate commercial BUA based on a percentage of total FSI."""
     pct = lookup(ctx["request"], pct_path)
     if pct is None:
-        # Fallback: if num_commercial > 0, maybe default to 10%?
-        # But for now, let's just return 0 or keep it as user input if missing.
-        return "0"
+        return 0
 
     try:
         pct_val = float(pct) / 100.0
         return f"={total_fsi_cell} * {pct_val}"
     except (ValueError, TypeError):
-        return "0"
+        return 0
 
 
 @register("dcpr_parking_for_sale")

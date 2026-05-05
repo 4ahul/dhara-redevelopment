@@ -9,7 +9,6 @@ Usage:
     python -m scripts.migrate_local_to_cloud
     python -m scripts.migrate_local_to_cloud --collection dcpr_knowledge
 """
-# noqa: E402
 
 import argparse
 import os
@@ -26,7 +25,7 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
 
-from pymilvus import (  # noqa: E402
+from pymilvus import (
     Collection,
     CollectionSchema,
     DataType,
@@ -42,7 +41,6 @@ BATCH = 200  # cloud insert batch
 def build_cloud_collection(name: str) -> Collection:
     """Drop + recreate on cloud with the full local schema and HNSW index."""
     if utility.has_collection(name, using="cloud"):
-        print(f"[CLOUD] Dropping existing collection: {name}")
         utility.drop_collection(name, using="cloud")
         # Wait for drop to propagate (Zilliz is eventually-consistent).
         for _ in range(20):
@@ -50,7 +48,7 @@ def build_cloud_collection(name: str) -> Collection:
             if not utility.has_collection(name, using="cloud"):
                 break
         else:
-            print("[CLOUD] WARNING: drop did not propagate within 20s")
+            pass
 
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
@@ -76,7 +74,6 @@ def build_cloud_collection(name: str) -> Collection:
     }
     collection.create_index(field_name="embedding", index_params=index_params)
     collection.load()
-    print(f"[CLOUD] Created {name} (HNSW, {EMBEDDING_DIM}-dim COSINE)")
     return collection
 
 
@@ -85,7 +82,6 @@ def dump_local(name: str):
     col = Collection(name, using="local")
     col.load()
     total = col.num_entities
-    print(f"[LOCAL] {name}: {total} entities")
 
     out_fields = [
         "text",
@@ -111,7 +107,6 @@ def dump_local(name: str):
             break
         yield rows
         offset += len(rows)
-        print(f"  Dumped {offset}/{total}")
 
 
 def migrate(name: str):
@@ -120,15 +115,7 @@ def migrate(name: str):
     cluster = os.environ["ZILLIZ_CLUSTER"]
     token = os.environ["ZILLIZ_TOKEN"]
 
-    print("=" * 70)
-    print("MIGRATE LOCAL -> ZILLIZ CLOUD")
-    print("=" * 70)
-    print(f"  Collection: {name}")
-    print(f"  Local:      {local_host}:{local_port}")
-    print(f"  Cloud:      {cluster}")
-    print("=" * 70)
-
-    t0 = time.time()
+    time.time()
 
     connections.connect(alias="local", host=local_host, port=local_port, timeout=15)
     connections.connect(
@@ -137,12 +124,10 @@ def migrate(name: str):
 
     # Fast-fail if local collection is missing
     if not utility.has_collection(name, using="local"):
-        print(f"[FATAL] Local collection '{name}' not found.")
         sys.exit(1)
 
     cloud_col = build_cloud_collection(name)
 
-    print("\n--- Streaming rows & inserting ---")
     inserted = 0
     buf_text, buf_source, buf_page, buf_lang = [], [], [], []
     buf_dtype, buf_ctype, buf_cidx, buf_hash, buf_vec = [], [], [], [], []
@@ -166,7 +151,6 @@ def migrate(name: str):
             ]
         )
         inserted += len(buf_text)
-        print(f"  Inserted {inserted} into cloud")
         buf_text, buf_source, buf_page, buf_lang = [], [], [], []
         buf_dtype, buf_ctype, buf_cidx, buf_hash, buf_vec = [], [], [], [], []
 
@@ -187,12 +171,6 @@ def migrate(name: str):
 
     cloud_col.flush()
     cloud_col.load()
-
-    print("\n" + "=" * 70)
-    print("DONE")
-    print("=" * 70)
-    print(f"  Cloud entities: {cloud_col.num_entities}")
-    print(f"  Elapsed:        {time.time() - t0:.1f}s")
 
     connections.disconnect("local")
     connections.disconnect("cloud")

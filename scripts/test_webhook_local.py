@@ -11,13 +11,13 @@ import json
 import os
 import sys
 import time
+
 import httpx
 
 WEBHOOK_SECRET = os.environ.get("CLERK_WEBHOOK_SECRET", "")
 BASE_URL = os.environ.get("WEBHOOK_URL", "http://localhost:8000/api/webhooks/clerk")
 
 if not WEBHOOK_SECRET:
-    print("ERROR: set CLERK_WEBHOOK_SECRET env var")
     sys.exit(1)
 
 
@@ -43,10 +43,7 @@ def send(event_type: str, data: dict):
     body = json.dumps({"type": event_type, "data": data}).encode()
     headers = make_svix_headers(body, WEBHOOK_SECRET)
 
-    print(f"\n→ Sending {event_type}")
-    r = httpx.post(BASE_URL, content=body, headers=headers)
-    print(f"  Status : {r.status_code}")
-    print(f"  Body   : {r.text}")
+    httpx.post(BASE_URL, content=body, headers=headers)
 
 
 # ── Test events ──────────────────────────────────────────────────────────────

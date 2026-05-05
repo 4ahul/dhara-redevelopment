@@ -34,11 +34,9 @@ questions = [
     "TDR certificate process?",
 ]
 
-print(f"Processing {len(questions)} questions...")
 
 results = []
 for i, q in enumerate(questions, 1):
-    print(f"[{i}/{len(questions)}] {q[:40]}...", end=" ")
     try:
         r = rag.query(q)
         results.append(
@@ -49,10 +47,8 @@ for i, q in enumerate(questions, 1):
                 "Confidence": f"{r['confidence']:.0%}",
             }
         )
-        print(f"✓ {r['confidence']:.0%}")
     except Exception as e:
-        print(f"✗ {str(e)[:30]}")
-        results.append({"Q_No": i, "Question": q, "Answer": f"Error: {str(e)}", "Confidence": "0%"})
+        results.append({"Q_No": i, "Question": q, "Answer": f"Error: {e!s}", "Confidence": "0%"})
 
 df = pd.DataFrame(results)
 Path("data").mkdir(exist_ok=True)
@@ -61,5 +57,3 @@ filename = f"data/PMC_QA_{len(questions)}_{ts}.xlsx"
 df.to_excel(filename, index=False)
 
 passed = sum(1 for r in results if float(r["Confidence"].replace("%", "")) >= 30)
-print(f"\nSAVED: {filename}")
-print(f"Total: {len(results)} | Answered: {passed}")

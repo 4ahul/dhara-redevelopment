@@ -3,6 +3,7 @@ DP Report Service — PostgreSQL Storage
 """
 
 import asyncio as _asyncio
+import contextlib
 import functools as _functools
 import json
 import logging
@@ -143,12 +144,10 @@ class StorageService:
                 ("payment_paid_at", "TIMESTAMPTZ"),
             ]
             for col_name, col_type in new_columns:
-                try:
+                with contextlib.suppress(Exception):
                     cur.execute(
                         f"ALTER TABLE dp_reports ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
                     )
-                except Exception:
-                    pass  # Column already exists
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_dp_reports_lookup
                 ON dp_reports (ward, village, cts_no);
@@ -162,7 +161,7 @@ class StorageService:
             conn.close()
             logger.info("dp_reports table ready")
         except Exception as e:
-            logger.error("DB init error: %s", e)
+            logger.exception("DB init error: %s", e)
 
     # ── Write ─────────────────────────────────────────────────────────────────
 
@@ -191,7 +190,7 @@ class StorageService:
             logger.info("Created DP report: %s", report_id)
             return report_id
         except Exception as e:
-            logger.error("Failed to create DP report: %s", e)
+            logger.exception("Failed to create DP report: %s", e)
             raise
 
     # Fields that need JSON serialization
@@ -283,7 +282,7 @@ class StorageService:
             conn.close()
             logger.info("Updated DP report %s: status=%s", report_id, status)
         except Exception as e:
-            logger.error("Failed to update DP report %s: %s", report_id, e)
+            logger.exception("Failed to update DP report %s: %s", report_id, e)
             raise
 
     # ── Read ──────────────────────────────────────────────────────────────────
@@ -298,7 +297,7 @@ class StorageService:
             conn.close()
             return dict(row) if row else None
         except Exception as e:
-            logger.error("Failed to get DP report %s: %s", report_id, e)
+            logger.exception("Failed to get DP report %s: %s", report_id, e)
             return None
 
     def get_screenshot(self, report_id: str) -> bytes | None:
@@ -313,7 +312,65 @@ class StorageService:
                 return bytes(row[0])
             return None
         except Exception as e:
-            logger.error("Failed to get screenshot for %s: %s", report_id, e)
+            logger.exception("Failed to get screenshot for %s: %s", report_id, e)
+            return None
+
+    def find_completed_report(self, ward: str, village: str, cts_no: str) -> dict | None:
+        """Find the most recent completed DP report for these parameters within 30 days."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            w = ward.strip().upper()
+            v = village.strip().upper()
+            c = cts_no.strip()
+
+            cur.execute(
+                """
+                SELECT * FROM dp_reports
+                WHERE ward = %s AND village = %s AND cts_no = %s 
+                  AND status = 'completed'
+                  AND created_at > NOW() - INTERVAL '30 days'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (w, v, c),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception("Failed to find completed report: %s", e)
+            return None
+
+    def find_processing_report(self, ward: str, village: str, cts_no: str) -> dict | None:
+        """Find an in-flight processing job (started in the last 10 mins)."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            w = ward.strip().upper()
+            v = village.strip().upper()
+            c = cts_no.strip()
+
+            cur.execute(
+                """
+                SELECT id, status, created_at FROM dp_reports
+                WHERE ward = %s AND village = %s AND cts_no = %s 
+                  AND status = 'processing'
+                  AND created_at > NOW() - INTERVAL '10 minutes'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (w, v, c),
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception("Failed to find processing report: %s", e)
             return None
 
 
@@ -335,3 +392,13 @@ class AsyncStorageService(StorageService):
 
     async def get_screenshot(self, report_id: str):
         return await _asyncio.to_thread(StorageService.get_screenshot, self, report_id)
+
+    async def find_completed_report(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_completed_report, self, **kwargs)
+        )
+
+    async def find_processing_report(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_processing_report, self, **kwargs)
+        )

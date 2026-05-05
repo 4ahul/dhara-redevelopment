@@ -1,6 +1,5 @@
-from pydantic import Field
-
 from dhara_shared.core.config import BaseServiceSettings
+from pydantic import Field
 
 
 class Settings(BaseServiceSettings):

@@ -257,7 +257,9 @@ def _validate_location_inputs(society_data: dict) -> str | None:
     return "Feasibility analysis needs either a site address or ward + village + CTS/FP/survey details."
 
 
-async def run_agent(society_data: dict, request_id: str = None, progress_callback=None) -> dict:
+async def run_agent(
+    society_data: dict, request_id: str | None = None, progress_callback=None
+) -> dict:
     """
     Two-phase agent:
       Phase 1 — Call all microservices deterministically (parallel groups)
@@ -532,10 +534,12 @@ async def run_agent(society_data: dict, request_id: str = None, progress_callbac
             except Exception as e:
                 import traceback
 
-                logger.error("[%s] LLM call failed: %s\n%s", request_id, e, traceback.format_exc())
+                logger.exception(
+                    "[%s] LLM call failed: %s\n%s", request_id, e, traceback.format_exc()
+                )
                 break
 
-            tool_calls, finish_reason = parse_llm_response(response)
+            tool_calls, _finish_reason = parse_llm_response(response)
 
             if not tool_calls:
                 if not report_paths:
@@ -707,7 +711,7 @@ def _build_data_summary(society_data: dict, collected: dict) -> dict:
 
     if not plot_sqm and carpet_sqft:
         # Estimate plot area from carpet (assuming ZONAL_FSI and 0.75 efficiency)
-        zonal_fsi = float(os.getenv("ZONAL_FSI", 1.33))
+        zonal_fsi = float(os.getenv("ZONAL_FSI", "1.33"))
         plot_sqm = round((carpet_sqft / 0.75) / zonal_fsi / 10.764, 2)
 
     num_flats = society_data.get("num_flats") or 0

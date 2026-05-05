@@ -13,11 +13,11 @@ from .tracing import setup_tracing
 
 __all__ = [
     "BaseServiceSettings",
-    "validate_config",
-    "setup_logging",
-    "setup_sentry",
-    "setup_metrics",
-    "setup_tracing",
-    "setup_exception_handlers",
     "print_banner",
+    "setup_exception_handlers",
+    "setup_logging",
+    "setup_metrics",
+    "setup_sentry",
+    "setup_tracing",
+    "validate_config",
 ]

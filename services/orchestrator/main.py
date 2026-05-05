@@ -8,15 +8,15 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-
 from dhara_shared.core.banner import print_banner
 from dhara_shared.core.config import validate_config
 from dhara_shared.core.exceptions import setup_exception_handlers
 from dhara_shared.core.logging import setup_logging, setup_sentry
 from dhara_shared.core.metrics import setup_metrics
 from dhara_shared.core.tracing import setup_tracing
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from .core.config import settings
 from .core.middleware import (
@@ -39,10 +39,12 @@ async def lifespan(app: FastAPI):
     try:
         # 1. PostgreSQL
         from .db import init_db
+
         await init_db()
 
         # 2. Redis
         from .services.redis import init_redis
+
         await init_redis()
 
         # 3. LLM Client → inject into agent runner
@@ -55,17 +57,19 @@ async def lifespan(app: FastAPI):
 
         # 4. Seed defaults (admin user + roles)
         from .db.seed import seed_defaults
+
         await seed_defaults()
     except Exception as e:
-        logger.error("Error during Orchestrator initialization: %s", e)
+        logger.exception("Error during Orchestrator initialization: %s", e)
         # We continue to allow the health check to pass so we can debug live
-    
+
     yield
 
     # Shutdown
     try:
         from .db import close_db
         from .services.redis import close_redis
+
         await close_db()
         await close_redis()
     except Exception:
@@ -77,9 +81,6 @@ async def lifespan(app: FastAPI):
 
 validate_config(settings, ["GEMINI_API_KEY", "DATABASE_URL", "REDIS_URL", "CLOUDINARY_API_KEY"])
 
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
-
 app = FastAPI(
     title="Dhara AI Master Gateway",
     version=settings.APP_VERSION,
@@ -90,6 +91,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     """
@@ -97,7 +99,7 @@ async def custom_swagger_ui_html():
     Requires StandaloneLayout and StandalonePreset.
     """
     import json
-    
+
     urls = [
         {"url": "/openapi.json", "name": "Orchestrator (Master)"},
         {"url": "/api-docs/site-analysis/openapi.json", "name": "Site Analysis"},
@@ -110,7 +112,7 @@ async def custom_swagger_ui_html():
         {"url": "/api-docs/dp-remarks/openapi.json", "name": "DP Remarks"},
         {"url": "/api-docs/ocr/openapi.json", "name": "OCR Service"},
     ]
-    
+
     html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -157,14 +159,16 @@ async def custom_swagger_ui_html():
     """
     return HTMLResponse(html)
 
+
 @app.get("/")
 async def root():
     """Root endpoint for basic connectivity check."""
     return {
         "status": "online",
         "service": "orchestrator",
-        "message": "Dhara AI Master Gateway is reachable"
+        "message": "Dhara AI Master Gateway is reachable",
     }
+
 
 setup_sentry(settings.APP_NAME)
 setup_metrics(app, settings.APP_NAME)
@@ -181,6 +185,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# --- Security Headers Middleware ---
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://api.openai.com https://generativelanguage.googleapis.com"
+    return response
+
 
 # --- Gateway Middlewares ---
 app.middleware("http")(request_id_middleware)
@@ -225,7 +242,7 @@ async def health():
         health_status["checks"]["postgres"] = "UP"
     except Exception as e:
         health_status["status"] = "degraded"
-        health_status["checks"]["postgres"] = f"DOWN: {str(e)}"
+        health_status["checks"]["postgres"] = f"DOWN: {e!s}"
 
     # 2. Check Redis
     try:
@@ -237,26 +254,22 @@ async def health():
             health_status["checks"]["redis"] = "DOWN: Connection failed"
     except Exception as e:
         health_status["status"] = "degraded"
-        health_status["checks"]["redis"] = f"DOWN: {str(e)}"
+        health_status["checks"]["redis"] = f"DOWN: {e!s}"
 
-    # 3. Check Downstream Microservices
-    services = {
-        "site_analysis": settings.SITE_ANALYSIS_URL,
-        "aviation_height": settings.HEIGHT_URL,
-        "ready_reckoner": settings.READY_RECKONER_URL,
-        "report_generator": settings.REPORT_URL,
-        "rag_service": settings.RAG_URL,
-        "pr_card_scraper": settings.PR_CARD_URL,
-        "mcgm_property_lookup": settings.MCGM_PROPERTY_URL,
-        "dp_remarks_report": settings.DP_REPORT_URL,
-    }
-
+    # 3. Check Downstream Microservices (derived from SERVICE_MAP)
     async with httpx.AsyncClient(timeout=2.0) as client:
-        for name, url in services.items():
+        for service_key, (url, health_name) in SERVICE_MAP.items():
             try:
-                # Most services have a /health or /api/health
-                check_url = f"{url}/health" if "rag" not in name else f"{url}/api/health"
+                check_url = f"{url}{HEALTH_ENDPOINTS.get(health_name, '/health')}"
                 resp = await client.get(check_url)
+                health_status["microservices"][health_name] = (
+                    "UP" if resp.status_code == 200 else f"DOWN ({resp.status_code})"
+                )
+                if resp.status_code != 200:
+                    health_status["status"] = "degraded"
+            except Exception:
+                health_status["microservices"][health_name] = "UNREACHABLE"
+                health_status["status"] = "degraded"
                 health_status["microservices"][name] = (
                     "UP" if resp.status_code == 200 else f"DOWN ({resp.status_code})"
                 )
@@ -272,16 +285,19 @@ async def health():
 # ─── Service Proxy for OpenAPI Endpoints ──────────────────────────────────────
 
 SERVICE_MAP = {
-    "site-analysis": settings.SITE_ANALYSIS_URL,
-    "height": settings.HEIGHT_URL,
-    "ready-reckoner": settings.READY_RECKONER_URL,
-    "report": settings.REPORT_URL,
-    "pr-card": settings.PR_CARD_URL,
-    "mcgm": settings.MCGM_PROPERTY_URL,
-    "dp-remarks": settings.DP_REPORT_URL,
-    "rag": settings.RAG_URL,
-    "ocr": settings.OCR_URL,
+    "site-analysis": (settings.SITE_ANALYSIS_URL, "site_analysis"),
+    "height": (settings.HEIGHT_URL, "aviation_height"),
+    "ready-reckoner": (settings.READY_RECKONER_URL, "ready_reckoner"),
+    "report": (settings.REPORT_URL, "report_generator"),
+    "pr-card": (settings.PR_CARD_URL, "pr_card_scraper"),
+    "mcgm": (settings.MCGM_PROPERTY_URL, "mcgm_property_lookup"),
+    "dp-remarks": (settings.DP_REPORT_URL, "dp_remarks_report"),
+    "rag": (settings.RAG_URL, "rag_service"),
+    "ocr": (settings.OCR_URL, "ocr"),
 }
+
+HEALTH_ENDPOINTS = {v[1]: "/api/health" if k == "rag" else "/health" for k, v in SERVICE_MAP.items()}
+
 
 @app.get("/api-docs/{service}/openapi.json")
 async def proxy_service_openapi(service: str, request: Request):
@@ -289,39 +305,45 @@ async def proxy_service_openapi(service: str, request: Request):
     import httpx
     from fastapi import HTTPException
 
-    target_base = SERVICE_MAP.get(service)
-    if not target_base:
+    service_entry = SERVICE_MAP.get(service)
+    if not service_entry:
         raise HTTPException(status_code=404, detail=f"Unknown service: {service}")
+
+    target_base = service_entry[0]
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             response = await client.get(f"{target_base}/openapi.json")
             response.raise_for_status()
             spec = response.json()
-            
+
             # Rewrite "servers" so Swagger UI calls go through the gateway
             spec["servers"] = [{"url": f"/{service}", "description": f"Proxied {service}"}]
-            
+
             return spec
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI")
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Service unavailable: {service}")
+            raise HTTPException(
+                status_code=e.response.status_code, detail=f"Failed to fetch {service} OpenAPI"
+            ) from e
+        except Exception:
+            raise HTTPException(status_code=502, detail=f"Service unavailable: {service}") from None
 
 
 # ─── Catch-all Proxy Routes for Interactive Swagger "Try It Out" ───────────────
+
 
 @app.api_route("/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def catch_all_proxy(service: str, path: str, request: Request):
     """Generic catch-all proxy that routes /{service}/* to the correct microservice."""
     from fastapi import HTTPException
-    
-    target_base = SERVICE_MAP.get(service)
-    if not target_base:
+
+    service_entry = SERVICE_MAP.get(service)
+    if not service_entry:
         # If it's not a proxied service, FastAPI will fall back to other routes
         # Raise 404 only if it's clearly intended for a microservice but not found
         raise HTTPException(status_code=404, detail=f"Service {service} not found")
-        
+
+    target_base = service_entry[0]
     return await proxy_service(path, service, target_base, request)
 
 
@@ -332,14 +354,14 @@ async def proxy_service(path: str, service: str, target_base: str, request: Requ
     from starlette.responses import StreamingResponse
 
     target_url = f"{target_base}/{path}"
-    
+
     # Get request body for POST/PUT/PATCH
     body = await request.body()
-    
+
     # Forward headers (excluding host)
     headers = dict(request.headers)
     headers.pop("host", None)
-    
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             proxied = await client.request(
@@ -349,7 +371,7 @@ async def proxy_service(path: str, service: str, target_base: str, request: Requ
                 content=body,
                 params=request.query_params,
             )
-            
+
             return StreamingResponse(
                 content=proxied.aiter_bytes(),
                 status_code=proxied.status_code,
@@ -357,9 +379,11 @@ async def proxy_service(path: str, service: str, target_base: str, request: Requ
                 media_type=proxied.headers.get("content-type"),
             )
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"{service} returned error")
+            raise HTTPException(
+                status_code=e.response.status_code, detail=f"{service} returned error"
+            ) from e
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Cannot reach {service}: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"Cannot reach {service}: {e!s}") from e
 
 
 if __name__ == "__main__":

@@ -7,4 +7,4 @@ from .prompts import SYSTEM_PROMPT
 from .runner import run_agent
 from .tools import TOOLS
 
-__all__ = ["run_agent", "TOOLS", "SYSTEM_PROMPT"]
+__all__ = ["SYSTEM_PROMPT", "TOOLS", "run_agent"]

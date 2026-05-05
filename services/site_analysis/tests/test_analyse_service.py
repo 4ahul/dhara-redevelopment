@@ -54,9 +54,11 @@ class TestSiteAnalysisService:
 
         svc = SiteAnalysisService()
 
-        with patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=None):
-            with pytest.raises(SiteAnalysisUnavailableError):
-                await svc.analyse("nonexistent address xyz")
+        with (
+            patch.object(svc, "_geocode", new_callable=AsyncMock, return_value=None),
+            pytest.raises(SiteAnalysisUnavailableError),
+        ):
+            await svc.analyse("nonexistent address xyz")
 
     @pytest.mark.asyncio
     async def test_analyse_returns_none_zone_when_mcgm_unavailable(self):

@@ -30,7 +30,7 @@ def floors_from_max_height(ctx, floor_height_m: float) -> int:
     h = (ctx["request"].get("height") or {}).get("max_height_m")
     if h is None:
         raise MissingData("height.max_height_m")
-    return int(math.floor(float(h) / float(floor_height_m)))
+    return math.floor(float(h) / float(floor_height_m))
 
 
 @register("podium_count_from_plot_area")

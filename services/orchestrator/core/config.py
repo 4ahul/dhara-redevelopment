@@ -31,6 +31,7 @@ class Settings(BaseServiceSettings):
     @property
     def CLERK_JWKS_URL(self) -> str:
         return f"{self.CLERK_JWT_ISSUER}/.well-known/jwks.json"
+
     CLERK_API_BASE_URL: str = "https://api.clerk.com/v1"
 
     # ── Redis (Session Cache) ────────────────────────────

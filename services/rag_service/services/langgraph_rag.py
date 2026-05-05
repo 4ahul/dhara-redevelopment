@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# noqa: E402
 """
 LangGraph-based RAG System with LangSmith Observability
 Uses LangGraph for agent orchestration and LangSmith for tracing
@@ -22,15 +21,15 @@ if env_file.exists():
             os.environ[key] = val
 
 # LangGraph imports
-from langchain_core.messages import BaseMessage, HumanMessage  # noqa: E402
-from langgraph.graph import END, StateGraph  # noqa: E402
-from langsmith import Client as LangSmithClient  # noqa: E402
+from langchain_core.messages import BaseMessage, HumanMessage
+from langgraph.graph import END, StateGraph
+from langsmith import Client as LangSmithClient
 
 # LangSmith imports
-from langsmith import traceable  # noqa: E402
+from langsmith import traceable
 
 # LLM imports
-from openai import OpenAI  # noqa: E402
+from openai import OpenAI
 
 # ==================== LANGSMITH SETUP ====================
 
@@ -115,8 +114,7 @@ Return JSON with: intent, topic, entities[]"""
         )
 
         try:
-            result = json.loads(response.choices[0].message.content)
-            return result
+            return json.loads(response.choices[0].message.content)
         except Exception:
             return {"intent": "explain", "topic": "general", "entities": []}
 
@@ -370,16 +368,10 @@ def main():
     agent = LangGraphRAG()
 
     if args.stream:
-        print("\n--- Streaming Response ---\n")
-        for chunk in agent.stream_query(args.question):
-            print(chunk, end="", flush=True)
-        print()
+        for _chunk in agent.stream_query(args.question):
+            pass
     else:
-        print("\n--- Query Result ---\n")
-        result = agent.query(args.question)
-        print(result["answer"])
-        print(f"\nConfidence: {result['confidence']:.0%}")
-        print(f"Sources: {len(result['sources'])}")
+        agent.query(args.question)
 
 
 if __name__ == "__main__":

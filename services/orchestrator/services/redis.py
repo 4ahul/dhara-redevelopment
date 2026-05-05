@@ -88,8 +88,8 @@ def save_session(session_id: str, user_id: str, data: dict) -> bool:
         )
         redis_client.expire(key, 86400 * 30)
         return True
-    except Exception as e:
-        logger.error("Failed to save session: %s", e)
+    except Exception:
+        logger.exception("Failed to save session")
         return False
 
 
@@ -100,8 +100,8 @@ def get_session(session_id: str, user_id: str) -> dict | None:
         data = redis_client.hgetall(f"session:{user_id}:{session_id}")
         if data and data.get("data"):
             return json.loads(data["data"])
-    except Exception as e:
-        logger.error("Failed to get session: %s", e)
+    except Exception:
+        logger.exception("Failed to get session")
     return None
 
 
@@ -124,7 +124,7 @@ def get_user_sessions(user_id: str) -> list:
                 )
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
     except Exception as e:
-        logger.error("Failed to get user sessions: %s", e)
+        logger.exception("Failed to get user sessions: %s", e)
     return []
 
 
@@ -134,7 +134,7 @@ def delete_session(session_id: str, user_id: str) -> bool:
     try:
         return redis_client.delete(f"session:{user_id}:{session_id}") > 0
     except Exception as e:
-        logger.error("Failed to delete session: %s", e)
+        logger.exception("Failed to delete session: %s", e)
     return False
 
 
@@ -145,7 +145,7 @@ def save_user_profile(user_id: str, data: dict) -> bool:
         redis_client.hset(f"user:{user_id}", mapping=data)
         return True
     except Exception as e:
-        logger.error("Failed to save user profile: %s", e)
+        logger.exception("Failed to save user profile: %s", e)
     return False
 
 
@@ -155,7 +155,7 @@ def get_user_profile(user_id: str) -> dict:
     try:
         return redis_client.hgetall(f"user:{user_id}")
     except Exception as e:
-        logger.error("Failed to get user profile: %s", e)
+        logger.exception("Failed to get user profile: %s", e)
     return {}
 
 
@@ -168,5 +168,5 @@ def update_session_report(session_id: str, user_id: str, report_path: str) -> bo
         redis_client.hset(key, "updated_at", datetime.now(UTC).isoformat())
         return True
     except Exception as e:
-        logger.error("Failed to update session report: %s", e)
+        logger.exception("Failed to update session report: %s", e)
     return False

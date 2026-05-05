@@ -97,7 +97,6 @@ class DataSource(ABC):
     @abstractmethod
     def fetch(self, query: str) -> dict | None:
         """Fetch data from source"""
-        pass
 
 
 class BhulekhMahabhoomi(DataSource):
@@ -132,7 +131,7 @@ class BhulekhMahabhoomi(DataSource):
             return None
 
         except Exception as e:
-            logger.error(f"Bhulekh fetch error: {e}")
+            logger.exception(f"Bhulekh fetch error: {e}")
             return None
 
     def _scrape_bhulekh(self, survey_no: str, village: str) -> dict | None:
@@ -152,7 +151,7 @@ class BhulekhMahabhoomi(DataSource):
                 "fetched_at": datetime.now().isoformat(),
             }
         except Exception as e:
-            logger.error(f"Scraping error: {e}")
+            logger.exception(f"Scraping error: {e}")
             return None
 
     def _parse_property(self, data: dict) -> PropertyDetails:
@@ -205,7 +204,7 @@ class BMCDataSource(DataSource):
             return dp_data
 
         except Exception as e:
-            logger.error(f"BMC fetch error: {e}")
+            logger.exception(f"BMC fetch error: {e}")
             return None
 
     def fetch_property_lookup(self, address: str) -> dict | None:
@@ -222,7 +221,7 @@ class BMCDataSource(DataSource):
                 "source": "mcgm_property_lookup",
             }
         except Exception as e:
-            logger.error(f"MCGM Property Lookup error: {e}")
+            logger.exception(f"MCGM Property Lookup error: {e}")
             return None
 
 
@@ -257,7 +256,7 @@ class NOCASDataSource(DataSource):
             return height_data
 
         except Exception as e:
-            logger.error(f"NOCAS fetch error: {e}")
+            logger.exception(f"NOCAS fetch error: {e}")
             return None
 
     def _calculate_max_height(self, zone: str, area_sq_m: float) -> dict:
@@ -585,7 +584,7 @@ class FeasibilityReportGenerator:
         best_scheme_name, best_scheme = self._find_best_scheme(scheme_configs)
 
         # Step 7: Generate report with RAG insights
-        report = {
+        return {
             "report_id": f"FEAS_{cts_no.replace('/', '_')}_{datetime.now().strftime('%Y%m%d')}",
             "generated_at": datetime.now().isoformat(),
             "cts_no": cts_no,
@@ -602,8 +601,6 @@ class FeasibilityReportGenerator:
             ),
             "next_steps": self._generate_next_steps(best_scheme_name, rag_analysis),
         }
-
-        return report
 
     def _find_best_scheme(self, schemes: dict) -> tuple:
         """Find best scheme based on FSI and development potential"""
@@ -635,7 +632,7 @@ class FeasibilityReportGenerator:
         return steps
 
     def _generate_recommendation(
-        self, schemes: dict, best_scheme: str = "", rag_analysis: dict = None
+        self, schemes: dict, best_scheme: str = "", rag_analysis: dict | None = None
     ) -> str:
         """Generate recommendation based on schemes and RAG analysis"""
         if not schemes:
@@ -657,12 +654,9 @@ class FeasibilityReportGenerator:
 
         if best_fsi >= 2.5:
             return f"HIGH FSI potential ({best_fsi}) with scheme {best_scheme_name}. Development financially viable.{rag_info}"
-        elif best_fsi >= 1.5:
+        if best_fsi >= 1.5:
             return f"MODERATE FSI ({best_fsi}) with scheme {best_scheme_name}. Standard redevelopment recommended.{rag_info}"
-        else:
-            return (
-                f"LOW FSI ({best_fsi}). Limited development potential. Consider plot amalgamation."
-            )
+        return f"LOW FSI ({best_fsi}). Limited development potential. Consider plot amalgamation."
 
 
 class TenderGenerator:
@@ -681,7 +675,7 @@ class TenderGenerator:
         # Select best scheme
         best_scheme = max(fsi.items(), key=lambda x: x[1].get("total_fsi", 0))
 
-        tender = {
+        return {
             "tender_id": f"TENDER_{datetime.now().strftime('%Y%m%d%H%M')}",
             "type": tender_type,
             "generated_at": datetime.now().isoformat(),
@@ -703,8 +697,6 @@ class TenderGenerator:
             "terms_and_conditions": self._get_terms_conditions(),
             "evaluation_criteria": self._get_evaluation_criteria(),
         }
-
-        return tender
 
     def _get_eligibility_criteria(self) -> list[str]:
         return [

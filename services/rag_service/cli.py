@@ -5,6 +5,7 @@ Combines DCPR 2034 knowledge base with property card workflow
 """
 
 import argparse
+import contextlib
 from pathlib import Path
 
 
@@ -150,28 +151,17 @@ def handle_query(args):
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        print("Error: OPENAI_API_KEY not found. Set it in .env file.")
         return
-
-    print("Querying DCPR regulations (Intelligent RAG)...\n")
 
     # Use Intelligent RAG
     agent = IntelligentRAG()
     result = agent.query(args.question)
 
     # Print answer
-    print("\n" + "=" * 80)
-    print("ANSWER")
-    print("=" * 80)
-    print(result["answer"])
-    print("\n" + "=" * 80)
 
     if result.get("sources"):
-        print("SOURCES")
-        print("-" * 20)
-        for i, source in enumerate(result["sources"][:3], 1):
-            text = source.get("text", "")[:200].replace("\n", " ")
-            print(f"[{i}] {text}...")
+        for _i, source in enumerate(result["sources"][:3], 1):
+            source.get("text", "")[:200].replace("\n", " ")
 
 
 def handle_analyze(args):
@@ -181,8 +171,6 @@ def handle_analyze(args):
         PropertyCardWorkflow,
         RevenueBreakdown,
     )
-
-    print(f"Analyzing property: {args.survey_no}")
 
     # Sanitize survey number for file names
     safe_survey_no = args.survey_no.replace("/", "_").replace("\\", "_")
@@ -222,8 +210,6 @@ def handle_analyze(args):
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("\nGenerating reports...")
-
     # Scheme comparison (text)
     scheme_file = output_dir / f"{safe_survey_no}_scheme_comparison.txt"
     with open(scheme_file, "w", encoding="utf-8") as f:
@@ -232,80 +218,51 @@ def handle_analyze(args):
                 analysis, ["33(20B)", "33(11)", "33(7B)", "30(A)"]
             )
         )
-    print(f"  ✓ Scheme comparison: {scheme_file}")
 
     # Financial summary (PDF)
     financial_file = output_dir / f"{safe_survey_no}_financial_summary.pdf"
     workflow.generator.export_to_pdf(analysis, str(financial_file), "financial")
-    print(f"  ✓ Financial summary: {financial_file}")
 
     # Approval cost summary (text)
     approval_file = output_dir / f"{safe_survey_no}_approval_costs.txt"
     with open(approval_file, "w", encoding="utf-8") as f:
         f.write(workflow.generator.generate_approval_cost_summary(analysis))
-    print(f"  ✓ Approval costs: {approval_file}")
-
-    print(f"\nReports generated in: {output_dir}")
 
 
 def handle_scan(args):
     """Scan property card from file"""
     from property_card_workflow import PropertyCardWorkflow
 
-    print(f"Scanning: {args.input}")
     workflow = PropertyCardWorkflow()
 
     try:
         outputs = workflow.run_workflow(args.input, args.output)
-        print("\nReports generated:")
-        for report_type, path in outputs.items():
-            print(f"  {report_type}: {path}")
-    except Exception as e:
-        print(f"Error scanning: {e}")
+        for _report_type, _path in outputs.items():
+            pass
+    except Exception:
+        pass
 
 
 def handle_compare(args):
     """Compare DCPR schemes"""
     from property_card_workflow import DCPRCalculator, PropertyCard
 
-    print(f"Comparing schemes for {args.area} sq.m plot\n")
-
     calculator = DCPRCalculator()
     card = PropertyCard(plot_area_sq_m=args.area)
 
-    print(f"{'Scheme':<15} {'Basic FSI':<12} {'Incentive':<12} {'Max FSI':<12} {'Premium':<12}")
-    print("-" * 65)
-
     for scheme in args.schemes:
-        try:
-            config = calculator.calculate_scheme(
+        with contextlib.suppress(Exception):
+            calculator.calculate_scheme(
                 scheme,
                 card.plot_area_sq_m,
                 road_width_m=12,
                 zone_type="Residential",
                 affordable_housing_pct=args.affordable_housing if scheme == "33(7B)" else 0,
             )
-            print(
-                f"{scheme:<15} {config.basic_fsi:<12.2f} {config.incentive_fsi:<12.2f} "
-                f"{config.max_permissible_fsi:<12.2f} {config.premium_fsi:<12.2f}"
-            )
-        except Exception as e:
-            print(f"{scheme:<15} Error: {e}")
-
-    print()
 
 
 def handle_interactive(args):
     """Interactive mode"""
-    print("=" * 60)
-    print("DCPR RAG + Property Card Analysis System")
-    print("=" * 60)
-    print("\nCommands:")
-    print("  query <question>  - Query DCPR regulations")
-    print("  analyze <params>  - Analyze a property")
-    print("  compare <area>   - Compare schemes")
-    print("  help              - Show help")
-    print("  exit              - Exit\n")
 
     while True:
         try:
@@ -315,16 +272,9 @@ def handle_interactive(args):
                 continue
 
             if user_input.lower() in ["exit", "quit", "q"]:
-                print("Goodbye!")
                 break
 
             if user_input.lower() in ["help", "?"]:
-                print("Available commands:")
-                print("  query <question>  - Query DCPR regulations")
-                print("  analyze <params>  - Analyze a property")
-                print("  compare <area>   - Compare schemes")
-                print("  help              - Show this help")
-                print("  exit              - Exit")
                 continue
 
             parts = user_input.split(maxsplit=1)
@@ -339,60 +289,47 @@ def handle_interactive(args):
                 args.schemes = ["33(20B)", "33(11)", "33(7B)", "30(A)"]
                 handle_compare(args)
             elif cmd == "analyze" and rest:
-                print("Use: analyze --survey-no 123/P --area 2200")
+                pass
             else:
-                print(f"Unknown command: {cmd}. Type 'help' for available commands.")
+                pass
 
         except KeyboardInterrupt:
-            print("\nGoodbye!")
             break
-        except Exception as e:
-            print(f"Error: {e}")
+        except Exception:
+            pass
 
 
 def handle_stats(args):
     """Show system statistics"""
     from pymilvus import connections, utility
 
-    print("=" * 60)
-    print("SYSTEM STATISTICS")
-    print("=" * 60)
-
     # Milvus stats
-    print("\nVector Database (Milvus):")
     try:
         connections.connect("default", host="localhost", port="19530")
         collections = utility.list_collections()
-        print(f"  Collections: {len(collections)}")
         for coll in collections:
             from pymilvus import Collection
 
-            c = Collection(coll)
-            print(f"    - {coll}: {c.num_entities} entities")
+            Collection(coll)
         connections.disconnect("default")
-    except Exception as e:
-        print(f"  Error: {e}")
+    except Exception:
+        pass
 
     # File stats
-    print("\nData Files:")
     data_dir = Path("data")
     if data_dir.exists():
         vectors_dir = data_dir / "vectors"
         if vectors_dir.exists():
             files = list(vectors_dir.glob("*.json"))
-            print(f"  Vector files: {len(files)}")
-            for f in files:
-                print(f"    - {f.name}")
+            for _f in files:
+                pass
 
     # Feedback stats
     feedback_file = data_dir / "feedback.json"
     if feedback_file.exists():
         import json
 
-        feedback = json.loads(feedback_file.read_text())
-        print(f"  Feedback entries: {len(feedback)}")
-
-    print()
+        json.loads(feedback_file.read_text())
 
 
 def handle_index(args):
@@ -408,7 +345,6 @@ def handle_index(args):
 
     # Full pipeline mode: process all docs in data/docs
     if args.pipeline:
-        print("Running full index pipeline on data/docs...")
         from scripts.index_pipeline import run_pipeline
 
         run_pipeline(
@@ -420,7 +356,6 @@ def handle_index(args):
         return
 
     # Single file mode (legacy)
-    print("Indexing single document...")
 
     if not args.pdf:
         pdf_path = Path("/home/ubuntu/DCPR 2034 updated upto 12092024.pdf")
@@ -433,10 +368,8 @@ def handle_index(args):
             if potential_path.exists():
                 pdf_path = potential_path
             else:
-                print(f"File not found: {pdf_path}")
                 return
         else:
-            print(f"File not found: {pdf_path}")
             return
 
     from pymilvus import connections, utility
@@ -445,15 +378,12 @@ def handle_index(args):
 
     # Clear existing collection if rebuild
     if args.rebuild:
-        print("Rebuilding index...")
         connections.connect("default", host="localhost", port="19530")
         if utility.has_collection("documents"):
             utility.drop_collection("documents")
-            print("  Dropped existing collection")
         connections.disconnect("default")
 
     # Load and index
-    print(f"Loading: {pdf_path}")
     if pdf_path.suffix.lower() == ".pdf":
         text = DocumentLoader.load_pdf(pdf_path)
     elif pdf_path.suffix.lower() == ".txt":
@@ -461,11 +391,9 @@ def handle_index(args):
     elif pdf_path.suffix.lower() == ".docx":
         text = DocumentLoader.load_docx(pdf_path)
     else:
-        print(f"Unsupported file type: {pdf_path.suffix}")
         return
 
     chunks = DocumentLoader.chunk_text(text)
-    print(f"Created {len(chunks)} chunks")
 
     agent = RAGAgent(use_milvus=True)
 
@@ -473,9 +401,6 @@ def handle_index(args):
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i : i + batch_size]
         agent.vectorstore.add_documents(batch)
-        print(f"  Indexed {min(i + batch_size, len(chunks))}/{len(chunks)}")
-
-    print("Indexing complete!")
 
 
 if __name__ == "__main__":

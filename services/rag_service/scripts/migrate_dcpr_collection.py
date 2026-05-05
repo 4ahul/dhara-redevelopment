@@ -27,7 +27,11 @@ BATCH_SIZE = 50  # Number of entities to fetch/insert at a time
 
 
 def connect_milvus(
-    alias: str, host: str = None, port: str = None, token: str = None, uri: str = None
+    alias: str,
+    host: str | None = None,
+    port: str | None = None,
+    token: str | None = None,
+    uri: str | None = None,
 ):
     """Establishes connection to Milvus."""
     try:
@@ -40,7 +44,7 @@ def connect_milvus(
         else:
             raise ValueError("Insufficient connection parameters provided.")
     except Exception as e:
-        logger.error(f"Failed to connect to Milvus (alias: {alias}): {e}")
+        logger.exception(f"Failed to connect to Milvus (alias: {alias}): {e}")
         raise
 
 
@@ -139,9 +143,7 @@ def migrate_collection():
 
     # Get target schema field names (excluding auto-generated PK)
     target_schema = target_collection.schema
-    [
-        f.name for f in target_schema.fields if not f.is_primary and not f.auto_id
-    ]
+    [f.name for f in target_schema.fields if not f.is_primary and not f.auto_id]
 
     # Use target field names for querying and inserting (includes PK now)
     output_fields = [f.name for f in target_collection.schema.fields]

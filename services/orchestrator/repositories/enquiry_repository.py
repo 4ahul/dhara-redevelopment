@@ -17,7 +17,7 @@ async def list_enquiries(
     page: int = 1,
     page_size: int = 20,
     status: EnquiryStatus = None,
-    source: str = None,
+    source: str | None = None,
 ) -> tuple[Sequence[Enquiry], int]:
     """Fetch paginated enquiries with filters."""
     base = select(Enquiry)

@@ -1,5 +1,4 @@
 """Tests for payment queue and storage payment fields."""
-# noqa: E402
 
 import pytest
 
@@ -18,7 +17,7 @@ def test_payment_fields_in_all_fields():
     assert "payment_paid_at" in StorageService._ALL_FIELDS
 
 
-from unittest.mock import AsyncMock, patch  # noqa: E402
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.fixture

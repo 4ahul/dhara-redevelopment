@@ -21,7 +21,7 @@ try:
         create_browser_service,
     )
 except ImportError as e:
-    logger.error(
+    logger.exception(
         "Real scraper unavailable — Playwright/browser dependencies missing: %s. "
         "Install with: pip install playwright && playwright install chromium",
         e,
@@ -101,15 +101,14 @@ async def _do_scrape(pr_id: str | None, form_state: dict, storage: StorageServic
             if pr_id and storage:
                 await _persist_result(storage, pr_id, result)
             return result
-        else:
-            logger.warning(
-                "Live scrape failed or returned incomplete status: %s. Applying fallback.",
-                result.get("status"),
-            )
-            raise Exception(f"Live scrape unsuccessful: {result.get('error')}")
+        logger.warning(
+            "Live scrape failed or returned incomplete status: %s. Applying fallback.",
+            result.get("status"),
+        )
+        raise Exception(f"Live scrape unsuccessful: {result.get('error')}")
 
     except Exception as e:
-        logger.error(f"Scraper error (pr_id={pr_id}): {e}. Applying Dhiraj Kunj fallback.")
+        logger.exception(f"Scraper error (pr_id={pr_id}): {e}. Applying Dhiraj Kunj fallback.")
 
         village_lower = form_state.get("village", "").lower()
         survey_str = str(form_state.get("survey_no", ""))
@@ -184,7 +183,11 @@ async def _do_scrape(pr_id: str | None, form_state: dict, storage: StorageServic
 
 
 @router.post("/scrape", response_model=PRCardResponse)
-async def scrape_pr_card(req: PRCardRequest, background_tasks: BackgroundTasks):
+async def scrape_pr_card(
+    req: PRCardRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+):
     """
     Submit a PR Card extraction request (processed asynchronously).
     Poll GET /status/{id} for result.
@@ -192,6 +195,51 @@ async def scrape_pr_card(req: PRCardRequest, background_tasks: BackgroundTasks):
     storage = get_storage()
     form_state = _form_state_from_request(req)
 
+    # ── DB-First Check (Concurrency & Caching) ──
+    # 1. Check for completed within 30 days
+    existing = await storage.find_completed_pr_card(
+        district=req.district,
+        taluka=req.taluka,
+        village=req.village,
+        survey_no=req.survey_no,
+        survey_no_part1=req.survey_no_part1,
+    )
+    if existing:
+        logger.info(f"Found existing completed PR card in DB: {existing['id']}")
+        return PRCardResponse(
+            id=existing["id"],
+            status=PRCardStatus.COMPLETED,
+            district=existing["district"],
+            taluka=existing["taluka"],
+            village=existing["village"],
+            survey_no=existing["survey_no"],
+            created_at=existing["created_at"],
+            image_url=existing.get("image_url"),
+            download_url=f"{str(request.base_url).rstrip('/')}/download/{existing['id']}",
+            extracted_data=existing.get("extracted_data"),
+        )
+
+    # 2. Check for in-flight processing
+    processing = await storage.find_processing_pr_card(
+        district=req.district,
+        taluka=req.taluka,
+        village=req.village,
+        survey_no=req.survey_no,
+        survey_no_part1=req.survey_no_part1,
+    )
+    if processing:
+        logger.info(f"Found in-flight PR card job: {processing['id']}")
+        return PRCardResponse(
+            id=processing["id"],
+            status=PRCardStatus.PROCESSING,
+            district=req.district,
+            taluka=req.taluka,
+            village=req.village,
+            survey_no=req.survey_no,
+            created_at=processing["created_at"],
+        )
+
+    # ── No existing or processing record, start new ──
     pr_id = await storage.create_pr_card(
         district=req.district,
         taluka=req.taluka,
@@ -207,8 +255,8 @@ async def scrape_pr_card(req: PRCardRequest, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_do_scrape, pr_id, form_state, storage)
 
-    pr_card = await storage.get_pr_card(pr_id)
-    created_at = pr_card["created_at"] if pr_card else datetime.utcnow()
+    row = await storage.get_pr_card(pr_id)
+    created_at = row["created_at"] if row else datetime.utcnow()
 
     return PRCardResponse(
         id=pr_id,
@@ -218,64 +266,6 @@ async def scrape_pr_card(req: PRCardRequest, background_tasks: BackgroundTasks):
         village=req.village,
         survey_no=req.survey_no,
         created_at=created_at,
-    )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Synchronous endpoint — for orchestrator / direct callers
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-@router.post("/scrape/sync", response_model=PRCardResponse)
-async def scrape_pr_card_sync(req: PRCardRequest, request: Request):
-    """
-    Synchronous PR Card extraction — waits for completion before responding.
-    Designed for the orchestrator agent which needs the result in a single call.
-
-    Returns image as base64 in `image_b64`.
-    Creates a DB record so the image can also be downloaded via GET /download/{id}.
-    """
-    storage = get_storage()
-    form_state = _form_state_from_request(req)
-
-    # Create DB record (gives us an ID for the download URL)
-    pr_id = await storage.create_pr_card(
-        district=req.district,
-        taluka=req.taluka,
-        village=req.village,
-        survey_no=req.survey_no,
-        survey_no_part1=req.survey_no_part1,
-        mobile=req.mobile,
-        property_uid=req.property_uid,
-        property_uid_known=req.property_uid_known,
-        record_of_right=req.record_of_right.value,
-        language=req.language,
-    )
-
-    # Run scraper and wait
-    result = await _do_scrape(pr_id, form_state, storage)
-
-    # Build download URL from incoming request host
-    base_url = str(request.base_url).rstrip("/")
-    download_url = f"{base_url}/download/{pr_id}"
-
-    status = result.get("status", "failed")
-
-    pr_card = await storage.get_pr_card(pr_id)
-    created_at = pr_card["created_at"] if pr_card else datetime.utcnow()
-
-    return PRCardResponse(
-        id=pr_id,
-        status=PRCardStatus(status),
-        district=req.district,
-        taluka=req.taluka,
-        village=req.village,
-        survey_no=req.survey_no,
-        created_at=created_at,
-        error_message=result.get("error"),
-        image_url=result.get("image_url"),
-        download_url=download_url if status == "completed" else None,
-        extracted_data=result.get("extracted_data"),
     )
 
 

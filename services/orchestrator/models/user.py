@@ -1,15 +1,13 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.models.enums import UserRole
 from sqlalchemy import Boolean, DateTime, Index, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..db.base import Base
-from .enums import UserRole
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import UserRole
 
 
 def _uuid():
@@ -17,7 +15,7 @@ def _uuid():
 
 
 def _now():
-    return datetime.utcnow()
+    return datetime.now(UTC)
 
 
 class User(Base):

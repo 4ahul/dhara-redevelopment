@@ -415,6 +415,7 @@ services:
     env_file:
       - ./services/ocr_service/.env
     environment:
+      - REDIS_URL=redis://redis:6379
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
       - ENABLE_METRICS=true
     networks:

@@ -12,7 +12,7 @@ BOLD = "\033[1m"
 
 
 def _print_layout(art: str, color: str):
-    print(f"{color}{BOLD}{art}{RESET}\n")
+    pass
 
 
 # --- Banner Definitions ---
@@ -156,4 +156,4 @@ def print_banner(service_name: str) -> None:
     if banner_func:
         banner_func()
     else:
-        print(f"\n[DHARA AI] Starting {service_name}...")
+        pass

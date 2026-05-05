@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 
@@ -14,23 +15,46 @@ async def run_feasibility_analysis(ctx, req: dict, user_id: str, report_id: str)
     Background job to run the full feasibility analysis.
     This is called by the Arq worker.
     """
+
+    from services.orchestrator.db import async_session_factory
+    from services.orchestrator.models import FeasibilityReport, ReportStatus
+
     logger.info(f"Worker starting analysis for report: {report_id}")
 
     # 1. Initialize Dossier
     await dossier_service.create_dossier(report_id, req)
     await dossier_service.update_dossier(report_id, "start", {"status": "processing"})
 
-    # 2. Run the actual analysis
-    # Note: We pass None for background_tasks as we are already in a background worker
-    result = await feasibility_orchestrator.analyze(
-        req=req, background_tasks=None, user_id=user_id, report_id=report_id
-    )
+    try:
+        # 2. Run the actual analysis
+        # Note: We pass None for background_tasks as we are already in a background worker
+        result = await feasibility_orchestrator.analyze(
+            req=req, background_tasks=None, user_id=user_id, report_id=report_id
+        )
 
-    # 3. Finalize Dossier
-    await dossier_service.update_dossier(report_id, "final_result", result)
+        # 3. Finalize Dossier
+        await dossier_service.update_dossier(report_id, "final_result", result)
+        logger.info(f"Worker completed analysis for report: {report_id}")
+        return result
 
-    logger.info(f"Worker completed analysis for report: {report_id}")
-    return result
+    except Exception as e:
+        logger.exception(f"Worker failed analysis for report: {report_id} | Error: {e}")
+        # Mark as failed in DB
+        try:
+            async with async_session_factory() as db:
+                rpt = await db.get(FeasibilityReport, report_id)
+                if rpt:
+                    rpt.status = ReportStatus.FAILED
+                    rpt.error_message = str(e)
+                    await db.commit()
+        except Exception as db_err:
+            logger.exception(f"Failed to mark report {report_id} as FAILED in DB: {db_err}")
+
+        # Update Dossier with error
+        await dossier_service.update_dossier(
+            report_id, "error", {"status": "failed", "error": str(e)}
+        )
+        return {"status": "error", "error": str(e)}
 
 
 async def run_ai_agent(ctx, society_data: dict, report_id: str):
@@ -89,10 +113,8 @@ async def run_ai_agent(ctx, society_data: dict, report_id: str):
                 rpt.output_data = result
                 # Some runs attach a tool log
                 if hasattr(rpt, "tool_log"):
-                    try:
+                    with contextlib.suppress(Exception):
                         rpt.tool_log = result.get("tool_log", [])
-                    except Exception:
-                        pass
                 await db.commit()
 
         logger.info(f"Worker completed AI Agent for report: {report_id}")

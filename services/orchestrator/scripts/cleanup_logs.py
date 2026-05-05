@@ -32,7 +32,7 @@ async def cleanup_logs(days: int):
             await db.commit()
             logger.info(f"Successfully purged {result.rowcount} logs from audit_logs table.")
     except Exception as e:
-        logger.error(f"Cleanup failed: {e}")
+        logger.exception(f"Cleanup failed: {e}")
 
 
 if __name__ == "__main__":

@@ -76,7 +76,7 @@ def check(wb):
         val = ws[cell_ref].value
 
         # Determine pass/fail
-        is_empty = val is None or val == "" or val == 0
+        is_empty = val is None or val in {"", 0}
         is_sentinel = val == FALLBACK_SENTINELS.get(name)
 
         if is_empty and required:
@@ -99,46 +99,30 @@ def check(wb):
 
 def print_report(results):
     fail = [r for r in results if r[6] == "FAIL"]
-    warn = [r for r in results if r[6] == "WARN"]
-    ok = [r for r in results if r[6] == "OK"]
-    skip = [r for r in results if r[6] == "SKIP"]
-
-    print(f"\n{'=' * 70}")
-    print("  FEASIBILITY REPORT CELL VERIFICATION")
-    print(f"{'=' * 70}")
-    print(f"  PASS: {len(ok)}  WARN: {len(warn)}  FAIL: {len(fail)}  SKIP: {len(skip)}")
-    print(f"{'=' * 70}\n")
+    [r for r in results if r[6] == "WARN"]
+    [r for r in results if r[6] == "OK"]
+    [r for r in results if r[6] == "SKIP"]
 
     col = {"OK": "\033[92m", "WARN": "\033[93m", "FAIL": "\033[91m", "SKIP": "\033[90m"}
-    reset = "\033[0m"
 
-    for cell_ref, sheet, name, _kind, required, val, status, note in results:
-        req_flag = "* " if required else "  "
-        val_str = str(val)[:30] if val is not None else "(none)"
-        c = col.get(status, "")
-        print(
-            f"  {c}{status:4}{reset}  {req_flag}{sheet}!{cell_ref:4}  {name:<36} = {val_str:<30}  {note}"
-        )
+    for _cell_ref, _sheet, _name, _kind, _required, val, status, _note in results:
+        str(val)[:30] if val is not None else "(none)"
+        col.get(status, "")
 
-    print(f"\n{'=' * 70}")
     if fail:
-        print("  FAILURES (required cells with no data):")
-        for r in fail:
-            print(f"    {r[1]}!{r[0]} ({r[2]}): {r[7]}")
+        for _r in fail:
+            pass
     else:
-        print("  All required cells populated.")
-    print(f"{'=' * 70}\n")
+        pass
 
     return len(fail) == 0
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python scripts/verify_excel_cells.py <path_or_url>")
         sys.exit(1)
 
     target = sys.argv[1]
-    print(f"Loading: {target}")
     wb = load_wb(target)
     results = check(wb)
     ok = print_report(results)

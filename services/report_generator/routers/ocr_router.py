@@ -41,7 +41,7 @@ def _get_extractor():
         ocr_dir = repo_root / "ocr_dhara_v2"
         if str(ocr_dir) not in sys.path:
             sys.path.insert(0, str(ocr_dir))
-        from main import extract_from_pdf  # noqa: PLC0415
+        from main import extract_from_pdf
 
         return extract_from_pdf
     except ImportError as e:

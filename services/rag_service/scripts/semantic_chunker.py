@@ -138,11 +138,11 @@ class SemanticChunker:
         chunk_index = 0
 
         for para in paragraphs:
-            para = para.strip()
-            if not para:
+            stripped_para = para.strip()
+            if not stripped_para:
                 continue
 
-            para_type = self.identify_content_type(para)
+            para_type = self.identify_content_type(stripped_para)
 
             # Handle headings - start new chunk
             if para_type == "heading":
@@ -285,13 +285,12 @@ def create_chunker(chunking_strategy: str = "semantic", **kwargs) -> Any:
     """Factory function to create appropriate chunker"""
     if chunking_strategy == "semantic":
         return SemanticChunker(**kwargs)
-    elif chunking_strategy == "hybrid":
+    if chunking_strategy == "hybrid":
         return HybridChunker(**kwargs)
-    else:
-        # Default to langchain's RecursiveCharacterTextSplitter
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    # Default to langchain's RecursiveCharacterTextSplitter
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        return RecursiveCharacterTextSplitter(**kwargs)
+    return RecursiveCharacterTextSplitter(**kwargs)
 
 
 if __name__ == "__main__":
@@ -335,8 +334,5 @@ FSI regulations are crucial for property development and must be carefully consi
     chunker = SemanticChunker(max_chunk_size=600)
     chunks = chunker.chunk_text(test_text, "test.txt")
 
-    print(f"Created {len(chunks)} semantic chunks:\n")
-    for i, (text, meta) in enumerate(chunks):
-        print(f"--- Chunk {i + 1} ({meta}) ---")
-        print(text[:200] + "..." if len(text) > 200 else text)
-        print()
+    for _i, (_text, _meta) in enumerate(chunks):
+        pass

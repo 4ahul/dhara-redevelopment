@@ -4,6 +4,7 @@ Async SMTP email sending with Jinja2 HTML templates.
 """
 
 import logging
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -108,15 +109,13 @@ async def send_email(
         )
         logger.info("Email sent to %s: %s", to_email, subject)
         return True
-    except Exception as e:
-        logger.error("Failed to send email to %s: %s", to_email, e)
+    except Exception:
+        logger.exception("Failed to send email to %s", to_email)
         return False
 
 
 def _render(template_name: str, **ctx) -> str:
-    from datetime import datetime
-
-    ctx.setdefault("year", datetime.utcnow().year)
+    ctx.setdefault("year", datetime.now(UTC).year)
     return _jinja.from_string(TEMPLATES[template_name]).render(**ctx)
 
 

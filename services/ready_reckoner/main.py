@@ -1,13 +1,12 @@
 import logging
 
-from fastapi import FastAPI
-
 from dhara_shared.core.banner import print_banner
 from dhara_shared.core.config import validate_config
 from dhara_shared.core.exceptions import setup_exception_handlers
 from dhara_shared.core.logging import setup_logging, setup_sentry
 from dhara_shared.core.metrics import setup_metrics
 from dhara_shared.core.tracing import setup_tracing
+from fastapi import FastAPI
 
 from .core import settings
 from .routers.premium_router import router

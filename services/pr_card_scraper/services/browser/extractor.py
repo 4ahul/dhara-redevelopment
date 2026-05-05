@@ -214,7 +214,7 @@ class ImageExtractor:
         try:
             await self.page.screenshot(path=path, full_page=True)
         except Exception as e:
-            logger.error(f"screenshot_fallback failed entirely: {e}")
+            logger.exception(f"screenshot_fallback failed entirely: {e}")
 
     # ─────────────────────────────────────────────────────────────────────────
     # Internal helpers
@@ -226,7 +226,7 @@ class ImageExtractor:
         Retries 3 times if src is empty. Converts relative URLs to absolute.
         Downloads via page.request.get() so cookies are included.
         """
-        pages_to_check = [self.page] + list(self.page.frames)
+        pages_to_check = [self.page, *list(self.page.frames)]
 
         for frame in pages_to_check:
             for _attempt in range(3):

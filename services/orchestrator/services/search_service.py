@@ -8,9 +8,12 @@ import logging
 import math
 from uuid import UUID
 
+import httpx
+from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services.orchestrator.core.config import settings
 from services.orchestrator.models import FeasibilityReport, Role, Society, SocietyTender
 from services.orchestrator.schemas.admin import RoleResponse
 from services.orchestrator.schemas.common import PaginatedResponse
@@ -22,8 +25,41 @@ class SearchService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def autocomplete_places(self, query: str) -> dict:
+        """Google Maps Places Autocomplete proxy."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{settings.SITE_ANALYSIS_URL}/places/autocomplete", params={"q": query}
+                )
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text) from e
+        except Exception as e:
+            logger.exception(f"Failed to proxy autocomplete request: {e}")
+            raise HTTPException(status_code=500, detail="Search service unavailable") from e
+
+    async def get_place_details(self, place_id: str) -> dict:
+        """Get full details for a selected place_id proxy."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(f"{settings.SITE_ANALYSIS_URL}/places/{place_id}")
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text) from e
+        except Exception as e:
+            logger.exception(f"Failed to proxy place details request: {e}")
+            raise HTTPException(status_code=500, detail="Search service unavailable") from e
+
     async def global_search(
-        self, query: str, user_id: UUID, entity_type: str = None, page: int = 1, page_size: int = 20
+        self,
+        query: str,
+        user_id: UUID,
+        entity_type: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
     ) -> PaginatedResponse:
         """Perform a cross-entity search for a specific user."""
         results, term = [], f"%{query}%"
@@ -37,7 +73,6 @@ class SearchService:
                     or_(
                         Society.name.ilike(term),
                         Society.address.ilike(term),
-                        Society.cts_no.ilike(term),
                     ),
                 )
                 .limit(page_size)

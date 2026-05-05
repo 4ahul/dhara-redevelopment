@@ -7,9 +7,10 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import JWTError, jwt as jose_jwt
-from jwt import PyJWKClient
 import jwt as pyjwt
+from jose import JWTError
+from jose import jwt as jose_jwt
+from jwt import PyJWKClient
 from jwt.exceptions import InvalidTokenError as JWTInvalidTokenError
 
 from .config import settings
@@ -107,10 +108,10 @@ def decode_token(token: str) -> dict:
     except JWTInvalidTokenError as e:
         from fastapi import HTTPException
 
-        logger.warning(f"JWT Validation failed: {str(e)}")
+        logger.warning(f"JWT Validation failed: {e!s}")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e
     except Exception as e:
         from fastapi import HTTPException
 
-        logger.error(f"Unexpected error during Clerk JWT validation: {type(e).__name__}: {str(e)}")
+        logger.exception(f"Unexpected error during Clerk JWT validation: {type(e).__name__}: {e!s}")
         raise HTTPException(status_code=401, detail="Invalid or expired token") from e

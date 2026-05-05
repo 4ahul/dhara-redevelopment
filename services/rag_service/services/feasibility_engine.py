@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -194,6 +195,7 @@ Return ONLY the JSON, no other text."""
             # Fallback to regex extraction
             logger.info("  [OCR] Falling back to regex extraction...")
             return self._extract_from_ocr_result(result)
+        return None
 
     def _card_to_property(self, card) -> PropertyDetails:
         """Convert PropertyCard to PropertyDetails"""
@@ -442,9 +444,11 @@ class DCPRClauseFinder:
         if "all zones" in text_lower:
             return "Universal application"
 
-        if any(term in text_lower for term in ["redevelopment", "society", "housing"]):
-            if prop.zone_type == "Residential":
-                return f"Potentially applicable for {prop.zone_type} redevelopment"
+        if (
+            any(term in text_lower for term in ["redevelopment", "society", "housing"])
+            and prop.zone_type == "Residential"
+        ):
+            return f"Potentially applicable for {prop.zone_type} redevelopment"
 
         return "May be applicable"
 
@@ -530,10 +534,7 @@ class DCPRClauseFinder:
         self, clause: ClauseRecommendation, existing: list[ClauseRecommendation]
     ) -> bool:
         """Check if clause is duplicate"""
-        for e in existing:
-            if e.clause_id == clause.clause_id:
-                return True
-        return False
+        return any(e.clause_id == clause.clause_id for e in existing)
 
 
 class SchemeCalculator:
@@ -572,29 +573,29 @@ class SchemeCalculator:
         if area_sqm <= 4000:
             if road_width >= 27:
                 return 3.5
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 3.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 2.5
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 2.25
         elif area_sqm <= 10000:
             if road_width >= 27:
                 return 5.0
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 4.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 3.5
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 2.75
         elif area_sqm <= 20000:
             if road_width >= 27:
                 return 6.5
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 5.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 4.0
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 3.5
         return 2.5
 
@@ -1388,7 +1389,7 @@ if __name__ == "__main__":
         )
     else:
         logger.error("Provide either --file or (--survey-no and --area)")
-        exit(1)
+        sys.exit(1)
 
     output_base = f"{args.output}{report.report_id}"
     engine.export_to_json(report, f"{output_base}.json")

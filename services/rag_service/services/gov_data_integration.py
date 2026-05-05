@@ -360,14 +360,13 @@ class WhatsAppComplianceReader:
 
         if "rera" in text.lower():
             return "rera"
-        elif "dcpr" in text.lower() or "fsi" in text.lower():
+        if "dcpr" in text.lower() or "fsi" in text.lower():
             return "dcpr"
-        elif "fire" in text.lower():
+        if "fire" in text.lower():
             return "fire"
-        elif "environment" in text.lower():
+        if "environment" in text.lower():
             return "environment"
-        else:
-            return "general"
+        return "general"
 
     def add_compliance(self, compliance: dict) -> bool:
         """Add compliance to database"""
@@ -410,9 +409,8 @@ class WhatsAppComplianceReader:
                 timestamp = f"{date} {time or ''}".strip()
 
                 compliance = self.parse_message(message, sender.strip(), timestamp)
-                if compliance:
-                    if self.add_compliance(compliance):
-                        count += 1
+                if compliance and self.add_compliance(compliance):
+                    count += 1
 
             return count
         except Exception as e:
@@ -466,11 +464,10 @@ def add_data_endpoints(app):
                     "extracted_data": result,
                     "file_path": str(file_path),
                 }
-            else:
-                return {
-                    "success": False,
-                    "message": "Could not extract data from document",
-                }
+            return {
+                "success": False,
+                "message": "Could not extract data from document",
+            }
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -512,8 +509,7 @@ def add_data_endpoints(app):
             compliance_file = DATA_DIR / "data_sources" / "compliance" / "regulations.json"
             if compliance_file.exists():
                 data = json.loads(compliance_file.read_text())
-                pending = [c for c in data if c.get("requires_action", False)]
-                return pending
+                return [c for c in data if c.get("requires_action", False)]
             return []
         except Exception:
             return []

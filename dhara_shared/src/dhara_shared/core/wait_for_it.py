@@ -10,14 +10,11 @@ def wait_for_port(host, port, timeout=60):
     while True:
         try:
             with socket.create_connection((host, port), timeout=1):
-                print(f"[OK] {host}:{port} is open.")
                 return True
         except (OSError, ConnectionRefusedError):
             elapsed = time.time() - start_time
             if elapsed > timeout:
-                print(f"[ERROR] Timeout waiting for {host}:{port} after {timeout} seconds.")
                 return False
-            print(f"Waiting for {host}:{port}...")
             time.sleep(2)
 
 

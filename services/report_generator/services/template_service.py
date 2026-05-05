@@ -89,14 +89,17 @@ class TemplateService:
             if row - offset >= 1:
                 above_cell = ws.cell(row=row - offset, column=col)
                 val = str(above_cell.value).strip() if above_cell.value else ""
-                
-                if val and val != "None" and not val.startswith("="):
-                    # Skip digits
-                    if not val.replace('.', '', 1).isdigit() and len(val) > 2:
-                        # Only add if it's not a duplicate of the one below it
-                        if not col_labels or val[:50] != col_labels[-1]:
-                            col_labels.append(val[:50])
-                            
+
+                if (
+                    val
+                    and val != "None"
+                    and not val.startswith("=")
+                    and not val.replace(".", "", 1).isdigit()
+                    and len(val) > 2
+                    and (not col_labels or val[:50] != col_labels[-1])
+                ):
+                    col_labels.append(val[:50])
+
         col_label = " - ".join(reversed(col_labels))
 
         # 2. Horizontal Scan (Find Row Header)
@@ -104,15 +107,15 @@ class TemplateService:
         for check_col in range(col - 1, 0, -1):
             cell = ws.cell(row=row, column=check_col)
             val = str(cell.value).strip() if cell.value else ""
-            
+
             # Skip empty, Excel formulas, "None", and purely numeric data
             if not val or val == "None" or val.startswith("="):
                 continue
-                
+
             # If it's a number/float (e.g., 153.27 or 2000), it's not a label!
-            if val.replace('.', '', 1).isdigit():
+            if val.replace(".", "", 1).isdigit():
                 continue
-                
+
             if len(val) > 2:
                 row_label = val[:50]
                 break
@@ -120,9 +123,9 @@ class TemplateService:
         # 3. Composite Logic
         if row_label and col_label and row_label != col_label:
             return f"{row_label} | {col_label}"
-        elif row_label:
+        if row_label:
             return row_label
-        elif col_label:
+        if col_label:
             return col_label
         return f"{col_letter}{row}"
 
@@ -172,8 +175,7 @@ class TemplateService:
         # collapse spaces and remove trivial punctuation
         for ch in ["\n", "\t", ":", ";", ",", "|", "(", ")"]:
             s = s.replace(ch, " ")
-        s = " ".join(s.split())
-        return s
+        return " ".join(s.split())
 
     def _build_label_index(self, scheme: str, redevelopment_type: str = "CLUBBING"):
         """Build an index to resolve manual label-based inputs to cells.

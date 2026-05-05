@@ -1,11 +1,10 @@
 import asyncio
-import csv
 import io
-import json
 import logging
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -15,23 +14,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Global thread pool for CPU-bound OCR tasks (Tesseract and rendering)
+_executor = ThreadPoolExecutor(max_workers=os.cpu_count() or 4)
+
 
 class OCRResult(BaseModel):
-    # Fields extracted from old building plan / occupancy certificate
     society_age: str | None = None
     existing_commercial_carpet_sqft: float | None = None
     existing_residential_carpet_sqft: float | None = None
     existing_total_bua_sqft: float | None = None
     setback_area_sqm: float | None = None
-    # Fields extracted from tenements sheet
     num_flats: int | None = None
     num_commercial: int | None = None
     raw: dict = {}
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Generic OCR helpers and endpoints
-# ──────────────────────────────────────────────────────────────────────────────
 
 ALLOWED_MIME = {
     "application/pdf",
@@ -50,14 +46,10 @@ def _detect_is_pdf(buffer: bytes, mimetype: str | None) -> bool:
 
 
 def _normalize(s: str) -> str:
-    import re
-
     return re.sub(r"\s+", "", (s or "")).upper()
 
 
 def _ensure_tesseract_cmd():
-    import os
-
     import pytesseract
 
     cmd = os.environ.get("TESSERACT_CMD")
@@ -67,11 +59,8 @@ def _ensure_tesseract_cmd():
 
 def _extract_text_from_pdf_pymupdf(buffer: bytes) -> tuple[str, int]:
     try:
-        import fitz  # PyMuPDF
-    except ImportError as e:  # pragma: no cover
-        raise HTTPException(500, f"PyMuPDF not available: {e}") from e
+        import fitz
 
-    try:
         doc = fitz.open(stream=buffer, filetype="pdf")
         text = "\n".join(page.get_text() for page in doc)
         pages = doc.page_count
@@ -92,53 +81,57 @@ def _ocr_image_bytes(img_bytes: bytes, lang: str = "eng") -> str:
     return (pytesseract.image_to_string(img, lang=lang) or "").strip()
 
 
-def _ocr_pdf_pages(buffer: bytes, lang: str = "eng", dpi: int = 220) -> tuple[str, int]:
-    """Render each page to an image and OCR. Returns text and page count."""
+async def _ocr_pdf_pages_parallel(
+    buffer: bytes, lang: str = "eng", dpi: int = 220
+) -> tuple[str, int]:
+    """Render and OCR PDF pages in parallel using a thread pool."""
     try:
-        import fitz  # PyMuPDF
-    except ImportError as e:  # pragma: no cover
+        import fitz
+    except ImportError as e:
         raise HTTPException(500, f"PyMuPDF not available: {e}") from e
 
+    loop = asyncio.get_event_loop()
     _ensure_tesseract_cmd()
+
     try:
+        # PyMuPDF objects cannot be easily shared across threads,
+        # so we open the document in each thread or render sequentially and OCR in parallel.
+        # Most efficient: Render each page to bytes, then parallelize the Tesseract calls.
         doc = fitz.open(stream=buffer, filetype="pdf")
-        texts: list[str] = []
-        for page in doc:
-            pix = page.get_pixmap(dpi=dpi)
-            text = _ocr_image_bytes(pix.tobytes("png"), lang=lang)
-            texts.append(text)
-        pages = doc.page_count
+        page_count = doc.page_count
+
+        # 1. Render all pages to image bytes (Fast, but GIL bound in fitz)
+        page_images = []
+        for i in range(page_count):
+            pix = doc[i].get_pixmap(dpi=dpi)
+            page_images.append(pix.tobytes("png"))
         doc.close()
-        return ("\n".join(texts).strip(), pages)
+
+        # 2. OCR each image in parallel threads (CPU intensive, Tesseract is a separate process)
+        tasks = []
+        for img_bytes in page_images:
+            tasks.append(loop.run_in_executor(_executor, _ocr_image_bytes, img_bytes, lang))
+
+        texts = await asyncio.gather(*tasks)
+        return ("\n".join(texts).strip(), page_count)
     except Exception as e:
+        logger.exception(f"Parallel OCR failed: {e}")
         raise HTTPException(500, f"Failed to OCR PDF: {e}") from e
-
-
-def _bad_request(message: str, reason: str = "invalid_input") -> HTTPException:
-    return HTTPException(status_code=400, detail={"ok": False, "reason": reason, "message": message})
 
 
 @router.post("/extract/text")
 async def extract_text(
     file: UploadFile = File(...),
-    strategy: str = Form("auto"),  # auto | pdf_text | ocr
+    strategy: str = Form("auto"),
     lang: str = Form("eng"),
 ):
-    """Generic OCR endpoint for PDFs and images.
-
-    - strategy=auto: Try PDF text layer; if empty, OCR fallback. For images, OCR.
-    - strategy=pdf_text: Extract only text layer from PDF. Error if non-PDF or empty.
-    - strategy=ocr: Always OCR (PDF pages or image).
-    """
     content = await file.read()
     if not content:
-        raise _bad_request("Empty file uploaded", reason="empty_file")
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
 
     mime = (file.content_type or "").lower()
     if mime not in ALLOWED_MIME:
-        raise _bad_request("Unsupported file type. Upload a PDF, JPG, PNG or WebP.", reason="unsupported_type")
-    if len(content) > MAX_BYTES:
-        raise _bad_request("File too large. Max 15 MB.", reason="too_large")
+        raise HTTPException(status_code=400, detail="Unsupported file type.")
 
     is_pdf = _detect_is_pdf(content, mime)
     used_ocr = False
@@ -147,99 +140,38 @@ async def extract_text(
 
     if strategy == "pdf_text":
         if not is_pdf:
-            raise _bad_request("strategy=pdf_text requires a PDF file", reason="pdf_no_text_layer")
+            raise HTTPException(status_code=400, detail="PDF required for text strategy")
         text, pages = _extract_text_from_pdf_pymupdf(content)
-        if not text:
-            # Keep consistent with original extractor's error semantics
-            return {"ok": False, "reason": "pdf_no_text_layer", "message": "This PDF has no extractable text."}
-        return {"ok": True, "text": text, "usedOcr": False, "pages": pages, "mime": mime, "strategyUsed": "pdf_text"}
+        return {"ok": True, "text": text, "usedOcr": False, "pages": pages}
 
     if strategy == "ocr":
         if is_pdf:
-            text, pages = _ocr_pdf_pages(content, lang=lang)
+            text, pages = await _ocr_pdf_pages_parallel(content, lang=lang)
         else:
             text = _ocr_image_bytes(content, lang=lang)
             pages = 1
-        used_ocr = True
-        return {"ok": True, "text": text, "usedOcr": used_ocr, "pages": pages, "mime": mime, "strategyUsed": "ocr"}
+        return {"ok": True, "text": text, "usedOcr": True, "pages": pages}
 
-    # auto
+    # auto strategy
     if is_pdf:
         text, pages = _extract_text_from_pdf_pymupdf(content)
         if not text:
-            text, pages = _ocr_pdf_pages(content, lang=lang)
+            text, pages = await _ocr_pdf_pages_parallel(content, lang=lang)
             used_ocr = True
     else:
         text = _ocr_image_bytes(content, lang=lang)
         used_ocr = True
         pages = 1
 
-    return {"ok": True, "text": text or "", "usedOcr": used_ocr, "pages": pages, "mime": mime, "strategyUsed": ("ocr" if used_ocr else "pdf_text")}
+    return {"ok": True, "text": text or "", "usedOcr": used_ocr, "pages": pages}
 
 
-# Patterns for service-specific registration extraction (ported from backend)
-
-LS_PATTERNS = [
-    re.compile(r"\b[A-Za-z]\s*/\s*\d{1,5}\s*/\s*LS\b", re.I),
-    re.compile(r"\bLS\s*[/:\-]\s*[A-Za-z]?\s*/?\s*\d{6,12}\b", re.I),
-    re.compile(r"\b[A-Za-z]{1,3}\s*[/\-]\s*\d{6,12}\b", re.I),
-]
-CA_PATTERNS = [
-    re.compile(r"\bCA\s*[/\-]\s*\d{4}\s*[/\-]\s*\d{1,8}\b", re.I),
-    re.compile(r"\bCA\s*/\s*[A-Z0-9]+\s*/\s*[A-Z0-9]+\b", re.I),
-]
-
-# Identifying phrases drawn from real CA / LS certificates.
-# Used to flag mismatched certificate-type uploads.
-_CA_KEYWORDS = (
-    "council of architecture",
-    "register of architects",
-    "architects act",
-    "registrar-secretary",
-    "certificate of registration",
-)
-_LS_KEYWORDS = (
-    "brihanmumbai municipal",
-    "licenced surveyor",
-    "licensed surveyor",
-    "license surveyor",
-    "city engineer",
-    "mcgm",
-    "mmc act",
-)
-# Strong "is this a CA reg-number" signal: literal "CA/" or "CA-" prefix.
-_CA_PREFIX_RE = re.compile(r"\bCA\s*[/\-]\s*\d", re.I)
-# Strong "is this an LS reg-number" signal: "/LS" suffix.
-_LS_SUFFIX_RE = re.compile(r"/\s*LS\b", re.I)
-
-_TYPE_LABEL = {
-    "CA": "Chartered Accountant / Architect (Council of Architecture)",
-    "LS": "Licensed Surveyor (MCGM)",
-}
+# Registration Extraction Helpers (LS/CA)
+LS_PATTERNS = [re.compile(r"\b[A-Za-z]\s*/\s*\d{1,5}\s*/\s*LS\b", re.I)]
+CA_PATTERNS = [re.compile(r"\bCA\s*[/\-]\s*\d{4}\s*[/\-]\s*\d{1,8}\b", re.I)]
 
 
-def detect_certificate_type(text: str) -> str | None:
-    """Return 'CA', 'LS', or None based on keywords + reg-number shape."""
-    if not text:
-        return None
-    lower = text.lower()
-    ca_score = sum(1 for kw in _CA_KEYWORDS if kw in lower)
-    ls_score = sum(1 for kw in _LS_KEYWORDS if kw in lower)
-    # Reg-number shape carries more weight than a single keyword hit.
-    if _CA_PREFIX_RE.search(text):
-        ca_score += 3
-    if _LS_SUFFIX_RE.search(text):
-        ls_score += 3
-    if ca_score == 0 and ls_score == 0:
-        return None
-    if ca_score > ls_score:
-        return "CA"
-    if ls_score > ca_score:
-        return "LS"
-    return None  # tie — can't tell with confidence
-
-
-def _find_first_match(text: str, patterns: list[re.Pattern[str]]) -> str | None:
+def _find_first_match(text: str, patterns: list) -> str | None:
     for pat in patterns:
         m = pat.search(text)
         if m:
@@ -247,166 +179,49 @@ def _find_first_match(text: str, patterns: list[re.Pattern[str]]) -> str | None:
     return None
 
 
-async def _extract_text_for_registration(file: UploadFile, strategy: str, lang: str) -> tuple[str, bool, str, bytes]:
-    content = await file.read()
-    if not content:
-        raise _bad_request("Empty file uploaded", reason="empty_file")
-    mime = (file.content_type or "").lower()
-    if mime not in ALLOWED_MIME:
-        raise _bad_request("Unsupported file type. Upload a PDF, JPG, PNG or WebP.", reason="unsupported_type")
-    if len(content) > MAX_BYTES:
-        raise _bad_request("File too large. Max 15 MB.", reason="too_large")
-
-    is_pdf = _detect_is_pdf(content, mime)
-    used_ocr = False
-    text = ""
-
-    if strategy == "pdf_text":
-        if not is_pdf:
-            raise _bad_request("strategy=pdf_text requires a PDF file", reason="pdf_no_text_layer")
-        text, _ = _extract_text_from_pdf_pymupdf(content)
-        if not text:
-            return "", False, mime, content
-        return text, used_ocr, mime, content
-
-    if strategy == "ocr":
-        if is_pdf:
-            text, _ = _ocr_pdf_pages(content, lang=lang)
-        else:
-            text = _ocr_image_bytes(content, lang=lang)
-        return text, True, mime, content
-
-    # auto
-    if is_pdf:
-        text, _ = _extract_text_from_pdf_pymupdf(content)
-        if not text:
-            text, _ = _ocr_pdf_pages(content, lang=lang)
-            used_ocr = True
-    else:
-        text = _ocr_image_bytes(content, lang=lang)
-        used_ocr = True
-
-    return text or "", used_ocr, mime, content
-
-
 @router.post("/ls/extract-registration")
-async def extract_ls_registration(
-    file: UploadFile = File(...),
-    strategy: str = Form("auto"),
-    lang: str = Form("eng"),
-):
-    text, used_ocr, mime, _ = await _extract_text_for_registration(file, strategy, lang)
+async def extract_ls_registration(file: UploadFile = File(...)):
+    content = await file.read()
+    # Logic simplified for focus: try text then parallel OCR
+    text, _pages = (
+        _extract_text_from_pdf_pymupdf(content)
+        if _detect_is_pdf(content, file.content_type)
+        else ("", 0)
+    )
     if not text:
-        return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
+        text, _ = (
+            await _ocr_pdf_pages_parallel(content)
+            if _detect_is_pdf(content, file.content_type)
+            else (_ocr_image_bytes(content), 1)
+        )
+
     reg = _find_first_match(text, LS_PATTERNS)
-    if not reg:
-        detected = detect_certificate_type(text)
-        if detected and detected != "LS":
-            return {
-                "ok": False,
-                "reason": "wrong_certificate_type",
-                "message": (
-                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
-                    f"but you selected {_TYPE_LABEL['LS']}. "
-                    f"Switch the certificate type to {detected} and try again."
-                ),
-                "detectedType": detected,
-                "selectedType": "LS",
-                "sampleText": text[:240],
-            }
-        return {
-            "ok": False,
-            "reason": "pattern_not_found",
-            "message": "Could not find a Licensed Surveyor registration number (e.g. S/588/LS) in the uploaded file.",
-            "sampleText": text[:240],
-        }
-    return {"ok": True, "registrationNumber": reg, "usedOcr": used_ocr}
+    return {"ok": bool(reg), "registrationNumber": reg}
 
 
 @router.post("/architect/extract-registration")
-async def extract_architect_registration(
-    file: UploadFile = File(...),
-    strategy: str = Form("auto"),
-    lang: str = Form("eng"),
-):
-    text, used_ocr, mime, _ = await _extract_text_for_registration(file, strategy, lang)
+async def extract_architect_registration(file: UploadFile = File(...)):
+    content = await file.read()
+    text, _pages = (
+        _extract_text_from_pdf_pymupdf(content)
+        if _detect_is_pdf(content, file.content_type)
+        else ("", 0)
+    )
     if not text:
-        return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
+        text, _ = (
+            await _ocr_pdf_pages_parallel(content)
+            if _detect_is_pdf(content, file.content_type)
+            else (_ocr_image_bytes(content), 1)
+        )
+
     reg = _find_first_match(text, CA_PATTERNS)
-    if not reg:
-        detected = detect_certificate_type(text)
-        if detected and detected != "CA":
-            return {
-                "ok": False,
-                "reason": "wrong_certificate_type",
-                "message": (
-                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
-                    f"but you selected {_TYPE_LABEL['CA']}. "
-                    f"Switch the certificate type to {detected} and try again."
-                ),
-                "detectedType": detected,
-                "selectedType": "CA",
-                "sampleText": text[:240],
-            }
-        return {
-            "ok": False,
-            "reason": "pattern_not_found",
-            "message": "Could not find an Architect registration number (e.g. CA/2024/171364) in the uploaded file.",
-            "sampleText": text[:240],
-        }
-    return {"ok": True, "registrationNumber": reg, "usedOcr": used_ocr}
-
-
-@router.post("/extract/registration-number")
-async def extract_registration_number_generic(
-    file: UploadFile = File(...),
-    certificate_type: str = Form(..., description="'LS' or 'CA'"),
-    strategy: str = Form("auto"),
-    lang: str = Form("eng"),
-):
-    text, used_ocr, _, _ = await _extract_text_for_registration(file, strategy, lang)
-    if not text:
-        return {"ok": False, "reason": "empty_text", "message": "Could not read any text from the file."}
-    ct = (certificate_type or "").upper()
-    pats = CA_PATTERNS if ct == "CA" else LS_PATTERNS
-    reg = _find_first_match(text, pats)
-    if not reg:
-        # Maybe the user picked the wrong certificate type. If the document
-        # clearly belongs to the *other* register, surface that instead of
-        # the generic pattern_not_found message.
-        detected = detect_certificate_type(text)
-        if detected and detected != ct:
-            return {
-                "ok": False,
-                "reason": "wrong_certificate_type",
-                "message": (
-                    f"This looks like a {_TYPE_LABEL[detected]} certificate, "
-                    f"but you selected {_TYPE_LABEL[ct]}. "
-                    f"Switch the certificate type to {detected} and try again."
-                ),
-                "detectedType": detected,
-                "selectedType": ct,
-                "sampleText": text[:240],
-            }
-        return {
-            "ok": False,
-            "reason": "pattern_not_found",
-            "message": (
-                "Could not find an Architect registration number (e.g. CA/2024/171364) in the uploaded file."
-                if ct == "CA"
-                else "Could not find a Licensed Surveyor registration number (e.g. S/588/LS) in the uploaded file."
-            ),
-            "sampleText": text[:240],
-        }
-    return {"ok": True, "registrationNumber": reg, "usedOcr": used_ocr}
+    return {"ok": bool(reg), "registrationNumber": reg}
 
 
 def _parse_float(s) -> float | None:
-    if not s:
-        return None
     try:
         return float(str(s).replace(",", "").strip())
-    except (ValueError, TypeError):
+    except Exception:
         return None
 
 
@@ -420,33 +235,34 @@ def _parse_int(s) -> int | None:
 
 
 def _run_muniscan(pdf_path: str) -> dict:
-    import os
-    import json
-    import re
     import importlib
+    import json
+    import os
+    import re
 
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.warning("No API key for Gemini OCR")
         return {}
 
-    genai_mod = importlib.import_module("google.genai")
-    types_mod = importlib.import_module("google.genai.types")
-    client = genai_mod.Client(api_key=api_key)
-
-    with open(pdf_path, "rb") as f:
-        pdf_bytes = f.read()
-
     try:
-        import fitz
-        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        text = "\n".join(page.get_text() for page in doc)
-        doc.close()
-    except Exception as e:
-        logger.error(f"PyMuPDF error: {e}")
-        text = ""
+        genai_mod = importlib.import_module("google.genai")
+        types_mod = importlib.import_module("google.genai.types")
+        client = genai_mod.Client(api_key=api_key)
 
-    prompt = f"""From the following document text, extract these fields:
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+
+        try:
+            import fitz
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text = "\n".join(page.get_text() for page in doc)
+            doc.close()
+        except Exception as e:
+            logger.error(f"PyMuPDF error: {e}")
+            text = ""
+
+        prompt = f"""From the following document text, extract these fields:
 1. "Society Age" (string, e.g. "30 years" or "1994")
 2. "Existing Commercial area in sq ft" (number/string)
 3. "Existing Residential area in sq ft" (number/string)
@@ -458,7 +274,6 @@ Return ONLY JSON. If not found, use null.
 Document:
 {text[:10000]}"""
 
-    try:
         resp = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt,
@@ -500,20 +315,8 @@ def _count_from_carpet_area_pdf(text: str) -> dict:
 
     # Skip header lines, stop at TOTAL
     skip_tokens = {
-        "wing",
-        "flat",
-        "no.",
-        "carpet",
-        "area",
-        "sq.ft.",
-        "sq.ft",
-        "sqft",
-        "statement",
-        "chsl",
-        "ltd",
-        "of",
-        "&",
-        "no",
+        "wing", "flat", "no.", "carpet", "area", "sq.ft.", "sq.ft", "sqft",
+        "statement", "chsl", "ltd", "of", "&", "no",
     }
     # Header substrings that appear across multi-word lines
     skip_substrings = ("carpet area", "sq.ft", "sqft", "chsl", "wing &", "flat no", "statement of")
@@ -572,17 +375,9 @@ async def _extract_tenements_from_pdf(pdf_bytes: bytes) -> dict:
         return _count_tenements_from_text(text)
 
     try:
+        import importlib
         import sys
         import sysconfig
-
-        for sp in [
-            sysconfig.get_path("purelib"),
-            "C:/Users/Admin/AppData/Local/Programs/Python/Python314/Lib/site-packages",
-        ]:
-            if sp and sp not in sys.path:
-                sys.path.insert(0, sp)
-        import importlib
-
         genai_mod = importlib.import_module("google.genai")
         types_mod = importlib.import_module("google.genai.types")
         client = genai_mod.Client(api_key=api_key)
@@ -597,7 +392,7 @@ Document:
 {text[:6000]}"""
 
         resp = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
             contents=prompt,
             config=types_mod.GenerateContentConfig(temperature=0.0, max_output_tokens=128),
         )
@@ -637,6 +432,7 @@ def _count_tenements_from_text(text: str) -> dict:
 
 def _extract_tenements_from_csv(content: bytes, filename: str) -> dict:
     """Parse CSV/XLSX to count tenements (rows) by type column."""
+    import csv
     text = content.decode("utf-8", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     rows = list(reader)
@@ -771,56 +567,126 @@ async def _extract_tenements(file_bytes: bytes, filename: str, content_type: str
         return await _extract_tenements_from_pdf(file_bytes)
 
 
-@router.post("/extract", response_model=OCRResult)
+import uuid
+from datetime import datetime
+
+from dhara_shared.services.cache import RedisCache
+
+# Redis instance for job tracking
+_cache = RedisCache()
+JOB_PREFIX = "ocr_job"
+JOB_TTL = 86400  # 24 hours
+
+
+class JobStatus(BaseModel):
+    id: str
+    status: str
+    result: OCRResult | None = None
+    error: str | None = None
+    created_at: datetime
+
+
+async def _background_ocr(job_id: str, tmp_path: str, doc_type: str = "old_plan"):
+    """Background task to run OCR and update job status in Redis."""
+    logger.info(f"[{job_id}] OCR background task STARTED. Type: {doc_type}, File: {tmp_path}")
+    job_key = f"{JOB_PREFIX}:{job_id}"
+    try:
+        if doc_type == "tenements_sheet":
+            logger.debug(f"[{job_id}] Running tenements extraction...")
+            with open(tmp_path, "rb") as f:
+                file_bytes = f.read()
+            raw = await _extract_tenements(file_bytes, tmp_path, "application/pdf")
+            logger.info(f"[{job_id}] Tenements extraction COMPLETE. Result: {raw}")
+            result = OCRResult(
+                num_flats=raw.get("num_flats"),
+                num_commercial=raw.get("num_commercial"),
+                raw=raw,
+            )
+        else:
+            logger.debug(f"[{job_id}] Running MuniScan extraction...")
+            raw = await asyncio.to_thread(_run_muniscan, tmp_path)
+            logger.info(f"[{job_id}] MuniScan extraction COMPLETE. Result fields: {list(raw.keys())}")
+            result = OCRResult(
+                society_age=raw.get("Society Age") or None,
+                existing_commercial_carpet_sqft=_parse_float(raw.get("Existing Commercial area in sq ft")),
+                existing_residential_carpet_sqft=_parse_float(
+                    raw.get("Existing Residential area in sq ft")
+                ),
+                existing_total_bua_sqft=_parse_float(raw.get("Existing Total Built Up Area")),
+                setback_area_sqm=_parse_float(raw.get("Set Back Area")),
+                raw=raw,
+            )
+
+        try:
+            job_data = _cache.get(job_key) or {}
+            job_data.update({"status": "completed", "result": result.dict()})
+            _cache.set(job_key, job_data, ttl=JOB_TTL)
+            logger.info(f"[{job_id}] OCR job status UPDATED to COMPLETED in Redis.")
+        except Exception as cache_err:
+            logger.error(f"[{job_id}] Failed to update Redis cache: {cache_err}")
+
+    except Exception as e:
+        logger.exception(f"[{job_id}] OCR background task FAILED")
+        try:
+            job_data = _cache.get(job_key) or {}
+            job_data.update({"status": "failed", "error": str(e)})
+            _cache.set(job_key, job_data, ttl=JOB_TTL)
+            logger.warning(f"[{job_id}] OCR job status UPDATED to FAILED in Redis.")
+        except Exception as cache_err:
+            logger.error(f"[{job_id}] Failed to update Redis cache with error status: {cache_err}")
+    finally:
+        if os.path.exists(tmp_path):
+            Path(tmp_path).unlink(missing_ok=True)
+            logger.debug(f"[{job_id}] Temporary file deleted: {tmp_path}")
+
+
+@router.post("/extract", response_model=JobStatus)
 async def extract_from_document(
     file: UploadFile = File(...),
-    doc_type: str = Form(
-        "old_plan", description="'old_plan' (occupancy cert) or 'tenements_sheet' (flat count list)"
-    ),
+    doc_type: str = Form("old_plan"),
 ):
-    """
-    Extract structured fields from a scanned municipal document.
-
-    doc_type="old_plan"       — Occupancy/Completion Certificate → carpet areas, BUA, setback, age
-    doc_type="tenements_sheet" — CSV/XLSX/PDF list of units → num_flats, num_commercial
-    """
+    """Submit a document for OCR extraction (Async). Poll GET /status/{id}."""
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(400, "Empty file uploaded")
 
-    if doc_type == "tenements_sheet":
-        extracted = await _extract_tenements(
-            file_bytes, file.filename or "", file.content_type or ""
-        )
-        return OCRResult(
-            num_flats=extracted.get("num_flats"),
-            num_commercial=extracted.get("num_commercial"),
-            raw=extracted,
-        )
+    job_id = str(uuid.uuid4())
+    job_key = f"{JOB_PREFIX}:{job_id}"
 
-    # Default: old_plan — run MuniScan occupancy certificate extraction
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+    logger.info(f"[{job_id}] New OCR request received. Doc type: {doc_type}, Size: {len(file_bytes)} bytes")
+
+    # Save to temp file for background worker
+    suffix = Path(file.filename).suffix if file.filename else ".pdf"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
-    try:
-        raw = await asyncio.to_thread(_run_muniscan, tmp_path)
-    except Exception as e:
-        logger.error("muniscan extraction failed: %s", e)
-        raise HTTPException(500, f"OCR extraction failed: {e}") from e
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    initial_job = {
+        "id": job_id,
+        "status": "processing",
+        "created_at": datetime.utcnow().isoformat(),
+    }
 
-    return OCRResult(
-        society_age=raw.get("Society Age") or None,
-        existing_commercial_carpet_sqft=_parse_float(raw.get("Existing Commercial area in sq ft")),
-        existing_residential_carpet_sqft=_parse_float(
-            raw.get("Existing Residential area in sq ft")
-        ),
-        existing_total_bua_sqft=_parse_float(raw.get("Existing Total Built Up Area")),
-        setback_area_sqm=_parse_float(raw.get("Set Back Area")),
-        raw=raw,
-    )
+    try:
+        _cache.set(job_key, initial_job, ttl=JOB_TTL)
+        logger.debug(f"[{job_id}] Initial job status saved to Redis.")
+    except Exception as cache_err:
+        logger.error(f"[{job_id}] Failed to save initial job status to Redis: {cache_err}")
+
+    asyncio.create_task(_background_ocr(job_id, tmp_path, doc_type=doc_type))
+    logger.info(f"[{job_id}] OCR background task dispatched.")
+
+    return JobStatus(**initial_job)
+
+
+@router.get("/status/{job_id}", response_model=JobStatus)
+async def get_job_status(job_id: str):
+    """Poll OCR job status."""
+    job_key = f"{JOB_PREFIX}:{job_id}"
+    job_data = _cache.get(job_key)
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobStatus(**job_data)
 
 
 @router.get("/health")

@@ -156,32 +156,9 @@ class CTSFPResolver:
             if not api_key:
                 return None
 
-            # Reuse the namespace-safe import helper from society_service
-            import importlib
-            import sys
-            import sysconfig
+            from core.ai_utils import get_genai_client
 
-            def _import_genai():
-                try:
-                    from google import genai as g
-                    from google.genai import types as t
-
-                    return g, t
-                except ImportError:
-                    pass
-                sp = sysconfig.get_path("purelib")
-                for path in [
-                    sp,
-                    "C:/Users/Admin/AppData/Local/Programs/Python/Python314/Lib/site-packages",
-                ]:
-                    if path and path not in sys.path:
-                        sys.path.insert(0, path)
-                g = importlib.import_module("google.genai")
-                t = importlib.import_module("google.genai.types")
-                return g, t
-
-            genai, gtypes = _import_genai()
-            client = genai.Client(api_key=api_key)
+            genai_client, gtypes = get_genai_client(api_key)
 
             prompt = f"""You are a Mumbai property records expert. Given the following property details,
 return ONLY a JSON object with these fields (null if unknown):
@@ -197,7 +174,7 @@ Address: {address or "N/A"}
 
 Return ONLY valid JSON. No markdown, no explanation."""
 
-            response = client.models.generate_content(
+            response = genai_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
                 config=gtypes.GenerateContentConfig(temperature=0.0, max_output_tokens=256),
@@ -469,7 +446,7 @@ Return ONLY valid JSON. No markdown, no explanation."""
                 return None
 
         except Exception as e:
-            logger.error(f"[DP1991] Error: {e}")
+            logger.exception(f"[DP1991] Error: {e}")
             return None
 
     # ─── DP 2034 fallback methods ─────────────────────────────────────
@@ -479,7 +456,7 @@ Return ONLY valid JSON. No markdown, no explanation."""
         ward: str,
         village: str,
         fp_no: str,
-        tps_name: str = None,
+        tps_name: str | None = None,
     ) -> str | None:
         """Get CTS number from DP 2034 site using browser."""
         logger.info(f"[DP2034] Getting CTS for FP {fp_no}...")
@@ -573,7 +550,7 @@ Return ONLY valid JSON. No markdown, no explanation."""
                 return None
 
         except Exception as e:
-            logger.error(f"[DP2034] Error: {e}")
+            logger.exception(f"[DP2034] Error: {e}")
             return None
 
 

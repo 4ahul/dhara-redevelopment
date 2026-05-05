@@ -11,22 +11,17 @@ COLLECTION_NAME = "documents"
 
 def export_collection(collection_name, output_file):
     if not ZILLIZ_CLUSTER or not ZILLIZ_TOKEN:
-        print("Error: Set ZILLIZ_CLUSTER and ZILLIZ_TOKEN environment variables")
         return
 
-    print("Connecting to Zilliz Cloud...")
     connections.connect("default", host=ZILLIZ_CLUSTER, port="443", token=ZILLIZ_TOKEN, secure=True)
 
     if not utility.has_collection(collection_name):
-        print(f"Collection {collection_name} not found!")
-        print("Available:", utility.list_collections())
         return
 
     collection = Collection(collection_name)
     collection.load()
 
     total = collection.num_entities
-    print(f"Total: {total}")
 
     all_results = []
     batch_size = 500
@@ -41,15 +36,12 @@ def export_collection(collection_name, output_file):
             break
 
         all_results.extend(results)
-        print(f"Exported {len(all_results)}/{total}")
         offset += batch_size
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(all_results, f, ensure_ascii=False)
 
-    print(f"Done! Exported {len(all_results)} texts to {output_file}")
     connections.disconnect("default")
-    print("Cloud DB untouched.")
 
 
 if __name__ == "__main__":

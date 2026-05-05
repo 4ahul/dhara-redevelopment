@@ -68,7 +68,7 @@ class DossierService:
         try:
             return json.loads(path.read_text())
         except Exception as e:
-            logger.error(f"Failed to read dossier {report_id}: {e}")
+            logger.exception(f"Failed to read dossier {report_id}: {e}")
             return None
 
     async def get_dossier_status(self, report_id: str) -> dict | None:
@@ -78,10 +78,20 @@ class DossierService:
             return None
 
         # Calculate progress based on stages
-        stages = ["round1_pr_card", "round1_mcgm", "round1_site_analysis", "round1_dp_remarks", "round1_ocr", "round2", "final_result"]
+        stages = [
+            "round1_pr_card",
+            "round1_mcgm",
+            "round1_site_analysis",
+            "round1_dp_remarks",
+            "round1_ocr",
+            "round2",
+            "final_result",
+        ]
         completed = [s for s in stages if s in dossier.get("data", {})]
 
         progress_pct = round((len(completed) / len(stages)) * 100, 2)
+        if "final_result" in completed:
+            progress_pct = 100.0
         status = dossier.get("status", "processing")
 
         return {
@@ -99,7 +109,7 @@ class DossierService:
         try:
             path.write_text(json.dumps(dossier, indent=2, default=str))
         except Exception as e:
-            logger.error(f"Failed to save dossier {report_id}: {e}")
+            logger.exception(f"Failed to save dossier {report_id}: {e}")
 
 
 dossier_service = DossierService()

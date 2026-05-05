@@ -67,7 +67,7 @@ class BhulekhIntegration:
             return self._scrape_bhulekh(district, taluka, village, survey_no)
 
         except Exception as e:
-            logger.error(f"Bhulekh API error: {e}")
+            logger.exception(f"Bhulekh API error: {e}")
             return self._scrape_bhulekh(district, taluka, village, survey_no)
 
     def _scrape_bhulekh(
@@ -93,7 +93,7 @@ class BhulekhIntegration:
                 },
             }
         except Exception as e:
-            logger.error(f"Bhulekh scrape error: {e}")
+            logger.exception(f"Bhulekh scrape error: {e}")
             return None
 
     def _parse_bhulekh_response(self, data: dict) -> dict | None:
@@ -188,7 +188,7 @@ class BMCIntegration:
             return self._scrape_mcgm_dp(survey_no, ward)
 
         except Exception as e:
-            logger.error(f"BMC DP remarks error: {e}")
+            logger.exception(f"BMC DP remarks error: {e}")
             return self._scrape_mcgm_dp(survey_no, ward)
 
     def _scrape_mcgm_dp(self, survey_no: str, ward: str) -> dict | None:
@@ -220,7 +220,7 @@ class BMCIntegration:
                 },
             }
         except Exception as e:
-            logger.error(f"MCGM scrape error: {e}")
+            logger.exception(f"MCGM scrape error: {e}")
             return None
 
     def _parse_dp_remarks(self, data: dict) -> dict:
@@ -282,7 +282,7 @@ class NOCASIntegration:
             return self._calculate_height(zone, area_sq_m)
 
         except Exception as e:
-            logger.error(f"NOCAS API error: {e}")
+            logger.exception(f"NOCAS API error: {e}")
             return self._calculate_height(zone, area_sq_m)
 
     def _calculate_height(self, zone: str, area_sq_m: float) -> dict:
@@ -401,7 +401,7 @@ class MCGMIntegration:
             }
 
         except Exception as e:
-            logger.error(f"MCGM BPS error: {e}")
+            logger.exception(f"MCGM BPS error: {e}")
             return None
 
     def get_application_status(self, application_no: str) -> dict | None:

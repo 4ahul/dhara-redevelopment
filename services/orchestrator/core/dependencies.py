@@ -8,7 +8,7 @@ import logging
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.orchestrator.core.security import decode_token
@@ -36,6 +36,7 @@ async def get_db() -> AsyncSession:
         finally:
             await session.close()
 
+
 # ─── Current User ───────────────────────────────────────────────────────────
 
 
@@ -43,8 +44,7 @@ async def get_current_user(
     auth: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
-    """Extract and validate user from JWT. Returns the full User ORM object.
-    """
+    """Extract and validate user from JWT. Returns the full User ORM object."""
     token = auth.credentials
     payload = decode_token(token)
     user_id = payload.get("sub")

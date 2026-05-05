@@ -9,7 +9,7 @@ import logging
 import re
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import uvicorn
@@ -77,7 +77,7 @@ class OCRProcessor:
         result = ExtractedPropertyData(
             document_id=doc_id,
             document_type="property_card",
-            extracted_at=datetime.now(),
+            extracted_at=datetime.now(UTC),
         )
 
         if not self.easyocr_available:
@@ -119,7 +119,7 @@ class OCRProcessor:
                 result = ExtractedPropertyData(
                     document_id=doc_id,
                     document_type=self._detect_doc_type(text),
-                    extracted_at=datetime.now(),
+                    extracted_at=datetime.now(UTC),
                 )
                 result.raw_text = text[:5000]
 
@@ -141,14 +141,13 @@ class OCRProcessor:
 
         if "7/12" in text_upper or "सात बारा" in text or "7-12" in text_upper:
             return "7_12"
-        elif "INDEX-II" in text_upper or "INDEX II" in text_upper:
+        if "INDEX-II" in text_upper or "INDEX II" in text_upper:
             return "index_ii"
-        elif "PROPERTY CARD" in text_upper:
+        if "PROPERTY CARD" in text_upper:
             return "property_card"
-        elif "7/12" in text or "७/१२" in text:
+        if "7/12" in text or "७/१२" in text:
             return "7_12"
-        else:
-            return "unknown"
+        return "unknown"
 
     def _extract_property_data(self, text: str, result: ExtractedPropertyData):
         """Extract property data from text"""
@@ -271,15 +270,15 @@ async def process_property_card(file: UploadFile = File(...)):
                 "extracted_data": [asdict(r) for r in results],
             }
 
-        else:  # Image file
-            result = processor.process_image(str(file_path))
-            save_extracted_data(result)
+        # Image file
+        result = processor.process_image(str(file_path))
+        save_extracted_data(result)
 
-            return {
-                "success": True,
-                "document_id": file_id,
-                "extracted_data": asdict(result),
-            }
+        return {
+            "success": True,
+            "document_id": file_id,
+            "extracted_data": asdict(result),
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -332,7 +331,7 @@ async def verify_extracted_data(document_id: str, verified_data: dict):
     data = json.loads(extracted_file.read_text())
     data.update(verified_data)
     data["status"] = "verified"
-    data["verified_at"] = datetime.now().isoformat()
+    data["verified_at"] = datetime.now(UTC).isoformat()
 
     extracted_file.write_text(json.dumps(data, indent=2))
 
@@ -368,7 +367,7 @@ async def health():
     return {
         "status": "healthy",
         "ocr_available": processor.easyocr_available,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

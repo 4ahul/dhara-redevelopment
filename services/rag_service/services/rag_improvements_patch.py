@@ -66,8 +66,8 @@ def _search_local_patched(
     self,
     query: str,
     k: int = 20,
-    doc_type_filter: str = None,
-    precomputed_vector: list[float] = None,
+    doc_type_filter: str | None = None,
+    precomputed_vector: list[float] | None = None,
 ):
     """
     Patched version of SessionRAG._search_local.
@@ -234,10 +234,9 @@ def _multi_search_patched(
                 if text_key not in seen_texts:
                     r.relevance_tags = [context.topic]
                     seen_texts[text_key] = r
-                else:
-                    # Keep the highest raw score we've seen
-                    if r.score > seen_texts[text_key].score:
-                        seen_texts[text_key].score = r.score
+                # Keep the highest raw score we've seen
+                elif r.score > seen_texts[text_key].score:
+                    seen_texts[text_key].score = r.score
                 # RRF: record the 0-based rank for this query
                 query_ranks[text_key].append(rank)
         except Exception as e:
@@ -275,7 +274,7 @@ def _generate_dynamic_answer_patched(
     web_context: str,
     synthesis: dict,
     context,  # QueryContext
-    web_sources: list = None,
+    web_sources: list | None = None,
 ) -> str:
     """
     Patched version of SessionRAG._generate_dynamic_answer.
@@ -436,7 +435,7 @@ EXTRA:
 
         return answer
     except Exception as e:
-        return f"Error generating answer: {str(e)}"
+        return f"Error generating answer: {e!s}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

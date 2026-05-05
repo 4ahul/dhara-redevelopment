@@ -104,8 +104,8 @@ class ArcGISClient:
             where_base.append(f"UPPER(VILLAGE)=UPPER('{_esc(village)}')")
 
         # Try CTS_CS_NO first, then FP_NO as fallback
-        cts_where = " AND ".join(where_base + [f"CTS_CS_NO='{_esc(cts_no)}'"])
-        fp_where = " AND ".join(where_base + [f"FP_NO='{_esc(cts_no)}'"])
+        cts_where = " AND ".join([*where_base, f"CTS_CS_NO='{_esc(cts_no)}'"])
+        fp_where = " AND ".join([*where_base, f"FP_NO='{_esc(cts_no)}'"])
 
         out_fields = "WARD,VILLAGE,CTS_CS_NO,TPS_NAME,FP_NO,PLOT_NO,TYPE,AREA_APP_SQ_MTRS,SHAPE.AREA,SHAPE.LEN"
 

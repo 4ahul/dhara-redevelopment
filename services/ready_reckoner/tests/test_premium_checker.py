@@ -1,11 +1,9 @@
 from utils import setup_path
 
-# noqa: E402
-
 setup_path("premium_checker")
 
-from services.ready_reckoner.services.premium_checker.schemas import PremiumRequest  # noqa: E402
-from services.ready_reckoner.services.premium_checker.services.premium_service import (  # noqa: E402
+from services.ready_reckoner.services.premium_checker.schemas import PremiumRequest
+from services.ready_reckoner.services.premium_checker.services.premium_service import (
     premium_service,
 )
 
@@ -21,12 +19,8 @@ SAMPLE_PREMIUM_REQUEST = {
 
 
 def test_premium_checker_flow():
-    print("Testing Premium Checker Service Flow...")
     req = PremiumRequest(**SAMPLE_PREMIUM_REQUEST)
     result = premium_service.calculate_premiums(req)
-
-    print(f"- Grand Total: ₹{result.grand_total}")
-    print(f"- Total in Crores: ₹{result.grand_total_crore} Cr")
 
     assert result.grand_total > 0
 

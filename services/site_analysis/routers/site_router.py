@@ -11,10 +11,9 @@ router = APIRouter()
 async def analyse_site(req: SiteAnalysisRequest):
     """Analyze site location, landmarks, and MCGM zone data."""
     try:
-        result = await site_analysis_service.analyse(
+        return await site_analysis_service.analyse(
             address=req.address, ward=req.ward, plot_no=req.plot_no
         )
-        return result
     except SiteAnalysisUnavailableError as e:
         raise HTTPException(
             status_code=503,

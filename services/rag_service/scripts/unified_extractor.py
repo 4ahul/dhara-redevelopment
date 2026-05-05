@@ -62,11 +62,9 @@ def _get_easyocr_reader():
         try:
             import easyocr
 
-            print("  [OCR] Initializing EasyOCR (en, mr, hi)...")
             _EASYOCR_READER = easyocr.Reader(["en", "mr", "hi"], gpu=False, verbose=False)
-            print("  [OCR] EasyOCR ready")
-        except Exception as e:
-            print(f"  [OCR] EasyOCR not available: {e}")
+        except Exception:
+            pass
     return _EASYOCR_READER
 
 
@@ -485,8 +483,7 @@ def extract_all_documents(
     files = find_all_documents(docs_root)
 
     if verbose:
-        total_size = sum(f.stat().st_size for f in files) / 1024 / 1024
-        print(f"[EXTRACT] Found {len(files)} documents ({total_size:.1f} MB)")
+        sum(f.stat().st_size for f in files) / 1024 / 1024
 
     results = []
     t0 = time.time()
@@ -499,28 +496,21 @@ def extract_all_documents(
                 results.append(doc)
                 if verbose and (i + 1) % 50 == 0:
                     elapsed = time.time() - t0
-                    rate = (i + 1) / elapsed
-                    total_chars = sum(d.total_chars for d in results)
-                    print(
-                        f"  Progress: {i + 1}/{len(files)} ({rate:.1f} files/s, {total_chars / 1000:.0f}K chars)"
-                    )
-            except Exception as e:
+                    (i + 1) / elapsed
+                    sum(d.total_chars for d in results)
+            except Exception:
                 if verbose:
-                    f = futures[future]
-                    print(f"  Error processing {f.name}: {e}")
+                    futures[future]
 
     if verbose:
         elapsed = time.time() - t0
-        success = len([d for d in results if d.total_chars > 0])
-        total_chars = sum(d.total_chars for d in results)
-        print(f"\n[EXTRACT] Done in {elapsed:.1f}s")
-        print(f"  Successfully extracted: {success}/{len(results)} documents")
-        print(f"  Total characters: {total_chars:,}")
+        len([d for d in results if d.total_chars > 0])
+        sum(d.total_chars for d in results)
         methods = {}
         for d in results:
             methods[d.extraction_method] = methods.get(d.extraction_method, 0) + 1
-        for m, c in sorted(methods.items(), key=lambda x: -x[1]):
-            print(f"  {m}: {c} docs")
+        for _m, _c in sorted(methods.items(), key=lambda x: -x[1]):
+            pass
 
     return results
 

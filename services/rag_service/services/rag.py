@@ -113,19 +113,19 @@ class MathCalculatorTool:
             if "SUM" in expr or "ADD" in expr or "+" in expr:
                 result = sum(nums)
                 return f"SUM: {result}"
-            elif "AVERAGE" in expr or "AVG" in expr:
+            if "AVERAGE" in expr or "AVG" in expr:
                 result = sum(nums) / len(nums)
                 return f"AVERAGE: {result}"
-            elif "MAX" in expr:
+            if "MAX" in expr:
                 return f"MAX: {max(nums)}"
-            elif "MIN" in expr:
+            if "MIN" in expr:
                 return f"MIN: {min(nums)}"
-            elif "MULTIPLY" in expr or "*" in expr:
+            if "MULTIPLY" in expr or "*" in expr:
                 result = 1
                 for n in nums:
                     result *= n
                 return f"PRODUCT: {result}"
-            elif "DIVIDE" in expr or "/" in expr:
+            if "DIVIDE" in expr or "/" in expr:
                 if len(nums) >= 2:
                     result = nums[0] / nums[1]
                     return f"DIVIDE: {result}"
@@ -141,7 +141,7 @@ class MathCalculatorTool:
                 return f"Result: {eval(expr) if expr.isdigit() else 'Expression not recognized'}"
 
         except Exception as e:
-            return f"Calculation error: {str(e)}"
+            return f"Calculation error: {e!s}"
 
     def statistics(self, numbers: str) -> str:
         try:
@@ -160,7 +160,7 @@ class MathCalculatorTool:
 - Max: {max(nums)}
 - Range: {max(nums) - min(nums)}"""
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
 
 class ExcelTool:
@@ -176,7 +176,7 @@ class ExcelTool:
         except Exception:
             pass
 
-    def read_excel(self, filepath: str, sheet: str = None) -> str:
+    def read_excel(self, filepath: str, sheet: str | None = None) -> str:
         if not self.excel_available:
             return "Excel support not available. Install pandas and openpyxl."
 
@@ -192,7 +192,7 @@ class ExcelTool:
                 output += f"=== {s} ===\n{self.pd.DataFrame(df).head(5).to_string()}\n\n"
             return output
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def analyze_data(self, filepath: str) -> str:
         if not self.excel_available:
@@ -216,7 +216,7 @@ class ExcelTool:
 
             return output
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def create_spreadsheet(self, data: str, output: str = "output.xlsx") -> str:
         if not self.excel_available:
@@ -239,7 +239,7 @@ class ExcelTool:
 
             return f"Created {output} with {len(df)} rows"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
 
 class WebSearchTool:
@@ -277,7 +277,7 @@ class WebSearchTool:
 
             return "\n".join(snippets)
         except Exception as e:
-            return f"Web search error: {str(e)}"
+            return f"Web search error: {e!s}"
 
 
 # ==================== RAG CORE ====================
@@ -575,8 +575,6 @@ class DocumentLoader:
 class AgentState(dict):
     """State for LangGraph agent"""
 
-    pass
-
 
 # ==================== RAG AGENT WITH LANGGRAPH ====================
 
@@ -618,12 +616,12 @@ class RAGAgent:
             "calculate": Tool(
                 "calculate",
                 "Perform math calculations",
-                lambda e: self.math_tool.calculate(e),
+                self.math_tool.calculate,
             ),
             "statistics": Tool(
                 "statistics",
                 "Calculate statistics on numbers",
-                lambda n: self.math_tool.statistics(n),
+                self.math_tool.statistics,
             ),
             "excel_read": Tool(
                 "excel_read",
@@ -633,7 +631,7 @@ class RAGAgent:
             "excel_analyze": Tool(
                 "excel_analyze",
                 "Analyze Excel/CSV data",
-                lambda f: self.excel_tool.analyze_data(f),
+                self.excel_tool.analyze_data,
             ),
             "excel_create": Tool(
                 "excel_create",

@@ -12,6 +12,30 @@ import re
 
 from pypdf import PdfReader
 
+_PAGE_HEADER_RE = re.compile(
+    r"This is electronically generated report\. Hence personal signature is not\s+required\.\s+CHE/[^\n]+\nDP 2034 Remarks\nFOR BMC INTERNAL USE ONLY",
+    re.IGNORECASE,
+)
+
+
+def _strip_page_headers(text: str) -> str:
+    """Remove repeated page headers inserted between sections."""
+    return _PAGE_HEADER_RE.sub("", text)
+
+
+def _extract_area_sum(text: str, section_start_pattern: str, section_end_pattern: str) -> float:
+    """Sum all (1: X sqm) or (1:X sqm) values within a named section."""
+    m = re.search(
+        section_start_pattern + r"(.*?)" + section_end_pattern,
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not m:
+        return 0.0
+    section_text = m.group(1)
+    areas = re.findall(r"\(1:\s*([\d]+(?:\.[0-9]+)?)\s*sqm\)", section_text, re.IGNORECASE)
+    return round(sum(float(a) for a in areas), 2) if areas else 0.0
+
 
 def parse_dp_pdf(pdf_bytes: bytes) -> dict:
     """Parse a DP Remark PDF. Auto-detects SRDP 1991 vs DP 2034.
@@ -44,10 +68,9 @@ def parse_dp_pdf(pdf_bytes: bytes) -> dict:
     header = full_text[:300]
     if "SRDP" in header:
         return _parse_srdp_1991(full_text)
-    elif "DP 2034" in header or "DP2034" in header:
+    if "DP 2034" in header or "DP2034" in header:
         return _parse_dp_2034(full_text)
-    else:
-        return {"report_type": "UNKNOWN", "pdf_text": full_text}
+    return {"report_type": "UNKNOWN", "pdf_text": full_text}
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +415,28 @@ def _parse_dp_2034(text: str) -> dict:
     # Road realignment
     m = re.search(r"Realignment:.*?(?:approval u/no.*?\d{4})", text, re.DOTALL)
     result["road_realignment"] = re.sub(r"\s+", " ", m.group(0)).strip() if m else None
+
+    # ── Area metrics extracted from section text ──────────────────────────────
+    # Strip page-break headers first so cross-page sections are contiguous
+    clean_text = _strip_page_headers(text)
+
+    # reservation_area_sqm: sum of all "(1: X sqm)" entries in Reservation section
+    result["reservation_area_sqm"] = _extract_area_sum(
+        clean_text,
+        r"Reservation\s+affecting\s+the\s+Land\s*\[as shown on plan\]",
+        r"Reservation\s+abutting\s+the\s+Land|Existing\s+amenities\s+affecting",
+    )
+
+    # amenity_area_sqm: sum of "(1: X sqm)" entries in Existing amenities section
+    result["amenity_area_sqm"] = _extract_area_sum(
+        clean_text,
+        r"Existing\s+amenities\s+affecting\s+the\s+Land\s*\[as shown on\s*plan\]",
+        r"Existing\s+amenities\s+abutting\s+the\s+Land|Whether\s+(?:a\s+listed|Heritage)|Heritage\s+Precinct",
+    )
+
+    # setback_area_sqm: not available in PDF text — requires GIS computation.
+    # Defaults to 0; can be populated by dp_arcgis_client if geometry is available.
+    result.setdefault("setback_area_sqm", 0)
 
     return result
 

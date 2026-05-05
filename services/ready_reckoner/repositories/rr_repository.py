@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -38,28 +39,36 @@ class ReadyReckonerRepository:
     # Loading
     # ------------------------------------------------------------------
 
-    def _load(self):
+    async def _load(self):
         if self._loaded:
             return
+
+        loop = asyncio.get_event_loop()
         try:
             if not os.path.exists(self._db_path):
                 logger.error("RR database not found at %s", self._db_path)
                 return
-            with open(self._db_path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        self._records.append(json.loads(line))
+
+            def read_file():
+                recs = []
+                with open(self._db_path, encoding="utf-8") as f:
+                    for line in f:
+                        stripped_line = line.strip()
+                        if stripped_line:
+                            recs.append(json.loads(stripped_line))
+                return recs
+
+            self._records = await loop.run_in_executor(None, read_file)
             self._loaded = True
             logger.info("Loaded %d RR rate records", len(self._records))
         except Exception as exc:
-            logger.error("Error loading RR rates: %s", exc)
+            logger.exception("Error loading RR rates: %s", exc)
 
     # ------------------------------------------------------------------
     # Lookup
     # ------------------------------------------------------------------
 
-    def get_rates(
+    async def get_rates(
         self,
         district: str = "",
         taluka: str = "",
@@ -67,22 +76,8 @@ class ReadyReckonerRepository:
         zone: str = "",
         sub_zone: str = "",
     ) -> dict:
-        """Return the best-matching RR record for the given location identifiers.
-
-        Matching is scored — the highest-score record wins.  If nothing scores
-        above zero an empty dict is returned.
-
-        Score weights
-        -------------
-        district match  : +8
-        taluka match    : +4
-        locality match  : +8   (or village match as fallback +6)
-        zone exact      : +4
-        sub_zone exact  : +4
-        zone compound   : +3   (zone field stores "zone/sub_zone" together)
-        zone prefix     : +2   (zone field starts with supplied zone)
-        """
-        self._load()
+        """Return the best-matching RR record for the given location identifiers."""
+        await self._load()
 
         d = _norm(district)
         t = _norm(taluka)

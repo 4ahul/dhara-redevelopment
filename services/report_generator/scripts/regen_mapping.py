@@ -56,7 +56,7 @@ def coord_slug(coord: str) -> str:
 
 
 def name_from_path(path: str) -> str:
-    leaf = path.split("|")[0].split(".")[-1]
+    leaf = path.split("|", maxsplit=1)[0].rsplit(".", maxsplit=1)[-1]
     return re.sub(r"[^a-z0-9]+", "_", leaf.lower()).strip("_")
 
 
@@ -219,16 +219,10 @@ def main() -> int:
 
     data = yaml.safe_load(OUT.read_text(encoding="utf-8"))
     names = [x["semantic_name"] for x in data["cells"]]
-    dups = [n for n in set(names) if names.count(n) > 1]
-    print(f"Wrote {OUT}")
-    print(f"  cells={len(data['cells'])}")
-    print(f"  yellow={sum(1 for c in data['cells'] if c['kind'] == 'yellow')}")
-    print(f"  black={sum(1 for c in data['cells'] if c['kind'] == 'black')}")
-    print(f"  semantic_name duplicates={len(dups)} {dups}")
-    calc = sum(1 for c in data["cells"] if "calc" in c)
-    src_from = sum(1 for c in data["cells"] if "from" in c)
-    src_sources = sum(1 for c in data["cells"] if "sources" in c)
-    print(f"  calc={calc}, from={src_from}, sources={src_sources}")
+    [n for n in set(names) if names.count(n) > 1]
+    sum(1 for c in data["cells"] if "calc" in c)
+    sum(1 for c in data["cells"] if "from" in c)
+    sum(1 for c in data["cells"] if "sources" in c)
     return 0
 
 

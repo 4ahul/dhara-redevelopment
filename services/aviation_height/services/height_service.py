@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import re
 import sys
@@ -77,17 +78,26 @@ class HeightService:
 
         if distance <= 3:
             return 45.0
-        elif distance <= 5:
+        if distance <= 5:
             return 90.0
-        elif distance <= 10:
+        if distance <= 10:
             return 150.0
-        elif distance <= 15:
+        if distance <= 15:
             return 200.0
         return 250.0  # Default for far areas
 
     async def get_height(
         self, lat: float, lng: float, site_elevation: float | None = None
     ) -> dict[str, Any]:
+        from .storage import storage_service
+
+        # ── Step 0: DB-First Cache Check ──
+        cached = storage_service.get_cached_height(lat, lng)
+        if cached:
+            logger.info(f"Found cached aviation height for {lat}, {lng}: {cached.get('max_height_m')}m")
+            cached["is_cached"] = True
+            return cached
+
         elevation_source = "provided"
         if site_elevation is None:
             site_elevation, elevation_source = await self._get_elevation(lat, lng)
@@ -96,43 +106,45 @@ class HeightService:
         # Step 1: Try NOCAS
         result = await self._query_nocas(lat, lng, site_elevation)
 
-        if result:
-            result["elevation_source"] = elevation_source
+        if not result:
+            # Step 2: Try Project Maitree
+            logger.info("[FALLBACK] Trying Project Maitree...")
+            address = await self._get_address_from_coords(lat, lng)
+            result = await self._query_project_maitree(address)
+
+        if not result:
+            # Step 3: Use distance-based fallback
+            fallback_height = self._get_height_from_distance(lat, lng)
+            max_height = fallback_height - site_elevation if site_elevation else fallback_height
+            logger.info(
+                f"[FALLBACK] Distance-based max height: {fallback_height}m, Building: {max_height}m"
+            )
+
+            result = {
+                "lat": lat,
+                "lng": lng,
+                "site_elevation": site_elevation,
+                "max_height_m": round(max_height, 2),
+                "max_floors": int(max_height // 3),
+                "restriction_reason": "Distance-based fallback (near Mumbai airport)",
+                "nocas_reference": "Fallback",
+                "aai_zone": "Mumbai Distance Fallback",
+                "rl_datum_m": fallback_height,
+                "is_real_data": False,
+                "data_source": "distance_fallback",
+                "note": "NOCAS & Maitree unavailable - used distance-based estimate",
+            }
+
+        result["elevation_source"] = elevation_source
+        if "is_real_data" not in result:
             result["is_real_data"] = True
-            return result
 
-        # Step 2: Try Project Maitree
-        logger.info("[FALLBACK] Trying Project Maitree...")
-        address = await self._get_address_from_coords(lat, lng)
-        pm_result = await self._query_project_maitree(address)
-
-        if pm_result:
-            pm_result["elevation_source"] = elevation_source
-            logger.info(f"[FALLBACK] Project Maitree found: {pm_result.get('max_height_m')}m")
-            return pm_result
-
-        # Step 3: Use distance-based fallback
-        fallback_height = self._get_height_from_distance(lat, lng)
-        max_height = fallback_height - site_elevation if site_elevation else fallback_height
-        logger.info(
-            f"[FALLBACK] Distance-based max height: {fallback_height}m, Building: {max_height}m"
+        # Cache the result (if it's real data or even fallback, to save 60s scrape time)
+        storage_service.cache_height(
+            lat, lng, site_elevation, result.get("max_height_m", 0), result
         )
 
-        return {
-            "lat": lat,
-            "lng": lng,
-            "site_elevation": site_elevation,
-            "elevation_source": elevation_source,
-            "max_height_m": round(max_height, 2),
-            "max_floors": int(max_height // 3),
-            "restriction_reason": "Distance-based fallback (near Mumbai airport)",
-            "nocas_reference": "Fallback",
-            "aai_zone": "Mumbai Distance Fallback",
-            "rl_datum_m": fallback_height,
-            "is_real_data": False,
-            "data_source": "distance_fallback",
-            "note": "NOCAS & Maitree unavailable - used distance-based estimate",
-        }
+        return result
 
     async def _get_address_from_coords(self, lat: float, lng: float) -> str:
         """Convert lat/lng to approximate address for Maitree search."""
@@ -180,12 +192,10 @@ class HeightService:
                     logger.warning(f"[MAITREE] Dropdown not found: {e}")
 
                 # Click search button
-                try:
+                with contextlib.suppress(Exception):
                     await page.locator(
                         'button:has-text("Search"), input[type="submit"]'
                     ).first.click(timeout=5000)
-                except Exception:
-                    pass
 
                 await page.wait_for_timeout(5000)
 
@@ -265,14 +275,10 @@ class HeightService:
                 await page.wait_for_timeout(5000)
                 logger.info(f"[STEP 1] Page: {await page.title()}")
 
-                try:
+                with contextlib.suppress(Exception):
                     await page.locator('button:has-text("Accept")').click(timeout=3000)
-                except Exception:
-                    pass
-                try:
+                with contextlib.suppress(Exception):
                     await page.locator('button:has-text("Allow")').click(timeout=3000)
-                except Exception:
-                    pass
 
                 await page.evaluate("""
                     ['popup_overlay','popup_container','terms_condition','loader'].forEach(id => {

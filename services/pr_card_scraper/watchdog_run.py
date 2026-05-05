@@ -18,6 +18,7 @@ Resilient to:
   - ChromeDriver crashes (fresh browser per attempt)
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -281,10 +282,8 @@ def _site_is_up() -> bool:
             )
             return form_present and not is_error
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 drv.quit()
-            except Exception:
-                pass
     except Exception as e:
         logger.debug(f"Probe stage-2 Chrome exception: {e}")
         return False
@@ -307,14 +306,12 @@ def _run_scrape(target: dict) -> dict:
         scraper = MahabhumiScraperSelenium(browser)
         return scraper.scrape_pr_card(**target)
     except Exception as exc:
-        logger.error(f"Scrape exception: {exc}")
+        logger.exception(f"Scrape exception: {exc}")
         return {"status": "failed", "error": str(exc)}
     finally:
         if browser:
-            try:
+            with contextlib.suppress(Exception):
                 browser.stop()
-            except Exception:
-                pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════

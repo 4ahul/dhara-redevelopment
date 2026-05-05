@@ -22,7 +22,6 @@ def export_openapi():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for service in SERVICES:
-        print(f"Exporting OpenAPI for {service}...")
         service_dir = ROOT / "services" / service
         output_file = output_dir / f"{service}.json"
 
@@ -53,12 +52,11 @@ def export_openapi():
             if result.returncode == 0:
                 with open(output_file, "w") as f:
                     f.write(result.stdout)
-                print(f"  [OK] Saved to docs/api/{service}.json")
             else:
-                print(f"  [FAIL] {service} failed: {result.stderr}")
+                pass
 
-        except Exception as e:
-            print(f"  [ERROR] {service}: {e}")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -25,18 +25,16 @@ class LLMClient(ABC):
         **kwargs,
     ) -> dict:
         """Send a chat request and return the response."""
-        pass
 
     @abstractmethod
     def get_model_name(self) -> str:
         """Return the model name."""
-        pass
 
 
 class OllamaClient(LLMClient):
     """Ollama local LLM client."""
 
-    def __init__(self, base_url: str = None, model: str = None):
+    def __init__(self, base_url: str | None = None, model: str | None = None):
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL")
         if not self.base_url:
             raise ValueError("OLLAMA_BASE_URL must be set to use OllamaClient")
@@ -74,7 +72,9 @@ class OllamaClient(LLMClient):
 class OpenAICompatibleClient(LLMClient):
     """OpenAI-compatible API client (works with vLLM, LM Studio, etc.)."""
 
-    def __init__(self, base_url: str = None, api_key: str = None, model: str = None):
+    def __init__(
+        self, base_url: str | None = None, api_key: str | None = None, model: str | None = None
+    ):
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL")
         if not self.base_url:
             raise ValueError("OPENAI_BASE_URL must be set to use OpenAICompatibleClient")
@@ -132,7 +132,7 @@ class OpenAICompatibleClient(LLMClient):
 class AnthropicClient(LLMClient):
     """Anthropic Claude client for production."""
 
-    def __init__(self, api_key: str = None, model: str = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         import anthropic
 
         self.client = anthropic.AsyncAnthropic(api_key=api_key or os.getenv("ANTHROPIC_API_KEY"))
@@ -274,7 +274,7 @@ class AnthropicClient(LLMClient):
 class GeminiClient(LLMClient):
     """Google Gemini AI client."""
 
-    def __init__(self, api_key: str = None, model: str = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None):
         import google.generativeai as genai
 
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
@@ -287,7 +287,7 @@ class GeminiClient(LLMClient):
         try:
             self.client = genai.GenerativeModel(model_name=self.model_name)
         except Exception as e:
-            logger.error("Failed to initialize Gemini model %s: %s", self.model_name, e)
+            logger.exception("Failed to initialize Gemini model %s: %s", self.model_name, e)
             # Fallback to a very safe model name
             self.client = genai.GenerativeModel(model_name="gemini-3-flash-preview")
 
@@ -390,7 +390,7 @@ class GeminiClient(LLMClient):
                 )
             )
         except Exception as e:
-            logger.error("Gemini API call failed: %s", e)
+            logger.exception("Gemini API call failed: %s", e)
             raise
 
         # 4. Parse result
@@ -487,5 +487,4 @@ def get_llm_client() -> LLMClient:
 
 # Convenience function for async initialization
 async def create_llm_client() -> LLMClient:
-    client = get_llm_client()
-    return client
+    return get_llm_client()

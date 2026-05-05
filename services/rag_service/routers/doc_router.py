@@ -101,7 +101,7 @@ async def upload_document(
         }
     except Exception as e:
         logger.error(f"[UPLOAD] Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to index document: {str(e)}") from e
+        raise HTTPException(status_code=500, detail=f"Failed to index document: {e!s}") from e
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)

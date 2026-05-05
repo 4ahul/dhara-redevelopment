@@ -72,10 +72,10 @@ def _build_rr_rates(record: dict) -> list[RRRateItem]:
 
 class PremiumService:
     @staticmethod
-    def calculate_premiums(req: PremiumRequest) -> PremiumResponse:
+    async def calculate_premiums(req: PremiumRequest) -> PremiumResponse:
         """Calculate property value and all government premiums based on DCPR 2034."""
 
-        record = rr_repository.get_rates(
+        record = await rr_repository.get_rates(
             district=req.district,
             taluka=req.taluka,
             locality=req.locality,

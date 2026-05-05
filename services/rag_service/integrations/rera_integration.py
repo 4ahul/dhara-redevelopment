@@ -181,12 +181,11 @@ class RERAIntegration:
                 "promoter": result.get("promoter_name"),
                 "valid_upto": result.get("valid_upto"),
             }
-        else:
-            return {
-                "valid": False,
-                "error": result.get("error", "Registration not found"),
-                "check_manually": "https://maharera.mahaonline.gov.in",
-            }
+        return {
+            "valid": False,
+            "error": result.get("error", "Registration not found"),
+            "check_manually": "https://maharera.mahaonline.gov.in",
+        }
 
 
 def main():

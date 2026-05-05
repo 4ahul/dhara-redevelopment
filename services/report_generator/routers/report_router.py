@@ -32,6 +32,7 @@ router = APIRouter()
 
 _importlib.import_module("..feasibility.calcs", package=__package__)
 
+
 def _build_all_data(req: TemplateReportRequest) -> dict:
     """Flatten TemplateReportRequest into the dict that cell_mapper expects.
 
@@ -232,7 +233,7 @@ async def generate_template_report(req: TemplateReportRequest):
         xlsx_filename = f"Feasibility_{target_scheme}_{target_rd_type}_{safe_name}_{report_id}.xlsx"
         xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
-        excel_bytes, saved_path = template_service.generate_full_report(
+        excel_bytes, _saved_path = template_service.generate_full_report(
             scheme=target_scheme,
             all_data=all_data,
             output_path=xlsx_path,
@@ -248,7 +249,9 @@ async def generate_template_report(req: TemplateReportRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Template report generation failed: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Template report generation failed: {e}"
+        ) from e
 
 
 @router.post("/generate/template-with-pdf")
@@ -271,7 +274,7 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
 
         all_data = _build_all_data(req)
 
-        excel_path, pdf_path = generate_report_with_pdf(
+        excel_path, _pdf_path = generate_report_with_pdf(
             scheme=target_scheme,
             all_data=all_data,
             output_dir=OUTPUT_DIR,
@@ -340,7 +343,9 @@ async def generate_feasibility_report(req: TemplateReportRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Feasibility report generation failed: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Feasibility report generation failed: {e}"
+        ) from e
 
 
 @router.get("/feasibility/dossier")

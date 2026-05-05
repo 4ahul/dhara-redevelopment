@@ -6,13 +6,12 @@ FastAPI entry point - attempts to discover MCGM DP zone layer at startup.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-
 from dhara_shared.core.banner import print_banner
 from dhara_shared.core.config import validate_config
 from dhara_shared.core.logging import setup_logging, setup_sentry
 from dhara_shared.core.metrics import setup_metrics
 from dhara_shared.core.tracing import setup_tracing
+from fastapi import FastAPI
 
 from .core import settings
 from .routers import router
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 print_banner(settings.APP_NAME)
 validate_config(settings, [])
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Initializing DP Remarks Report (ArcGIS Layer Discovery)...")
@@ -30,13 +30,12 @@ async def lifespan(app: FastAPI):
     try:
         import httpx
 
-        from .services.dp_arcgis_client import DPArcGISClient
+        from .services.dp_arcgis_client import DevelopmentPlanArcGISClient
 
         async with httpx.AsyncClient() as http:
-            client = DPArcGISClient()
-            url = await client.discover_zone_layer(http)
+            client = DevelopmentPlanArcGISClient()
+            url = await client.get_active_zone_layer_url(http)
             if url:
-                DPArcGISClient._zone_layer_url = url
                 logger.info("DP zone layer URL discovered: %s", url)
             else:
                 logger.warning(

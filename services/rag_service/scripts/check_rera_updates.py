@@ -47,7 +47,7 @@ def check_rera_updates():
                     new_registrations.append(result)
                     logger.info(f"Found valid registration: {reg_no}")
             except Exception as e:
-                logger.error(f"Error checking {reg_no}: {e}")
+                logger.exception(f"Error checking {reg_no}: {e}")
 
         # Save results
         output_file = Path("data/compliance/rera_updates.json")
@@ -69,7 +69,7 @@ def check_rera_updates():
         logger.info(f"RERA check complete. Found {len(new_registrations)} valid registrations.")
 
     except Exception as e:
-        logger.error(f"RERA update check failed: {e}")
+        logger.exception(f"RERA update check failed: {e}")
         raise
 
 
@@ -83,5 +83,5 @@ if __name__ == "__main__":
         check_rera_updates()
         sys.exit(0)
     except Exception as e:
-        logger.error(f"Script failed: {e}")
+        logger.exception(f"Script failed: {e}")
         sys.exit(1)

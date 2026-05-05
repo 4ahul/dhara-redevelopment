@@ -25,7 +25,11 @@ class AdminService:
         self.db = db
 
     async def list_pmc_users(
-        self, page: int = 1, page_size: int = 20, search: str = None, is_active: bool = None
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        search: str | None = None,
+        is_active: bool | None = None,
     ) -> PaginatedResponse:
         """Fetch PMC users with stats, optimized via the Repository layer."""
         items, total = await admin_repository.list_pmc_users_with_stats(
@@ -40,7 +44,7 @@ class AdminService:
         )
 
     async def admin_search(
-        self, q: str, entity_type: str = None, page: int = 1, page_size: int = 20
+        self, q: str, entity_type: str | None = None, page: int = 1, page_size: int = 20
     ) -> PaginatedResponse:
         """
         Search across multiple entities.
@@ -117,7 +121,11 @@ class AdminService:
         )
 
     async def list_enquiries(
-        self, page: int = 1, page_size: int = 20, status: str = None, source: str = None
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        status: str | None = None,
+        source: str | None = None,
     ) -> PaginatedResponse:
         """List enquiries via the Repository layer."""
         items, total = await enquiry_repository.list_enquiries(

@@ -27,10 +27,10 @@ def decode_token(token: str) -> dict | None:
         )
     except InvalidTokenError:
         logger.debug("Clerk RS256 token decoding failed, trying HS256.")
-        pass  # Fall through to HS256
+        # Fall through to HS256
     except Exception as e:
-        logger.error(f"Unexpected error decoding Clerk RS256 token: {e}")
-        pass  # Fall through in case of other errors
+        logger.exception(f"Unexpected error decoding Clerk RS256 token: {e}")
+        # Fall through in case of other errors
 
     # 2. Try local HS256 (frontend's own login/register flow)
     try:
@@ -42,7 +42,7 @@ def decode_token(token: str) -> dict | None:
         logger.warning(f"Invalid local HS256 token: {e}")
         return None
     except Exception as e:
-        logger.error(f"Unexpected error decoding local HS256 token: {e}")
+        logger.exception(f"Unexpected error decoding local HS256 token: {e}")
         return None
 
 

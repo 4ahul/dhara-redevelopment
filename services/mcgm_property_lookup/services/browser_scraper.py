@@ -50,7 +50,7 @@ class MCGMBrowserScraper:
         ward: str,
         village: str,
         cts_no: str,
-        tps_name: str = None,
+        tps_name: str | None = None,
         use_fp: bool = False,
     ) -> dict:
         """Open the MCGM WebApp, navigate the property lookup wizard, and return
@@ -91,8 +91,7 @@ class MCGMBrowserScraper:
             page = await context.new_page()
             await self._stealth.apply_stealth_async(page)
 
-            result = await self._run(page, ward, village, cts_no, tps_name, use_fp)
-            return result
+            return await self._run(page, ward, village, cts_no, tps_name, use_fp)
 
         except Exception as e:
             logger.error("Browser scraper fatal error: %s", e, exc_info=True)
@@ -111,7 +110,7 @@ class MCGMBrowserScraper:
         ward: str,
         village: str,
         cts_no: str,
-        tps_name: str = None,
+        tps_name: str | None = None,
         use_fp: bool = False,
     ) -> dict:
         """Full automation flow. Returns result dict.
@@ -858,13 +857,11 @@ class MCGMBrowserScraper:
         for sel in apply_selectors:
             try:
                 btn = page.locator(sel)
-                if await btn.count() > 0:
-                    if await btn.first.is_visible(timeout=2000):
-                        await btn.first.click()
-                        logger.info("Clicked Apply button via: %s", sel)
-                        clicked_apply = True
-                        await asyncio.sleep(2)
-                        break
+                if await btn.count() > 0 and await btn.first.is_visible(timeout=2000):
+                    await btn.first.click()
+                    logger.info("Clicked Apply button via: %s", sel)
+                    clicked_apply = True
+                    break
             except Exception as e:
                 logger.debug("Apply selector %s failed: %s", sel, str(e)[:50])
                 continue

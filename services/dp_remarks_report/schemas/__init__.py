@@ -98,6 +98,11 @@ class DPReportResponse(BaseModel):
     ep_nos: list[str] | None = None  # e.g. ["EP-ME81", "EP-ME75"]
     sm_nos: list[str] | None = None  # e.g. ["SM-ME21"]
 
+    # ── Area metrics (DP 2034) ───────────────────────────────────────
+    reservation_area_sqm: float | None = None  # total area under reservation within plot (sqm)
+    amenity_area_sqm: float | None = None  # total area of existing amenities within plot (sqm)
+    setback_area_sqm: float | None = None  # area under road setback/widening within plot (sqm)
+
     # ── Legacy fields ────────────────────────────────────────────────
     crz_zone: bool | None = None
     heritage_zone: bool | None = None

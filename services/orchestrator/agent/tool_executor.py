@@ -146,10 +146,10 @@ class ToolExecutor:
             return raw
 
         except httpx.TimeoutException:
-            logger.error("Tool %s timed out at %s", tool_name, url)
+            logger.exception("Tool %s timed out at %s", tool_name, url)
             return {"error": f"{tool_name} timed out"}
         except httpx.HTTPStatusError as e:
-            logger.error(
+            logger.exception(
                 "Tool %s HTTP %d: %s", tool_name, e.response.status_code, e.response.text[:200]
             )
             # Parse structured error body from our services (503s return JSON with detail)
@@ -170,7 +170,7 @@ class ToolExecutor:
                 "detail": e.response.text[:500],
             }
         except Exception as e:
-            logger.error("Tool %s failed: %s", tool_name, e)
+            logger.exception("Tool %s failed: %s", tool_name, e)
             return {"error": str(e)}
 
     # ── PR Card: submit → poll → return ─────────────────────────────────────

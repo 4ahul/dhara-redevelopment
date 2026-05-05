@@ -130,8 +130,8 @@ def init_db():
             db.commit()
             logger.info("Database initialized with default users.")
         except Exception as e:
-            logger.error(f"Error creating system user: {e}")
+            logger.exception(f"Error creating system user: {e}")
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Schema creation failed: {e}")
+        logger.exception(f"Schema creation failed: {e}")

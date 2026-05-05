@@ -82,7 +82,7 @@ def _compute_confidence(data: dict) -> str:
 
     if has_cts and has_area:
         return "high"
-    elif has_cts or has_area or has_holders:
+    if has_cts or has_area or has_holders:
         return "medium"
     return "low"
 

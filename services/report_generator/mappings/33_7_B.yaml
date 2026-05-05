@@ -107,42 +107,7 @@ cells:
       - manual_inputs.old_setback_sqm
     fallback: 0
     transform: float
-
-  # Zone (DP)
-  - cell: Details!P16
-    kind: red
-    semantic_name: zone_code
-    sources:
-      - manual_inputs.zone_code
-      - dp_report.zone_code
-      - dp_report.zone
-    fallback: "R"
-    transform: str
-
-  # FSI (DP)
-  - cell: Details!P17
-    kind: red
-    semantic_name: fsi_dp
-    sources:
-      - manual_inputs.fsi
-      - dp_report.fsi
-    fallback: 2.0
-    transform: float
-
-  # Permissible Height (Aviation)
-  - cell: Details!P20
-    kind: red
-    semantic_name: permissible_height
-    sources:
-      - height.data.permissible_height_agl
-      - height.data.max_height_m
-      - height.permitted_height_m
-      - height.max_height_m
-      - dp_report.height_limit_m
-      - manual_inputs.permissible_height
-    fallback: 0
-    transform: float
-
+    
   # Highway NOC (P25)
   - cell: Details!R25
     kind: black
@@ -227,16 +192,16 @@ cells:
   - cell: Details!O40
     kind: black
     semantic_name: plot_road_length_m
-    from: manual_inputs.plot_road_length_m
+    sources:
+      - dp_report.abutting_length_m
+      - manual_inputs.plot_road_length_m
     fallback: 100
     transform: float
 
-  # Sale Commercial MUN BUA — direct user input takes priority; formula fallback uses commercial_percentage
+  # Sale Commercial MUN BUA — calculated based on user input percentage of Gross FSI (J31)
   - cell: Details!J45
     kind: black
     semantic_name: commercial_bua
-    sources:
-      - manual_inputs.commercial_bua_sqft
     calc: commercial_bua_formula
     calc_args:
       total_fsi_cell: J31
@@ -467,13 +432,24 @@ cells:
     transform: float
 
   # Conditional note re: nalla (stormwater drain) — typically blank
-  # placeholder: 'If nalla touching & coming inside the lot then check dp map see blue area then 5'
+  # placeholder: 'If nalla touching & coming inside the lot then check dp map see blue area then 55000'
   - cell: MCGM PAYMENTS!B327
     kind: black
     semantic_name: nalla_note
     from: manual_inputs.nalla_note
-    fallback: ""
-    transform: str
+    fallback: 0
+    transform: int
+
+  # Road count / Carriageway entrances (J284)
+  # 1 road = 2, 2 roads = 4
+  - cell: MCGM PAYMENTS!J284
+    kind: black
+    semantic_name: carriageway_entrances
+    sources:
+      - dp_report.carriageway_entrances
+      - manual_inputs.carriageway_entrances
+    fallback: 2
+    transform: int
 
   # 79A Cost/Acquisition — user input field costAcquisition79a
   - cell: SUMMARY 1!I98
@@ -601,6 +577,9 @@ cells:
   # --- EXPIRY TRACKING ---
   - cell: Details!J55
     kind: red
+    semantic_name: dev_charge_bua
+    const: 31763
     description: "Development charge for BUA (31763)"
-    expires_on: "2027-03-31"
-    alert_days_before: 60
+    expires_in_days: 15
+    alert_days_before: 3
+    transform: float

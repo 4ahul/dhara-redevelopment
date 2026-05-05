@@ -84,8 +84,7 @@ def _data(
 
 
 def _num(ws, row, col, value, bold=False, fill=None, fmt="#,##0.00"):
-    cell = _data(ws, row, col, value, bold=bold, fill=fill, fmt=fmt, align="right")
-    return cell
+    return _data(ws, row, col, value, bold=bold, fill=fill, fmt=fmt, align="right")
 
 
 # ── Sheet 1: Cover / Summary ──────────────────────────────────────────────

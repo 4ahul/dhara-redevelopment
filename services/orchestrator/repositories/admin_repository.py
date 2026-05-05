@@ -15,7 +15,11 @@ from services.orchestrator.models.user import User
 
 
 async def list_pmc_users_with_stats(
-    db: AsyncSession, page: int = 1, page_size: int = 20, search: str = None, is_active: bool = None
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 20,
+    search: str | None = None,
+    is_active: bool | None = None,
 ) -> tuple[list[dict], int]:
     """
     Fetch PMC users along with their society and report counts in a single query.
@@ -85,7 +89,7 @@ async def list_pmc_users_with_stats(
 async def get_dashboard_counts(db: AsyncSession) -> dict[str, int]:
     """Fetch various aggregate stats for the admin dashboard in concurrent-friendly queries."""
 
-    stats = {
+    return {
         "total_pmc_users": (
             await db.execute(select(func.count(User.id)).where(User.role == UserRole.PMC))
         ).scalar()
@@ -105,4 +109,3 @@ async def get_dashboard_counts(db: AsyncSession) -> dict[str, int]:
         or 0,
         "total_team_members": (await db.execute(select(func.count(TeamMember.id)))).scalar() or 0,
     }
-    return stats

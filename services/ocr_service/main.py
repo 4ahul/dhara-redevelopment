@@ -5,11 +5,10 @@ Main entry point for FastAPI application.
 
 import logging
 
-from fastapi import FastAPI
-
 from dhara_shared.core.logging import setup_logging, setup_sentry
 from dhara_shared.core.metrics import setup_metrics
 from dhara_shared.core.tracing import setup_tracing
+from fastapi import FastAPI
 
 from .core import settings
 from .routers import router

@@ -93,8 +93,6 @@ INVALID_VILLAGE_IN_TALUKA: dict[tuple[str, str], set[str]] = {
 class ValidationError(ValueError):
     """Raised when a District/Taluka/Village combination is provably invalid."""
 
-    pass
-
 
 def validate_location(district: str, taluka: str, village: str | None = None) -> None:
     """

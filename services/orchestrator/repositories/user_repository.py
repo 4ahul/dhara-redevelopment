@@ -3,7 +3,7 @@ User CRUD Operations — Specialized repository for user-related data access.
 """
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -39,8 +39,8 @@ async def list_users_by_role(
     role: UserRole,
     page: int = 1,
     page_size: int = 20,
-    search: str = None,
-    is_active: bool = None,
+    search: str | None = None,
+    is_active: bool | None = None,
 ) -> tuple[Sequence[User], int]:
     """List users with a specific role, supporting pagination and search."""
     base = select(User).where(User.role == role)
@@ -76,5 +76,5 @@ async def create_user(db: AsyncSession, user_data: dict) -> User:
 
 async def update_last_login(db: AsyncSession, user: User) -> None:
     """Atomic update for last login timestamp."""
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(UTC)
     await db.flush()

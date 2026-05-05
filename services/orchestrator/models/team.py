@@ -1,15 +1,13 @@
 import uuid
 from datetime import datetime
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.models.enums import InviteStatus, TenderStatus
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from ..db.base import Base
-from .enums import InviteStatus, TenderStatus
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import InviteStatus, TenderStatus
 
 
 def _uuid():
@@ -82,3 +80,28 @@ class SocietyTender(Base):
 
     society = relationship("Society", back_populates="tenders")
     awarded_user = relationship("User", foreign_keys=[awarded_to], lazy="selectin")
+    proposals = relationship("TenderProposal", back_populates="tender", lazy="selectin")
+
+
+class TenderProposal(Base):
+    """Proposals received for a tender."""
+    __tablename__ = "tender_proposals"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    tender_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("society_tenders.id", ondelete="CASCADE"), nullable=False
+    )
+    bidder_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    bidder_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    bidder_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bidder_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    proposal_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    proposal_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="submitted", nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=False
+    )
+
+    tender = relationship("SocietyTender", back_populates="proposals")

@@ -15,7 +15,7 @@ def completion_months_from_area(
     a = ctx["resolved"].get(area_name)
     if a is None:
         raise MissingData(area_name)
-    months = int(math.ceil(float(a) / float(rate_sqft_per_month)))
+    months = math.ceil(float(a) / float(rate_sqft_per_month))
     return max(months, int(minimum))
 
 

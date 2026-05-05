@@ -96,7 +96,7 @@ Provide detailed answer with specific values.
             {
                 "Q_No": i,
                 "Question": q,
-                "Answer": f"Error: {str(e)}",
+                "Answer": f"Error: {e!s}",
                 "Confidence": "0%",
                 "Source_Score": 0,
             }

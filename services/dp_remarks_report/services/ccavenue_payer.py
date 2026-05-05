@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
-from playwright.async_api import Page
+if TYPE_CHECKING:
+    from playwright.async_api import Page
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +125,7 @@ class CCAvenuePayer:
     Usage:
         payer = CCAvenuePayer()
         result = await payer.pay(mcgm_page, upi_vpa="rahulsagar280103@okaxis")
-        
+
         # Or with wallet payment method:
         result = await payer.pay(mcgm_page, payment_method="wallet", wallet_type="phonepe")
     """
@@ -155,10 +158,8 @@ class CCAvenuePayer:
             payment_method,
         )
         # Wait for the page to fully render before searching
-        try:
+        with contextlib.suppress(Exception):
             await bank_selection_page.wait_for_load_state("networkidle", timeout=10_000)
-        except Exception:
-            pass
 
         try:
             ccavenue_page = await self._open_ccavenue(bank_selection_page)
@@ -168,16 +169,20 @@ class CCAvenuePayer:
             if payment_method == "wallet":
                 submitted = await self._submit_wallet(ccavenue_page, wallet_type or "phonepe")
                 if not submitted:
-                    return PaymentResult(success=False, error=f"Failed to select wallet: {wallet_type}")
+                    return PaymentResult(
+                        success=False, error=f"Failed to select wallet: {wallet_type}"
+                    )
             else:
                 submitted = await self._submit_upi(ccavenue_page, upi_vpa)
                 if not submitted:
-                    return PaymentResult(success=False, error="Failed to submit UPI VPA on CCAvenue")
+                    return PaymentResult(
+                        success=False, error="Failed to submit UPI VPA on CCAvenue"
+                    )
 
             return await self._poll_for_result(ccavenue_page)
 
         except Exception as e:
-            logger.error("CCAvenuePayer error: %s", e)
+            logger.exception("CCAvenuePayer error: %s", e)
             return PaymentResult(success=False, error=str(e))
 
     async def _open_ccavenue(self, bank_page: Page) -> Page | None:
@@ -216,10 +221,11 @@ class CCAvenuePayer:
                 """)
                 logger.error(
                     "Indian Bank NOT found. URL=%s  Clickable elements: %s",
-                    bank_page.url, links[:1000]
+                    bank_page.url,
+                    links[:1000],
                 )
             except Exception:
-                logger.error("Indian Bank NOT found. URL=%s", bank_page.url)
+                logger.exception("Indian Bank NOT found. URL=%s", bank_page.url)
             return None
 
         # Attempt 1: CCAvenue opens as new popup window
@@ -238,10 +244,8 @@ class CCAvenuePayer:
         await asyncio.sleep(1)
         if "ccavenue" in bank_page.url.lower():
             logger.info("CCAvenue opened same-tab: %s", bank_page.url)
-            try:
+            with contextlib.suppress(Exception):
                 await bank_page.wait_for_load_state("networkidle", timeout=20_000)
-            except Exception:
-                pass
             return bank_page
 
         # Attempt 3: Try clicking again with same-tab navigation wait
@@ -253,7 +257,7 @@ class CCAvenuePayer:
             logger.info("Navigated to: %s", bank_page.url)
             return bank_page
         except Exception as e:
-            logger.error("Indian Bank click failed all attempts: %s", e)
+            logger.exception("Indian Bank click failed all attempts: %s", e)
             return None
 
     async def _submit_upi(self, page: Page, vpa: str) -> bool:
@@ -299,7 +303,7 @@ class CCAvenuePayer:
             return False
 
         except Exception as e:
-            logger.error("UPI submit error: %s", e)
+            logger.exception("UPI submit error: %s", e)
             return False
 
     async def _submit_wallet(self, page: Page, wallet_type: str) -> bool:
@@ -368,7 +372,7 @@ class CCAvenuePayer:
             return False
 
         except Exception as e:
-            logger.error("Wallet submit error: %s", e)
+            logger.exception("Wallet submit error: %s", e)
             return False
 
     async def _poll_for_result(self, page: Page) -> PaymentResult:

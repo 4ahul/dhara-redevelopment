@@ -15,5 +15,4 @@ async def client_source_middleware(request: Request, call_next):
     else:
         logger.debug("X-Client-Source header not present.")
 
-    response = await call_next(request)
-    return response
+    return await call_next(request)

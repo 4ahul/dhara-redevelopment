@@ -33,8 +33,6 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
 
-
-
 @router.post("/register")
 async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == request.email).first()

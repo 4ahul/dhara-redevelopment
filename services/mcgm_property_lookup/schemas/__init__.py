@@ -91,6 +91,15 @@ class PropertyLookupResponse(BaseModel):
     centroid_lng: float | None = None
     area_sqm: float | None = None
     nearby_properties: list[NearbyProperty] | None = None
+    setback_area_m2: float | None = None
+    max_road_width_m: float | None = None
+    abutting_length_m: float | None = None
+    reservation_area_m2: float | None = None
+    nalla_present: bool | None = None
+    industrial_present: bool | None = None
+    zone_code: str | None = None
+    roads_touching: int | None = None
+    carriageway_entrances: int | None = None
     download_url: str | None = None
     error_message: str | None = None
     created_at: datetime | None = None

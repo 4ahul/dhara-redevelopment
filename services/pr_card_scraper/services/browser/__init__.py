@@ -1,7 +1,10 @@
 import asyncio
+import contextlib
 import logging
 import os
 import time
+
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from ..captcha_solver import CaptchaSolver
 from ..data_extractor import DataExtractor
@@ -27,17 +30,14 @@ class MahabhumiScraper:
         self.captcha_solver = CaptchaSolver()
         self.data_extractor = DataExtractor()
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((Exception, RuntimeError)),
+    )
     async def scrape_pr_card(self, **kwargs) -> dict:
         """
-        Full async scrape flow. Always scrapes Property Card in English.
-
-        Returns a dict with keys:
-          status        — "completed" | "captcha_required" | "failed"
-          image_bytes   — raw bytes of the PR card image (None on failure)
-          output_path   — where the image was saved on disk
-          image_url     — the source URL the image was fetched from
-          extracted_data — structured fields (currently empty dict)
-          error         — error message (only on failure / captcha_required)
+        Full async scrape flow with production-grade retries.
         """
         captcha_override = kwargs.pop("captcha_override", None)
         on_captcha = kwargs.pop("on_captcha", None)
@@ -106,10 +106,8 @@ class MahabhumiScraper:
             # ── 5. Handle popup vs inline result ──────────────────────────
             if popup_page:
                 logger.info("Popup window detected — waiting for it to load")
-                try:
+                with contextlib.suppress(Exception):
                     await popup_page.wait_for_load_state("networkidle", timeout=20000)
-                except Exception:
-                    pass
                 active_extractor = ImageExtractor(popup_page)
                 active_extractor.activate()
             else:
@@ -122,10 +120,8 @@ class MahabhumiScraper:
                 await asyncio.sleep(5)
                 if popup_page:
                     logger.info("Popup opened after Continue — switching to it")
-                    try:
+                    with contextlib.suppress(Exception):
                         await popup_page.wait_for_load_state("networkidle", timeout=20000)
-                    except Exception:
-                        pass
                     active_extractor = ImageExtractor(popup_page)
                     active_extractor.activate()
 
@@ -134,10 +130,8 @@ class MahabhumiScraper:
                     await _click_view_link(page)
                     await asyncio.sleep(5)
                     if popup_page:
-                        try:
+                        with contextlib.suppress(Exception):
                             await popup_page.wait_for_load_state("networkidle", timeout=20000)
-                        except Exception:
-                            pass
                         active_extractor = ImageExtractor(popup_page)
                         active_extractor.activate()
 
@@ -217,10 +211,8 @@ class MahabhumiScraper:
             return {"status": "failed", "error": str(e)}
         finally:
             if popup_page:
-                try:
+                with contextlib.suppress(Exception):
                     await popup_page.close()
-                except Exception:
-                    pass
             await page.close()
 
     async def _solve_captcha_loop(
@@ -228,7 +220,7 @@ class MahabhumiScraper:
         form_handler: MahabhumiFormHandler,
         extractor: ImageExtractor,
         on_captcha,
-        form_kwargs: dict = None,
+        form_kwargs: dict | None = None,
     ) -> dict | None:
         """
         Auto-solve CAPTCHA with 3-tier strategy:
@@ -430,5 +422,4 @@ class MahabhumiScraperSelenium(MahabhumiScraper):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             return asyncio.ensure_future(super().scrape_pr_card(**kwargs))
-        else:
-            return loop.run_until_complete(super().scrape_pr_card(**kwargs))
+        return loop.run_until_complete(super().scrape_pr_card(**kwargs))

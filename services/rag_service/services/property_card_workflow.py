@@ -4,6 +4,7 @@ Property Card OCR and Report Generator
 Extracts data from property cards and generates LandWise-style reports
 """
 
+import contextlib
 import logging
 import re
 from dataclasses import dataclass
@@ -22,10 +23,8 @@ except ImportError:
     pass
 
 TRACTOR_AVAILABLE = False
-try:
+with contextlib.suppress(ImportError):
     TTRACTOR_AVAILABLE = False
-except ImportError:
-    pass
 
 
 @dataclass
@@ -198,23 +197,20 @@ class PropertyCardOCR:
             if "VILLAGE" in text or "VILL" in text:
                 parts = text.split()
                 for i, p in enumerate(parts):
-                    if "VILL" in p:
-                        if i + 1 < len(parts):
-                            card.village = parts[i + 1]
+                    if "VILL" in p and i + 1 < len(parts):
+                        card.village = parts[i + 1]
 
             if "TALUKA" in text:
                 parts = text.split()
                 for i, p in enumerate(parts):
-                    if "TALUKA" in p:
-                        if i + 1 < len(parts):
-                            card.taluka = parts[i + 1]
+                    if "TALUKA" in p and i + 1 < len(parts):
+                        card.taluka = parts[i + 1]
 
             if "DISTRICT" in text:
                 parts = text.split()
                 for i, p in enumerate(parts):
-                    if "DISTRICT" in p:
-                        if i + 1 < len(parts):
-                            card.district = parts[i + 1]
+                    if "DISTRICT" in p and i + 1 < len(parts):
+                        card.district = parts[i + 1]
 
         # Convert sq.m to sq.ft if needed
         if card.plot_area_sq_m > 0 and card.plot_area_sq_ft == 0:
@@ -402,7 +398,7 @@ class DCPRCalculator:
         """Get applicable schemes for a property"""
         schemes = []
 
-        for scheme_id, _scheme in self.schemes.items():
+        for scheme_id in self.schemes:
             if plot_area_sq_m >= 500 or scheme_id in ["33(7B)", "33(11)"]:
                 schemes.append(scheme_id)
 
@@ -435,7 +431,7 @@ class ReportGenerator:
         output.append("")
 
         # Headers
-        headers = ["Parameter", "Unit"] + schemes
+        headers = ["Parameter", "Unit", *schemes]
         col_widths = [40, 10] + [15] * len(schemes)
 
         # Print headers
@@ -818,7 +814,7 @@ class PropertyCardWorkflow:
     def analyze_from_card(
         self,
         card: PropertyCard,
-        schemes: list[str] = None,
+        schemes: list[str] | None = None,
         revenue: RevenueBreakdown = None,
         costs: CostBreakdown = None,
         affordable_housing_pct: float = 0.0,
@@ -984,7 +980,7 @@ class PropertyCardWorkflow:
         return costs
 
     def run_workflow(
-        self, input_path: str, output_dir: str, report_types: list[str] = None
+        self, input_path: str, output_dir: str, report_types: list[str] | None = None
     ) -> dict[str, str]:
         """Run full workflow"""
         if report_types is None:

@@ -41,8 +41,7 @@ def test_golden_33_7_b(tmp_path):
         ):
             if abs(float(actual) - float(exp)) > item["tolerance"]:
                 mismatches.append(f"{item['cell']}: expected {exp}, got {actual}")
-        else:
-            if actual != exp:
-                mismatches.append(f"{item['cell']}: expected {exp!r}, got {actual!r}")
+        elif actual != exp:
+            mismatches.append(f"{item['cell']}: expected {exp!r}, got {actual!r}")
 
     assert not mismatches, "Golden mismatches:\n" + "\n".join(mismatches[:10])

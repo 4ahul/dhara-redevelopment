@@ -14,10 +14,8 @@ _ = _db_base.Base  # referenced to avoid unused-import warning
 
 
 async def main():
-    print("🚀 Initializing orchestrator_db tables...")
     await init_db()
     await close_db()
-    print("✅ Tables created successfully.")
 
 
 if __name__ == "__main__":

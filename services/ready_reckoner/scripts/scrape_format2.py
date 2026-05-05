@@ -197,7 +197,6 @@ def extract_properties(html, url_meta):
 
 
 def main():
-    print(f"Starting scraper. Output will be written to {OUT_FILE}")
     # Initialize file (truncate if exists)
     with open(OUT_FILE, "w", encoding="utf-8") as f:
         pass
@@ -209,24 +208,16 @@ def main():
 
         all_links = []
         for district in DISTRICTS:
-            print(f"Discovering links for district: {district}")
             links = get_locality_links(page, district)
-            print(f"Found {len(links)} links in {district}")
             all_links.extend(links)
 
-        print(f"Total localities to scrape: {len(all_links)}")
-
         count = 0
-        total = len(all_links)
+        len(all_links)
 
         with open(OUT_FILE, "a", encoding="utf-8") as f:
             for url in all_links:
                 parts = url.rstrip("/").split("/")
                 meta = {"district": parts[-3], "taluka": parts[-2], "locality": parts[-1]}
-
-                print(
-                    f"[{count + 1}/{total}] Scraping {meta['district']} -> {meta['taluka']} -> {meta['locality']}"
-                )
 
                 retries = 3
                 success = False
@@ -240,18 +231,15 @@ def main():
                         for p in props:
                             f.write(json.dumps(p) + "\n")
 
-                        print(f"   -> Extracted {len(props)} properties.")
                         success = True
 
-                    except Exception as e:
-                        print(f"   -> Error on {url}: {e}. Retrying...")
+                    except Exception:
                         retries -= 1
                         time.sleep(2)
 
                 count += 1
 
         browser.close()
-        print("Done scraping!")
 
 
 if __name__ == "__main__":

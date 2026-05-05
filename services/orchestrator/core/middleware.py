@@ -72,7 +72,7 @@ async def rate_limit_middleware(request: Request, call_next):
                 },
             )
     except Exception as e:
-        logger.error(f"Rate limiter error: {e}")
+        logger.exception(f"Rate limiter error: {e}")
         # Fallback to allow request if Redis fails
 
     return await call_next(request)
@@ -109,7 +109,7 @@ async def response_cache_middleware(request: Request, call_next):
                 headers={"X-Cache": "HIT", "X-Request-ID": request_id},
             )
     except Exception as e:
-        logger.error(f"Cache retrieval error: {e}")
+        logger.exception(f"Cache retrieval error: {e}")
 
     # Process request normally
     response = await call_next(request)
@@ -137,6 +137,6 @@ async def response_cache_middleware(request: Request, call_next):
                 media_type=response.media_type,
             )
         except Exception as e:
-            logger.error(f"Cache storage error: {e}")
+            logger.exception(f"Cache storage error: {e}")
 
     return response

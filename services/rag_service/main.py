@@ -2,23 +2,22 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-# Load local .env before anything else to override global environment variables
-from dotenv import load_dotenv
-
 from dhara_shared.core.banner import print_banner
 from dhara_shared.core.config import validate_config
 from dhara_shared.core.tracing import setup_tracing
+
+# Load local .env before anything else to override global environment variables
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
 from datetime import UTC
 
+from dhara_shared.core.logging import setup_logging, setup_sentry
+from dhara_shared.core.metrics import setup_metrics
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-
-from dhara_shared.core.logging import setup_logging, setup_sentry
-from dhara_shared.core.metrics import setup_metrics
 
 from .core.config import settings
 from .core.middleware import rate_limit_middleware, security_headers_middleware
@@ -79,8 +78,7 @@ async def client_source_middleware(request: Request, call_next):
     source = request.headers.get("X-Client-Source", "unknown")
     if source != "unknown":
         logger.info(f"Source: {source} | Request: {request.method} {request.url.path}")
-    response = await call_next(request)
-    return response
+    return await call_next(request)
 
 
 # --- API Endpoints ---
@@ -102,6 +100,6 @@ app.include_router(query_router.router)
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.environ.get("PORT", 8006))
+    port = int(os.environ.get("PORT", "8006"))
     uvicorn.run(app, host="0.0.0.0", port=port)
 # ruff: noqa: E402

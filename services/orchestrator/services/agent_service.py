@@ -2,6 +2,8 @@
 Agent Service — Orchestrates AI agent execution and real-time WebSocket communication.
 """
 
+import asyncio
+import contextlib
 import logging
 
 from fastapi import WebSocket
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     def __init__(self):
         self.active: dict[str, list[WebSocket]] = {}
+        self.tasks: set[asyncio.Task] = set()
 
     async def connect(self, sid: str, ws: WebSocket):
         await ws.accept()
@@ -35,10 +38,8 @@ class ConnectionManager:
             self.disconnect(sid, ws)
 
     async def send(self, ws: WebSocket, msg: dict):
-        try:
+        with contextlib.suppress(Exception):
             await ws.send_json(msg)
-        except Exception:
-            pass
 
 
 # Global manager to maintain state across service instances

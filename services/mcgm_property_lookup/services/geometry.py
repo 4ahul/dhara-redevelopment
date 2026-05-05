@@ -3,9 +3,9 @@ MCGM Property Lookup — Geometry Utilities
 Coordinate conversion and spatial calculations.
 """
 
-import math
 import geopandas as gpd
 from shapely.geometry import Polygon
+
 
 def web_mercator_to_wgs84(x: float, y: float) -> tuple[float, float]:
     """Convert Web Mercator (EPSG:3857) to WGS84 lat/lng."""

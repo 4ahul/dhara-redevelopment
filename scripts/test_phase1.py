@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 from pathlib import Path
 
@@ -34,7 +33,7 @@ async def fetch_real_data():
             site_data = site_res.json() if site_res.status_code == 200 else {"error": site_res.text}
             logger.info(f"✅ Site Analysis complete (Status: {site_res.status_code})")
         except Exception as e:
-            logger.error(f"❌ Site Analysis failed: {e}")
+            logger.exception(f"❌ Site Analysis failed: {e}")
             site_data = {"error": str(e)}
 
         # 2. PR Card Scraper
@@ -52,7 +51,7 @@ async def fetch_real_data():
             pr_data = pr_res.json() if pr_res.status_code == 200 else {"error": pr_res.text}
             logger.info(f"✅ PR Card Scraper complete (Status: {pr_res.status_code})")
         except Exception as e:
-            logger.error(f"❌ PR Card Scraper failed: {e}")
+            logger.exception(f"❌ PR Card Scraper failed: {e}")
             pr_data = {"error": str(e)}
 
         # 3. MCGM Lookup
@@ -70,7 +69,7 @@ async def fetch_real_data():
             mcgm_data = mcgm_res.json() if mcgm_res.status_code == 200 else {"error": mcgm_res.text}
             logger.info(f"✅ MCGM Lookup complete (Status: {mcgm_res.status_code})")
         except Exception as e:
-            logger.error(f"❌ MCGM Lookup failed: {e}")
+            logger.exception(f"❌ MCGM Lookup failed: {e}")
             mcgm_data = {"error": str(e)}
 
         # 4. DP Remarks
@@ -92,7 +91,7 @@ async def fetch_real_data():
             dp_data = dp_res.json() if dp_res.status_code == 200 else {"error": dp_res.text}
             logger.info(f"✅ DP Remarks complete (Status: {dp_res.status_code})")
         except Exception as e:
-            logger.error(f"❌ DP Remarks failed: {e}")
+            logger.exception(f"❌ DP Remarks failed: {e}")
             dp_data = {"error": str(e)}
 
         return {
@@ -177,13 +176,10 @@ async def run_phase1():
                 out_path.parent.mkdir(exist_ok=True)
                 out_path.write_bytes(res.content)
                 logger.info(f"✅ Success! Phase 1 report saved to: {out_path.absolute()}")
-                print(
-                    f"\n--- DATA GATHERED SUMMARY ---\n{json.dumps({k: 'OK' if 'error' not in v else 'FAIL' for k, v in real_data.items()}, indent=2)}"
-                )
             else:
                 logger.error(f"❌ Report Generation Failed: {res.status_code}\n{res.text}")
         except Exception as e:
-            logger.error(f"❌ Report Generation Request Failed: {e}")
+            logger.exception(f"❌ Report Generation Request Failed: {e}")
 
 
 if __name__ == "__main__":

@@ -11,10 +11,12 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import openpyxl
-from openpyxl.workbook import Workbook
+
+if TYPE_CHECKING:
+    from openpyxl.workbook import Workbook
 
 YELLOW_RGB = "FFFFFF00"
 BLACK_RGB = "FF000000"
@@ -161,15 +163,14 @@ def suggest_mapping(kind: str, signals: dict[str, Any]) -> dict[str, Any]:
             suggested = "calc: bank_guarantee_15pct(based_on=<fill_in>)"
         elif "calculate no of floors" in ph or "per floor is 3mtr" in ph:
             suggested = "calc: floors_from_max_height(based_on=max_height_m)"
-    else:  # yellow
-        if "ready reckoner" in ph or "rr " in ph:
-            suggested = f"from: ready_reckoner.{semantic}"
-        elif "user input" in ph or "manual" in ph:
-            suggested = f"from: manual_inputs.{semantic}"
-        elif "dp remark" in ph or "dp report" in ph:
-            suggested = f"from: dp_report.{semantic}"
-        elif "ocr" in ph or "old plan" in ph or "pr card" in ph:
-            suggested = f"from: mcgm_property.{semantic}"
+    elif "ready reckoner" in ph or "rr " in ph:
+        suggested = f"from: ready_reckoner.{semantic}"
+    elif "user input" in ph or "manual" in ph:
+        suggested = f"from: manual_inputs.{semantic}"
+    elif "dp remark" in ph or "dp report" in ph:
+        suggested = f"from: dp_report.{semantic}"
+    elif "ocr" in ph or "old plan" in ph or "pr card" in ph:
+        suggested = f"from: mcgm_property.{semantic}"
 
     if not suggested:
         suggested = "TODO: human review"
@@ -226,8 +227,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     args = p.parse_args(argv)
 
-    d = build_dossier(args.template, args.scheme, args.out)
-    print(f"Wrote {args.out} with {len(d['cells'])} cells.")
+    build_dossier(args.template, args.scheme, args.out)
     return 0
 
 

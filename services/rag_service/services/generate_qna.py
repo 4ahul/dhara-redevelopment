@@ -9,8 +9,6 @@ import pandas as pd
 
 from .intelligent_rag import IntelligentRAG
 
-print("Starting Q&A generation...")
-
 rag = IntelligentRAG()
 
 # 100 hard PMC questions
@@ -151,12 +149,10 @@ questions = [
     "How are development charges calculated?",
 ]
 
-print(f"Total questions: {len(questions)}")
 
 results = []
 for i, q in enumerate(questions, 1):
     try:
-        print(f"[{i}/{len(questions)}] Processing: {q[:50]}...")
         r = rag.query(q)
         results.append(
             {
@@ -169,12 +165,11 @@ for i, q in enumerate(questions, 1):
             }
         )
     except Exception as e:
-        print(f"Error: {e}")
         results.append(
             {
                 "Q_No": i,
                 "Question": q,
-                "Answer": f"Error: {str(e)}",
+                "Answer": f"Error: {e!s}",
                 "Confidence": "0%",
                 "Clauses": "",
                 "Tables": "",
@@ -189,7 +184,3 @@ filename = f"data/PMC_100_HardQnA_{ts}.xlsx"
 df.to_excel(filename, index=False)
 
 passed = sum(1 for r in results if float(r["Confidence"].replace("%", "")) >= 30)
-print(f"\n{'=' * 60}")
-print(f"SAVED: {filename}")
-print(f"Total: {len(results)} | Answered (>=30%): {passed} ({passed / len(results) * 100:.1f}%)")
-print("DONE!")

@@ -50,7 +50,7 @@ def check_whatsapp_compliance():
         return len(urgent)
 
     except Exception as e:
-        logger.error(f"WhatsApp check failed: {e}")
+        logger.exception(f"WhatsApp check failed: {e}")
         return 0
 
 
@@ -68,7 +68,6 @@ def send_alert(updates):
 
     # TODO: Implement actual notification
     # Options: Email, Slack, WhatsApp message, SMS
-    print(f"\n[ALERT]\n{message}")
 
 
 if __name__ == "__main__":

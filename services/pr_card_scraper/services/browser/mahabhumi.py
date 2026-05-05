@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import difflib
 import logging
 import re
@@ -137,32 +138,67 @@ class MahabhumiFormHandler:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def navigate_to_base(self):
-        """Navigate to the base URL with retries.
-
-        Uses 'domcontentloaded' (not 'networkidle') because the Bhulekh site
-        loads many slow third-party resources that prevent networkidle from
-        being reached within a reasonable timeout.
-        """
+        """Navigate to base URL with rigorous session isolation."""
         logger.info(f"Navigating to {self.BASE_URL}")
         try:
-            # Clear storage/cookies to avoid session conflicts
+            # Clear all session artifacts to avoid "Already logged in" errors
             context = self.page.context
             await context.clear_cookies()
+            await self.page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
 
-            try:
-                await self.page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=45000)
-            except Exception:
-                # Last-resort: commit=True means the navigation was initiated
-                await self.page.goto(self.BASE_URL, wait_until="commit", timeout=30000)
-
-            # Give the page JS a moment to wire up before we start clicking
+            # Bhulekh site is notoriously slow; wait for initial commit then settle
+            await self.page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(3)
             await self._dismiss_overlays()
         except Exception as e:
             logger.warning(f"Navigation attempt failed: {e}")
-            raise e from e
+            raise
 
-    async def _wait_for_loading(self):
+    async def _wait_for_options(self, selector: str, timeout_ms: int = 30000):
+        """Smart wait for a dropdown to populate with options beyond the default."""
+        try:
+            await self.page.wait_for_function(
+                "selector => document.querySelectorAll(selector + ' option').length > 1",
+                arg=selector,
+                timeout=timeout_ms,
+            )
+            return True
+        except Exception:
+            # Check if there's a "No records found" dialog blocking us
+            if await self.page.locator("#customAlertOverlay").is_visible():
+                msg = await self.page.locator("#customAlertOverlay").inner_text()
+                logger.warning("Site reported: %s", msg.strip())
+            return False
+
+    async def _select_with_retry(self, selector: str, value: str, label: str | None = None):
+        """Select an option and verify it stuck, retrying on slow postbacks."""
+        for attempt in range(3):
+            if not await self._wait_for_options(selector):
+                logger.warning(
+                    "Dropdown %s failed to populate on attempt %d", selector, attempt + 1
+                )
+                # Force a small wait and retry
+                await asyncio.sleep(2)
+                continue
+
+            try:
+                if label:
+                    await self.page.select_option(selector, label=label)
+                else:
+                    await self.page.select_option(selector, value=value)
+
+                await self._fire_change(selector)
+                await self._wait_for_loading()
+
+                # Critical: Verify selection stuck
+                current_val = await self.page.eval_on_selector(selector, "el => el.value")
+                if current_val != "0" and (not value or current_val == value):
+                    return True
+            except Exception as e:
+                logger.warning("Selection retry %d for %s failed: %s", attempt + 1, selector, e)
+                await asyncio.sleep(2)
+
+        return False
         """Wait for ASP.NET UpdatePanel / overlays to settle."""
         await asyncio.sleep(0.5)
         # Only wait on selectors that actually exist; presence-check first avoids
@@ -173,11 +209,10 @@ class MahabhumiFormHandler:
                     await self.page.wait_for_selector(selector, state="hidden", timeout=5000)
             except Exception:
                 pass
-        try:
+        with contextlib.suppress(Exception):
             await self.page.wait_for_load_state("networkidle", timeout=4000)
-        except Exception:
-            pass
         await asyncio.sleep(0.3)
+        return None
 
     async def _fire_change(self, selector: str):
         """
@@ -201,16 +236,17 @@ class MahabhumiFormHandler:
         )
 
     async def _select_with_retry(self, selector: str, value: str, label: str | None = None):
-        """Select an option and retry if the value doesn't stick or dropdown is empty."""
+        """Select an option and verify it stuck, retrying on slow postbacks."""
         for attempt in range(3):
-            try:
-                # Wait for options to load
-                await self.page.wait_for_function(
-                    "selector => document.querySelectorAll(selector + ' option').length > 1",
-                    arg=selector,
-                    timeout=20000,
+            if not await self._wait_for_options(selector):
+                logger.warning(
+                    "Dropdown %s failed to populate on attempt %d", selector, attempt + 1
                 )
+                # Force a small wait and retry
+                await asyncio.sleep(2)
+                continue
 
+            try:
                 if label:
                     await self.page.select_option(selector, label=label)
                 else:
@@ -218,15 +254,15 @@ class MahabhumiFormHandler:
 
                 await self._fire_change(selector)
                 await self._wait_for_loading()
-                await asyncio.sleep(2)
 
-                # Verify selection
-                new_val = await self.page.eval_on_selector(selector, "el => el.value")
-                if new_val != "0" and (not value or new_val == value):
+                # Critical: Verify selection stuck
+                current_val = await self.page.eval_on_selector(selector, "el => el.value")
+                if current_val != "0" and (not value or current_val == value):
                     return True
             except Exception as e:
-                logger.warning(f"Selection failed for {selector} on attempt {attempt + 1}: {e}")
-                await asyncio.sleep(3)
+                logger.warning("Selection retry %d for %s failed: %s", attempt + 1, selector, e)
+                await asyncio.sleep(2)
+
         return False
 
     async def fill_form(
@@ -461,12 +497,25 @@ class MahabhumiFormHandler:
         for opt in options:
             if not opt["value"] or opt["value"] == "0":
                 continue
-            opt_norm = self._norm(opt["text"])
+            opt_text = opt["text"].strip()
+            opt_norm = self._norm(opt_text)
 
-            # Also match against just the place name (last segment after comma).
-            # Bhulekh Property Card talukas are "उप अधीक्षक भूमि अभिलेख, हवेली" —
-            # matching only against "हवेली" gives far better accuracy.
-            opt_place_raw = opt["text"].split(",")[-1].strip()
+            # 1. Check for absolute match first (before normalization)
+            if opt_text == target_text:
+                best_val = opt["value"]
+                best_text = opt_text
+                best_score = 1.0
+                break
+
+            # 2. Check for absolute match (after normalization)
+            if opt_norm == target_norm:
+                best_val = opt["value"]
+                best_text = opt_text
+                best_score = 1.0
+                break
+
+            # 3. Fuzzy matching logic
+            opt_place_raw = opt_text.split(",")[-1].strip()
             opt_place = self._norm(opt_place_raw)
 
             # Full-string score
@@ -484,7 +533,7 @@ class MahabhumiFormHandler:
             if score > best_score:
                 best_score = score
                 best_val = opt["value"]
-                best_text = opt["text"]
+                best_text = opt_text
 
         # Always log top matches to help with debugging
         all_opts = [o["text"].strip() for o in options if o["value"] and o["value"] != "0"]
@@ -509,8 +558,7 @@ class MahabhumiFormHandler:
         roman = unidecode(text).lower()
         roman = re.sub(r"(.)\1+", r"\1", roman)
         roman = roman.rstrip("aeiou")
-        roman = re.sub(r"[^a-z0-9]", "", roman)
-        return roman
+        return re.sub(r"[^a-z0-9]", "", roman)
 
     async def get_captcha_image(self) -> bytes:
         """Capture CAPTCHA image bytes and save a debug copy to outputs/."""

@@ -1,7 +1,5 @@
 from services.report_generator.feasibility.dispatcher import apply_transform
 
-# noqa: E402
-
 
 def test_transform_float():
     assert apply_transform("3.14", "float") == 3.14
@@ -34,15 +32,15 @@ def test_transform_none_type_passthrough():
     assert apply_transform("abc", None) == "abc"
 
 
-import pytest  # noqa: E402
+import pytest
 
-from services.report_generator.feasibility.calc_registry import (  # noqa: E402
+from services.report_generator.feasibility.calc_registry import (
     _clear_for_tests,
     register,
 )
-from services.report_generator.feasibility.dispatcher import resolve_entry  # noqa: E402
-from services.report_generator.feasibility.exceptions import MissingData  # noqa: E402
-from services.report_generator.feasibility.mapping_loader import MappingEntry  # noqa: E402
+from services.report_generator.feasibility.dispatcher import resolve_entry
+from services.report_generator.feasibility.exceptions import MissingData
+from services.report_generator.feasibility.mapping_loader import MappingEntry
 
 
 def setup_function():

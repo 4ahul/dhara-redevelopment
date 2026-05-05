@@ -1,4 +1,3 @@
-
 """
 DP Report Service — FastAPI Router
 Endpoints:
@@ -33,11 +32,8 @@ from fastapi import (
 from ..core import settings
 from ..schemas import DPReportRequest, DPReportResponse, DPReportStatus
 from ..services import DPArcGISClient, DPBrowserScraper
-from ..services.dp_arcgis_client import (
-    parse_dp_attributes as parse_dp_attributes,
-)
-from ..services.storage import AsyncStorageService as StorageService
 from ..services.scrape_queue import ScrapeQueue
+from ..services.storage import AsyncStorageService as StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +83,16 @@ async def _do_fetch(
         queue = ScrapeQueue(settings.REDIS_URL)
         async with queue.session(report_id or "adhoc"):
             scraper = DPBrowserScraper(headless=settings.BROWSER_HEADLESS)
-            result = await scraper.scrape(ward, village, cts_no, lat, lng, use_fp_scheme=use_fp_scheme, tps_scheme=tps_scheme, fp_no=fp_no)
+            result = await scraper.scrape(
+                ward,
+                village,
+                cts_no,
+                lat,
+                lng,
+                use_fp_scheme=use_fp_scheme,
+                tps_scheme=tps_scheme,
+                fp_no=fp_no,
+            )
     except Exception as e:
         logger.warning(f"Scraper failed: {e}. Using mock fallback.")
         mock_data = _load_mock() or {
@@ -100,7 +105,7 @@ async def _do_fetch(
                 "reservations_affecting": "None",
                 "dp_roads": "None",
                 "crz_zone": "No",
-                "heritage_building": "No"
+                "heritage_building": "No",
             }
         }
         result = mock_data
@@ -117,7 +122,9 @@ async def _do_fetch(
         return "/" not in clean and clean in {"yes", "true", "1"}
 
     crz_zone = bool(attrs.get("crz_zone_details") or attrs.get("crz_zone"))
-    heritage_zone = _is_yes(attrs.get("heritage_building")) or _is_yes(attrs.get("heritage_precinct"))
+    heritage_zone = _is_yes(attrs.get("heritage_building")) or _is_yes(
+        attrs.get("heritage_precinct")
+    )
 
     parsed = {
         "status": status,
@@ -168,6 +175,10 @@ async def _do_fetch(
         "ep_nos": attrs.get("ep_nos"),
         "sm_nos": attrs.get("sm_nos"),
         "pdf_text": attrs.get("pdf_text"),
+        # Area metrics
+        "reservation_area_sqm": attrs.get("reservation_area_sqm"),
+        "amenity_area_sqm": attrs.get("amenity_area_sqm"),
+        "setback_area_sqm": attrs.get("setback_area_sqm"),
         # Payment
         "payment_status": result.get("payment_status"),
         "payment_transaction_id": result.get("payment_transaction_id"),
@@ -178,7 +189,8 @@ async def _do_fetch(
 
     if report_id and storage:
         update_kwargs = {
-            k: v for k, v in parsed.items()
+            k: v
+            for k, v in parsed.items()
             if k not in ("status", "ward", "village", "cts_no", "error_message", "pdf_bytes")
         }
         update_kwargs["error_message"] = error
@@ -196,9 +208,42 @@ async def _do_fetch(
 
 
 @router.post("/fetch", response_model=DPReportResponse)
-async def fetch_dp_report(req: DPReportRequest, background_tasks: BackgroundTasks):
+async def fetch_dp_report(req: DPReportRequest, background_tasks: BackgroundTasks, request: Request):
     """Submit a DP remarks fetch (processed in background). Poll GET /status/{id}."""
     storage = get_storage()
+
+    if storage:
+        # 1. Check completed (30-day TTL)
+        existing = await storage.find_completed_report(
+            ward=req.ward, village=req.village, cts_no=req.cts_no
+        )
+        if existing:
+            logger.info("Found completed DP report within 30 days. Returning existing ID: %s", existing["id"])
+            return DPReportResponse(
+                id=str(existing["id"]),
+                status=DPReportStatus.COMPLETED,
+                ward=req.ward,
+                village=req.village,
+                cts_no=req.cts_no,
+                created_at=existing["created_at"],
+            )
+
+        # 2. Check processing
+        processing = await storage.find_processing_report(
+            ward=req.ward, village=req.village, cts_no=req.cts_no
+        )
+        if processing:
+            logger.info("Found in-flight DP report. Returning existing ID: %s", processing["id"])
+            return DPReportResponse(
+                id=str(processing["id"]),
+                status=DPReportStatus.PROCESSING,
+                ward=req.ward,
+                village=req.village,
+                cts_no=req.cts_no,
+                created_at=processing["created_at"],
+            )
+
+    # 3. Start new
     report_id = await storage.create_report(
         ward=req.ward,
         village=req.village,
@@ -230,58 +275,6 @@ async def fetch_dp_report(req: DPReportRequest, background_tasks: BackgroundTask
         ward=req.ward,
         village=req.village,
         cts_no=req.cts_no,
-        created_at=created_at,
-    )
-
-
-# ── Sync endpoint ─────────────────────────────────────────────────────────────
-
-
-@router.post("/fetch/sync", response_model=DPReportResponse)
-async def fetch_dp_report_sync(req: DPReportRequest, request: Request):
-    """Synchronous fetch — waits for full result. Suited for orchestrator calls."""
-    storage = get_storage()
-    report_id = await storage.create_report(
-        ward=req.ward,
-        village=req.village,
-        cts_no=req.cts_no,
-        lat=req.lat,
-        lng=req.lng,
-    )
-
-    result = await _do_fetch(
-        report_id,
-        req.ward,
-        req.village,
-        req.cts_no,
-        req.use_fp_scheme,
-        req.tps_scheme,
-        req.fp_no,
-        req.lat,
-        req.lng,
-        storage,
-    )
-
-    row = await storage.get_report(report_id)
-    created_at = row["created_at"] if row else datetime.utcnow()
-
-    return DPReportResponse(
-        id=report_id,
-        status=DPReportStatus(result.get("status", "failed")),
-        ward=result.get("ward", req.ward),
-        village=result.get("village", req.village),
-        cts_no=result.get("cts_no", req.cts_no),
-        zone_code=result.get("zone_code"),
-        zone_name=result.get("zone_name"),
-        road_width_m=result.get("road_width_m"),
-        fsi=result.get("fsi"),
-        height_limit_m=result.get("height_limit_m"),
-        reservations=result.get("reservations"),
-        crz_zone=result.get("crz_zone"),
-        heritage_zone=result.get("heritage_zone"),
-        dp_remarks=result.get("dp_remarks"),
-        download_url=f"{str(request.base_url).rstrip('/')}/download/{report_id}/screenshot",
-        error_message=result.get("error"),
         created_at=created_at,
     )
 
@@ -321,7 +314,7 @@ async def get_dp_report_status(report_id: str, request: Request):
         crz_zone=row.get("crz_zone"),
         heritage_zone=row.get("heritage_zone"),
         dp_remarks=row.get("dp_remarks"),
-        download_url=f"{str(request.base_url).rstrip('/')}/download/{str(row['id'])}/screenshot",
+        download_url=f"{str(request.base_url).rstrip('/')}/download/{row['id']!s}/screenshot",
         error_message=row.get("error_message"),
         created_at=row.get("created_at"),
     )
@@ -439,9 +432,30 @@ async def fetch_dp_report_from_pdf(
         sm_nos=parsed.get("sm_nos"),
         crz_zone=crz_zone,
         heritage_zone=heritage_zone,
+        reservation_area_sqm=parsed.get("reservation_area_sqm"),
+        amenity_area_sqm=parsed.get("amenity_area_sqm"),
+        setback_area_sqm=parsed.get("setback_area_sqm"),
         pdf_text=None,  # omit raw text from response to keep payload small
         created_at=datetime.utcnow(),
     )
+
+
+# ── Setback area (GIS) ───────────────────────────────────────────────────────
+
+
+@router.post("/setback-area")
+async def get_setback_area(payload: dict):
+    """
+    Compute road-widening setback area in m² via ArcGIS DP 2034 layers.
+
+    Body: { "geometry_wgs84": [[lng, lat], ...] }
+    Returns: { "setback_area_sqm": float }
+    """
+    from ..services.dp_gis_metrics import compute_setback_area
+
+    geom = payload.get("geometry_wgs84") or []
+    area = await compute_setback_area(geom)
+    return {"setback_area_sqm": area}
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

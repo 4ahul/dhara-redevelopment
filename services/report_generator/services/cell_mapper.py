@@ -1179,10 +1179,7 @@ class CellMapper:
 
             # Fall back to default if path didn't resolve
             if value is None:
-                if mapping.transform == "str":
-                    value = "Data Unavailable"
-                else:
-                    value = mapping.default
+                value = "Data Unavailable" if mapping.transform == "str" else mapping.default
 
             if value is None:
                 continue

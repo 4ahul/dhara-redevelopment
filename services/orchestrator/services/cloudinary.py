@@ -98,10 +98,10 @@ async def upload_file(
             "height": result.get("height"),
         }
     except cloudinary.exceptions.Error as e:
-        logger.error("Cloudinary upload failed: %s", e)
+        logger.exception("Cloudinary upload failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Upload failed: {e}") from e
     except Exception as e:
-        logger.error("Unexpected upload error: %s", e)
+        logger.exception("Unexpected upload error: %s", e)
         raise HTTPException(status_code=500, detail="Upload failed unexpectedly") from e
 
 
@@ -163,7 +163,7 @@ async def upload_content(
             "resource_type": result.get("resource_type", ""),
         }
     except Exception as e:
-        logger.error("Cloudinary content upload failed: %s", e)
+        logger.exception("Cloudinary content upload failed: %s", e)
         raise HTTPException(status_code=502, detail=f"Upload failed: {e}") from e
 
 
@@ -174,5 +174,5 @@ def delete_file(public_id: str, resource_type: str = "image") -> bool:
         result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
         return result.get("result") == "ok"
     except Exception as e:
-        logger.error("Failed to delete %s: %s", public_id, e)
+        logger.exception("Failed to delete %s: %s", public_id, e)
         return False

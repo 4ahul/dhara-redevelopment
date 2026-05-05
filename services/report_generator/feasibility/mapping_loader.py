@@ -51,7 +51,6 @@ class MappingFile:
     generated_from_dossier: str | None = None
 
 
-
 _ENTRY_FIELDS = {
     "cell",
     "kind",
@@ -89,7 +88,7 @@ def validate_entry_shape(raw: dict) -> None:
         raise MappingError(f"entry {raw.get('cell')}: semantic_name missing")
     present = _VALUE_SOURCE_KEYS & set(raw)
     # Allow sources+calc together (sources override calc when present) or const alone
-    valid = len(present) == 1 or present == {"sources", "calc"} or present == {"from", "calc"}
+    valid = len(present) == 1 or present in ({"sources", "calc"}, {"from", "calc"})
     if not valid:
         raise MappingError(
             f"entry {raw['cell']}: exactly one of {_VALUE_SOURCE_KEYS} required (or sources/from+calc), got {present or 'none'}"
@@ -202,6 +201,7 @@ def topological_sort(entries: list[MappingEntry]) -> list[MappingEntry]:
         raise MappingError("cycle detected in calc_args dependencies")
 
     return out
+
 
 def validate_against_workbook(mf: MappingFile, wb) -> None:
     for e in mf.cells:

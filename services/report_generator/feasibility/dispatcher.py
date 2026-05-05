@@ -127,6 +127,7 @@ def generate(
     # warn_only: log the missing required fields but continue generating
     if blocked:
         import logging as _logging
+
         _logging.getLogger(__name__).warning(
             "Required fields using fallback data (warn_only=True): %s", blocked
         )

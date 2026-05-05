@@ -1,0 +1,98 @@
+# Docker Compose Network Security Policies
+# Add to docker-compose.yml under each service's networks section
+# This ensures services can only communicate with required dependencies
+
+# ─────────────────────────────────────────────────────────────────────
+# Internal Network - Services can only talk to required services
+# ─────────────────────────────────────────────────────────────────────
+
+# orchestrator can only reach:
+# - postgres (database)
+# - redis (caching/tasks)
+# - All microservices (for orchestration)
+# - traefik (exposure)
+# NOT: pgadmin, other unrelated services
+
+# pr_card_scraper can only reach:
+# - postgres
+# - redis
+# - traefik
+# - mcgm_property_lookup (if needed for property data)
+# NOT: orchestrator directly (use API gateway)
+
+# Each microservice should have minimal network access:
+# - Only reach postgres, redis, traefik, and their specific dependencies
+# - Not reach other microservices directly
+
+# ─────────────────────────────────────────────────────────────────────
+# Service-specific network rules (add to each service in docker-compose.yml)
+# ─────────────────────────────────────────────────────────────────────
+
+# Example for orchestrator:
+# networks:
+#   - dhara_net
+#     # Allow only specific connections
+#     aliases:
+#       - orchestrator.dhara.internal
+
+# ─────────────────────────────────────────────────────────────────────
+# Secrets Management - Use Docker secrets or K8s secrets
+# ─────────────────────────────────────────────────────────────────────
+
+# 1. Don't use .env for production - use secrets:
+#    - Docker: echo "secret" | docker secret create db_password -
+#    - K8s: kubectl create secret generic db-password
+
+# 2. For docker-compose, use external secrets or env_file from secure source
+
+# ─────────────────────────────────────────────────────────────────────
+# Basic Security Headers Middleware
+# ─────────────────────────────────────────────────────────────────────
+
+# In each service's main.py, add security headers:
+
+"""
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.headers import StrictTransportSecurity
+
+app.add_middleware(
+    StrictTransportSecurity,
+    max_age=31536000,
+    include_subdomains=True,
+    preload=True,
+)
+"""
+
+# ─────────────────────────────────────────────────────────────────────
+# Rate Limiting - Enhanced Configuration
+# ─────────────────────────────────────────────────────────────────────
+
+# Recommended limits per service:
+"""
+orchestrator:
+  requests_per_minute: 100
+  burst: 20
+  
+rag_service:
+  requests_per_minute: 60
+  burst: 10
+  
+pr_card_scraper:
+  requests_per_minute: 30
+  burst: 5  # External API rate limits
+  
+mcgm_property_lookup:
+  requests_per_minute: 50
+  burst: 10
+"""
+
+# ─────────────────────────────────────────────────────────────────────
+# IP Whitelisting (Traefik)
+# ─────────────────────────────────────────────────────────────────────
+
+# In traefik.yml or service labels:
+"""
+labels:
+  - "traefik.http.routers.orchestrator.middlewares=whitelist"
+  - "traefik.http.middlewares.whitelist.ipwhitelist.sourcerange=10.0.0.0/8,172.16.0.0/12"
+"""

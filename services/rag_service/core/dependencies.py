@@ -92,11 +92,11 @@ def require_auth(
             logger.info(f"Synchronized new user from JWT: {clerk_user_id}")
         except Exception as e:
             db.rollback()
-            logger.error(f"Failed to sync user from JWT: {e}")
+            logger.exception(f"Failed to sync user from JWT: {e}")
             # We still allow the request if we have the ID
 
     # Return internal UUID as sub for internal consistency in FKs
     if user:
         payload["sub"] = str(user.id)
-    
+
     return payload

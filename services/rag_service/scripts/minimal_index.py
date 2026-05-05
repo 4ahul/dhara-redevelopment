@@ -1,7 +1,6 @@
 """
 Minimal Indexer - Process ONE PDF at a time
 """
-# noqa: E402
 
 import hashlib
 import os
@@ -15,9 +14,9 @@ if env_file.exists():
             key, val = line.split("=", 1)
             os.environ[key.strip()] = val.strip()
 
-from langchain_openai import OpenAIEmbeddings  # noqa: E402
-from pymilvus import Collection, connections  # noqa: E402
-from pypdf import PdfReader  # noqa: E402
+from langchain_openai import OpenAIEmbeddings
+from pymilvus import Collection, connections
+from pypdf import PdfReader
 
 COLLECTION_NAME = "documents"
 BATCH_SIZE = 50
@@ -25,12 +24,10 @@ BATCH_SIZE = 50
 
 def process_pdf(pdf_path: Path, collection, embeddings):
     rel_path = str(pdf_path.relative_to("data/docs"))
-    print(f"Processing: {rel_path}")
 
     try:
         reader = PdfReader(str(pdf_path))
-    except Exception as e:
-        print(f"  Cannot read PDF: {e}")
+    except Exception:
         return 0
 
     all_text = ""
@@ -40,7 +37,6 @@ def process_pdf(pdf_path: Path, collection, embeddings):
             all_text += text + "\n"
 
     if len(all_text) < 100:
-        print("  No text extracted")
         return 0
 
     # Simple chunking
@@ -50,8 +46,6 @@ def process_pdf(pdf_path: Path, collection, embeddings):
         chunk = all_text[i : i + chunk_size].strip()
         if len(chunk) > 50:
             chunks.append(chunk)
-
-    print(f"  Found {len(chunks)} chunks")
 
     # Process in batches
     total = 0
@@ -84,7 +78,6 @@ def process_pdf(pdf_path: Path, collection, embeddings):
         ]
         collection.insert(entities)
         total += len(batch)
-        print(f"    Indexed {len(batch)} (total: {total})")
 
     collection.flush()
     return total
@@ -104,9 +97,6 @@ def main():
     for pdf in pdf_files:
         count = process_pdf(pdf, collection, embeddings)
         total += count
-
-    print(f"\nTotal indexed: {total}")
-    print(f"Collection count: {collection.num_entities}")
 
 
 if __name__ == "__main__":

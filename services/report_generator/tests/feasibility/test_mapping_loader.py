@@ -1,7 +1,5 @@
 from services.report_generator.feasibility.mapping_loader import MappingEntry, MappingFile
 
-# noqa: E402
-
 
 def test_mapping_entry_roundtrip():
     e = MappingEntry(
@@ -46,9 +44,9 @@ cells:
     assert m.cells[0].fallback == 18.3
 
 
-import pytest  # noqa: E402
+import pytest
 
-from services.report_generator.feasibility.exceptions import MappingError  # noqa: E402
+from services.report_generator.feasibility.exceptions import MappingError
 
 
 def _base_raw():

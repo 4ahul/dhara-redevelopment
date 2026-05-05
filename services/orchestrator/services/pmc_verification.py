@@ -197,7 +197,11 @@ async def verify_architect(registration_number: str) -> dict:
         async with httpx.AsyncClient(timeout=TIMEOUT_S) as client:
             r = await client.post(COA_URL, data=data, headers=headers)
     except Exception as e:
-        return {"valid": False, "reason": "upstream_error", "message": str(e) or "COA submit failed"}
+        return {
+            "valid": False,
+            "reason": "upstream_error",
+            "message": str(e) or "COA submit failed",
+        }
 
     if r.status_code != 200:
         return {
