@@ -264,7 +264,7 @@ async def resolve_address_from_input(address: str) -> dict[str, str | None]:
 
     # Primary: AI Resolver
     try:
-        from orchestrator.services.society_service import resolve_address_with_ai
+        from services.orchestrator.services.society_service import resolve_address_with_ai
 
         ai_res = await resolve_address_with_ai(address)
         if ai_res and ai_res.get("ward"):

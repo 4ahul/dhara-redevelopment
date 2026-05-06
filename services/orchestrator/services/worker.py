@@ -4,8 +4,8 @@ import os
 
 from arq.connections import RedisSettings
 
-from orchestrator.services.dossier_service import dossier_service
-from orchestrator.services.feasibility_orchestrator import feasibility_orchestrator
+from services.orchestrator.services.dossier_service import dossier_service
+from services.orchestrator.services.feasibility_orchestrator import feasibility_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +16,8 @@ async def run_feasibility_analysis(ctx, req: dict, user_id: str, report_id: str)
     This is called by the Arq worker.
     """
 
-    from orchestrator.db import async_session_factory
-    from orchestrator.models import FeasibilityReport, ReportStatus
+    from services.orchestrator.db import async_session_factory
+    from services.orchestrator.models import FeasibilityReport, ReportStatus
 
     logger.info(f"Worker starting analysis for report: {report_id}")
 
@@ -66,10 +66,10 @@ async def run_ai_agent(ctx, society_data: dict, report_id: str):
 
     from sqlalchemy import select
 
-    from orchestrator.agent.runner import run_agent
-    from orchestrator.db import async_session_factory
-    from orchestrator.models.enums import ReportStatus
-    from orchestrator.models.report import FeasibilityReport
+    from services.orchestrator.agent.runner import run_agent
+    from services.orchestrator.db import async_session_factory
+    from services.orchestrator.models.enums import ReportStatus
+    from services.orchestrator.models.report import FeasibilityReport
 
     logger.info(f"Worker starting AI Agent for report: {report_id}")
 

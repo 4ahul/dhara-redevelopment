@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import delete
 
-from orchestrator.db import async_session_factory
-from orchestrator.models import AuditLog
+from services.orchestrator.db import async_session_factory
+from services.orchestrator.models import AuditLog
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

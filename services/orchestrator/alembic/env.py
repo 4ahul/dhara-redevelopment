@@ -17,8 +17,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # → services.orchestrator) that kills the pre-deploy migration.
 # target_metadata=None is fine here: alembic upgrade head runs explicit DDL scripts
 # and does not need metadata for comparison (that's only needed for autogenerate).
-from orchestrator.core.config import settings
-from orchestrator.db.base import Base
+from services.orchestrator.core.config import settings
+from services.orchestrator.db.base import Base
 
 # Import all models here so they are registered on Base.metadata
 

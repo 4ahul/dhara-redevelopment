@@ -11,11 +11,11 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.models.enums import UserRole
-from orchestrator.models.role import Role
-from orchestrator.repositories import admin_repository, enquiry_repository, user_repository
-from orchestrator.schemas.admin import EnquiryResponse
-from orchestrator.schemas.common import PaginatedResponse
+from services.orchestrator.models.enums import UserRole
+from services.orchestrator.models.role import Role
+from services.orchestrator.repositories import admin_repository, enquiry_repository, user_repository
+from services.orchestrator.schemas.admin import EnquiryResponse
+from services.orchestrator.schemas.common import PaginatedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class AdminService:
             # For admin search, we'll need a way to search societies across ALL users
             from sqlalchemy import or_, select
 
-            from orchestrator.models import Society
+            from services.orchestrator.models import Society
 
             stmt = (
                 select(Society)

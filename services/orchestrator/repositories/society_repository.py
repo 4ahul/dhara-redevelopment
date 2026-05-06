@@ -8,9 +8,9 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.models.report import FeasibilityReport, SocietyReport
-from orchestrator.models.society import Society
-from orchestrator.models.team import SocietyTender
+from services.orchestrator.models.report import FeasibilityReport, SocietyReport
+from services.orchestrator.models.society import Society
+from services.orchestrator.models.team import SocietyTender
 
 
 async def get_society_by_id(db: AsyncSession, society_id: UUID, user_id: UUID) -> Society | None:

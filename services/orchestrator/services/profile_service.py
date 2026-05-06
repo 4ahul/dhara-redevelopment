@@ -12,14 +12,14 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.models.user import PortfolioDocument, User
-from orchestrator.schemas.profile import (
+from services.orchestrator.models.user import PortfolioDocument, User
+from services.orchestrator.schemas.profile import (
     PortfolioDocumentResponse,
     PortfolioUploadResponse,
     ProfileResponse,
     ProfileUpdate,
 )
-from orchestrator.services.cloudinary import (
+from services.orchestrator.services.cloudinary import (
     delete_file,
     upload_avatar,
     upload_portfolio,

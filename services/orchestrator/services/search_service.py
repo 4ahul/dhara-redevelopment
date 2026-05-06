@@ -13,10 +13,10 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from orchestrator.core.config import settings
-from orchestrator.models import FeasibilityReport, Role, Society, SocietyTender
-from orchestrator.schemas.admin import RoleResponse
-from orchestrator.schemas.common import PaginatedResponse
+from services.orchestrator.core.config import settings
+from services.orchestrator.models import FeasibilityReport, Role, Society, SocietyTender
+from services.orchestrator.schemas.admin import RoleResponse
+from services.orchestrator.schemas.common import PaginatedResponse
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +153,7 @@ class SearchService:
 
         if not rows:
             logger.info("No roles found in DB. Seeding defaults...")
-            from orchestrator.db.seed import seed_defaults
+            from services.orchestrator.db.seed import seed_defaults
 
             await seed_defaults()
             # Re-fetch after seeding

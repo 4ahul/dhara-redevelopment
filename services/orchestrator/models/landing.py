@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from orchestrator.db.base import Base
+from services.orchestrator.db.base import Base
 
 
 def _uuid():

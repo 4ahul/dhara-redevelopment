@@ -58,7 +58,7 @@ class AgentService:
         """
         import uuid as _uuid
 
-        from orchestrator.agent.runner import run_agent
+        from services.orchestrator.agent.runner import run_agent
 
         await self.mgr.broadcast(
             session_id, {"type": "status", "status": "started", "message": "Agent started..."}

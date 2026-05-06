@@ -10,7 +10,7 @@ import os
 
 import httpx
 
-from orchestrator.core.config import settings
+from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class ToolExecutor:
 
     async def _get_cached(self, key: str):
         try:
-            from orchestrator.services.redis import get_redis
+            from services.orchestrator.services.redis import get_redis
 
             r = get_redis()
             if r:
@@ -66,7 +66,7 @@ class ToolExecutor:
 
     async def _set_cached(self, key: str, result: dict):
         try:
-            from orchestrator.services.redis import get_redis
+            from services.orchestrator.services.redis import get_redis
 
             r = get_redis()
             if r and "error" not in result:
