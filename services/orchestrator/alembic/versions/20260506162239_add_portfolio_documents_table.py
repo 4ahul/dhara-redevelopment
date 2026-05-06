@@ -13,9 +13,9 @@ import sqlalchemy.dialects.postgresql as pg
 
 # revision identifiers, used by Alembic.
 revision: str = "20260506162239"
-down_revision: Union[str, None] = "a1b2c3d4e5f6"
+down_revision: Union[str, None] = "20260507000001"
 branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = ["fd819f308a81"]
+depends_on: Union[str, Sequence[str], None] = ["fd819f308a81", "a1b2c3d4e5f6"]
 
 
 def upgrade() -> None:

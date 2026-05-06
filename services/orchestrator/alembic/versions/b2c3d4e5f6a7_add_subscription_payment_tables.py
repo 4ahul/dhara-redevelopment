@@ -11,9 +11,9 @@ from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = 'b2c3d4e5f6a7'
-down_revision: Union[str, None] = 'a1b2c3d4e5f6'
+down_revision: Union[str, None] = '20260507000001'
 branch_labels = None
-depends_on = None
+depends_on = ["a1b2c3d4e5f6", "fd819f308a81"]
 
 
 def upgrade() -> None:
