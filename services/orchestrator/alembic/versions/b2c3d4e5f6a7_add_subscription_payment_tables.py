@@ -31,6 +31,11 @@ def upgrade() -> None:
             END IF;
         END $$;
     """))
+    conn.commit()
+    
+    # Define enum types for use in table columns
+    sub_status = sa.Enum('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created', name='subscription_status')
+    pay_status = sa.Enum('created', 'authorized', 'captured', 'failed', 'refunded', name='payment_status')
 
     op.create_table('subscriptions',
         sa.Column('id', sa.dialects.postgresql.UUID(as_uuid=True), primary_key=True),
