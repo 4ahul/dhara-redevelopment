@@ -43,7 +43,14 @@ class SocietyCreate(BaseModel):
     def _parse_unix_ms(cls, v: Any) -> Any:
         """FE may send onboardedDate as unix milliseconds."""
         if isinstance(v, (int, float)) and v > 1_000_000_000_000:
-            return datetime.fromtimestamp(v / 1000, tz=UTC)
+            return datetime.fromtimestamp(v / 1000, tz=UTC).replace(tzinfo=None)
+        return v
+
+    @field_validator("onboarded_date")
+    @classmethod
+    def _ensure_naive(cls, v: datetime | None) -> datetime | None:
+        if v and v.tzinfo:
+            return v.astimezone(UTC).replace(tzinfo=None)
         return v
 
 
@@ -65,7 +72,14 @@ class SocietyUpdate(BaseModel):
     @classmethod
     def _parse_unix_ms(cls, v: Any) -> Any:
         if isinstance(v, (int, float)) and v > 1_000_000_000_000:
-            return datetime.fromtimestamp(v / 1000, tz=UTC)
+            return datetime.fromtimestamp(v / 1000, tz=UTC).replace(tzinfo=None)
+        return v
+
+    @field_validator("onboarded_date")
+    @classmethod
+    def _ensure_naive(cls, v: datetime | None) -> datetime | None:
+        if v and v.tzinfo:
+            return v.astimezone(UTC).replace(tzinfo=None)
         return v
 
 
@@ -167,6 +181,13 @@ class TenderCreate(BaseModel):
     deadline: datetime | None = None
 
     model_config = {"populate_by_name": True}
+
+    @field_validator("deadline")
+    @classmethod
+    def _ensure_naive(cls, v: datetime | None) -> datetime | None:
+        if v and v.tzinfo:
+            return v.astimezone(UTC).replace(tzinfo=None)
+        return v
 
 
 class TenderResponse(BaseModel):

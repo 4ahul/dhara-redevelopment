@@ -99,11 +99,20 @@ class SocietyService:
         # onboarded_date_ts (int, ms or s) → onboarded_date (datetime)
         ts = data.pop("onboarded_date_ts", None)
         if ts and not data.get("onboarded_date"):
+            from datetime import UTC
             from datetime import datetime as _dt
 
             if ts > 1_000_000_000_000:  # milliseconds
                 ts = ts / 1000
-            data["onboarded_date"] = _dt.utcfromtimestamp(ts)
+            data["onboarded_date"] = _dt.fromtimestamp(ts, tz=UTC).replace(tzinfo=None)
+
+        # Final safety: Ensure all datetimes in data are naive UTC
+        from datetime import UTC
+        from datetime import datetime as _dt
+
+        for k, v in data.items():
+            if isinstance(v, _dt) and v.tzinfo:
+                data[k] = v.astimezone(UTC).replace(tzinfo=None)
 
         address = data.get("address")
         logger.info(f"Creating society: {data.get('name')} | address: {address}")
@@ -127,8 +136,14 @@ class SocietyService:
 
         update_data = req.model_dump(exclude_unset=True)
 
+        from datetime import UTC
+        from datetime import datetime as _dt
+
         for k, v in update_data.items():
-            setattr(soc, k, v)
+            final_v = v
+            if isinstance(v, _dt) and v.tzinfo:
+                final_v = v.astimezone(UTC).replace(tzinfo=None)
+            setattr(soc, k, final_v)
 
         await self.db.flush()
         await self.db.refresh(soc)
@@ -193,4 +208,12 @@ class SocietyService:
 
         data = req.model_dump(exclude_unset=True)
         data["society_id"] = society_id
+
+        from datetime import UTC
+        from datetime import datetime as _dt
+
+        for k, v in data.items():
+            if isinstance(v, _dt) and v.tzinfo:
+                data[k] = v.astimezone(UTC).replace(tzinfo=None)
+
         return await society_repository.create_society_tender(self.db, data)
