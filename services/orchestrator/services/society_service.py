@@ -60,12 +60,11 @@ class SocietyService:
         page: int = 1,
         page_size: int = 20,
         status: str | None = None,
-        ward: str | None = None,
         search: str | None = None,
     ) -> dict:
         """Fetch paginated societies for a user."""
         items, total = await society_repository.list_societies(
-            self.db, user_id, page, page_size, status, ward, search
+            self.db, user_id, page, page_size, status, search
         )
         return {
             "items": items,

@@ -28,12 +28,12 @@ from services.browser import BaseBrowser, MahabhumiScraper
 #  SCRAPE TARGETS
 # ═════════════════════════════════════════════════════════════════════════════
 TARGETS = [
-    # FP 63, TPS VI, Vile Parle West (CTS 1103)
+    # FP 63, TPS VILE PARLE No.VI, Vile Parle West (CTS 909)
     {
         "district": "mumbai suburban",
         "taluka": "vile parle",  # नगर भूमापन अधिकारी,विलेपार्ले
-        "village": "vile parle",
-        "survey_no": "1103",  # CTS 1103 = FP 63, TPS VI
+        "village": "vile parle west",
+        "survey_no": "909",  # CTS 909 = FP 63, TPS VILE PARLE No.VI
         "survey_no_part1": None,
         "mobile": "9999999999",
     },

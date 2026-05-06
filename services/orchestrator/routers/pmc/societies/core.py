@@ -44,13 +44,12 @@ async def list_societies(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100, alias="pageSize"),
     status: str = Query(None),
-    ward: str = Query(None),
     search: str = Query(None, max_length=200),
     user=Depends(get_current_user),
     service: SocietyService = Depends(get_society_service),
 ):
     """List Managed Societies (§4.4.1)."""
-    result = await service.list_societies(user.id, page, page_size, status, ward, search)
+    result = await service.list_societies(user.id, page, page_size, status, search)
     return PaginatedResponse(
         items=[_society_to_list_item(r) for r in result["items"]],
         total=result["total"],
