@@ -67,6 +67,29 @@ async def fix_version():
             "WHERE table_schema = 'public' AND table_name = 'audit_logs')"
         ))
         baseline_exists = res_audit.scalar()
+        
+        res_sub_status = await conn.execute(text(
+            "SELECT EXISTS (SELECT FROM pg_type WHERE typname = 'subscription_status')"
+        ))
+        sub_status_exists = res_sub_status.scalar()
+        
+        res_pay_status = await conn.execute(text(
+            "SELECT EXISTS (SELECT FROM pg_type WHERE typname = 'payment_status')"
+        ))
+        pay_status_exists = res_pay_status.scalar()
+        
+        if sub_status_exists and pay_status_exists:
+            target_version = 'b2c3d4e5f6a7'
+            try:
+                res_ver = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                current_version = res_ver.scalar()
+            except Exception:
+                current_version = None
+            if current_version != 'b2c3d4e5f6a7':
+                await conn.execute(text("DELETE FROM alembic_version"))
+                await conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{target_version}')"))
+                print(f"SUCCESS: Re-stamped to {target_version} (enums exist)")
+            return
 
         try:
             res_ver = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
