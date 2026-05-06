@@ -30,17 +30,15 @@ class TeamService:
         self.db = db
 
     async def list_members(
-        self, organization: str, page: int = 1, page_size: int = 20, status: str | None = None
+        self, page: int = 1, page_size: int = 20, status: str | None = None
     ) -> dict:
-        """List team members within an organization with pagination.
+        """List team members with pagination.
 
         Returns raw dict with ORM items so the router can serialize with camelCase aliases.
         """
-        if not organization:
-            return {"items": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
 
         items, total = await team_repository.list_team_members(
-            self.db, organization, page, page_size, status
+            self.db, page, page_size, status
         )
         total_pages = math.ceil(total / page_size) if total else 0
 
@@ -57,17 +55,13 @@ class TeamService:
         req: InviteRequest,
         inviter_name: str,
         inviter_email: str,
-        organization: str,
         inviter_id: UUID,
         bg_tasks,
     ) -> InviteResponse:
-        """Invite a new member to the organization."""
-        if not organization:
-            raise HTTPException(400, "Set your organization first")
-
+        """Invite a new member."""
         # Check if already a member or invited via CRUD
-        existing = await team_repository.get_member_by_email_and_org(
-            self.db, req.email, organization
+        existing = await team_repository.get_member_by_email(
+            self.db, req.email
         )
 
         if existing and existing.status in [InviteStatus.PENDING, InviteStatus.ACCEPTED]:
@@ -82,7 +76,6 @@ class TeamService:
         token = str(uuid_mod.uuid4())
         member_data = {
             "user_id": existing_user.id if existing_user else None,
-            "organization": organization,
             "role": req.role,
             "email": req.email,
             "name": req.name or (existing_user.name if existing_user else None),
@@ -102,12 +95,9 @@ class TeamService:
             message=f"Invitation sent to {req.email}", invite_id=member.id, email=req.email
         )
 
-    async def update_member(self, member_id: UUID, organization: str, req: TeamMemberUpdate):
-        """Update member details (roles, name, enabled) within an organization."""
-        if not organization:
-            raise HTTPException(400, "Organization not set")
-
-        member = await team_repository.get_team_member_by_id(self.db, member_id, organization)
+    async def update_member(self, member_id: UUID, req: TeamMemberUpdate):
+        """Update member details (roles, name, enabled)."""
+        member = await team_repository.get_team_member_by_id(self.db, member_id)
 
         if not member:
             raise HTTPException(404, "Team member not found")
@@ -132,12 +122,9 @@ class TeamService:
         await self.db.refresh(member)
         return member
 
-    async def remove_member(self, member_id: UUID, organization: str) -> dict:
-        """Remove a member from the organization."""
-        if not organization:
-            raise HTTPException(400, "Organization not set")
-
-        member = await team_repository.get_team_member_by_id(self.db, member_id, organization)
+    async def remove_member(self, member_id: UUID) -> dict:
+        """Remove a member."""
+        member = await team_repository.get_team_member_by_id(self.db, member_id)
 
         if not member:
             raise HTTPException(404, "Team member not found")

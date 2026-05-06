@@ -69,3 +69,26 @@ class PortfolioUploadResponse(BaseModel):
     size_bytes: int = Field(serialization_alias="sizeBytes")
 
     model_config = {"populate_by_name": True}
+
+
+class PortfolioDocumentResponse(BaseModel):
+    """Single portfolio document response."""
+
+    id: UUID
+    name: str
+    url: str
+    public_id: str = Field(serialization_alias="publicId")
+    size_bytes: int = Field(serialization_alias="sizeBytes")
+    format: str
+    uploaded_at: datetime = Field(serialization_alias="uploadedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+
+class PortfolioDocumentListResponse(BaseModel):
+    """List of portfolio documents - returns array."""
+
+    data: list[PortfolioDocumentResponse]
+    error: None = None
+
+    model_config = {"populate_by_name": True}

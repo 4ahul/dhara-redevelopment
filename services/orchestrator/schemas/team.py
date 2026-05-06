@@ -27,7 +27,6 @@ class TeamMemberResponse(BaseModel):
 
     id: UUID
     user_id: UUID | None = Field(default=None, serialization_alias="userId")
-    organization: str
     roles: list[str] = Field(default_factory=list, description="FE expects array of role strings")
     email: str
     name: str | None = None
@@ -50,7 +49,6 @@ class TeamMemberResponse(BaseModel):
             for k in (
                 "id",
                 "user_id",
-                "organization",
                 "email",
                 "name",
                 "invited_by",

@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.models.enums import InviteStatus, TenderStatus
+from orchestrator.db.base import Base
+from orchestrator.models.enums import InviteStatus, TenderStatus
 
 
 def _uuid():
@@ -25,7 +25,6 @@ class TeamMember(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
-    organization: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(100), nullable=False, default="member")
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -47,8 +46,6 @@ class TeamMember(Base):
 
     user = relationship("User", foreign_keys=[user_id], back_populates="team_memberships")
     inviter = relationship("User", foreign_keys=[invited_by], lazy="selectin")
-
-    __table_args__ = (UniqueConstraint("email", "organization", name="uq_team_email_org"),)
 
 
 class SocietyTender(Base):

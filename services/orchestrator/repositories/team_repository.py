@@ -14,13 +14,12 @@ from ..models.team import TeamMember
 
 async def list_team_members(
     db: AsyncSession,
-    organization: str,
     page: int = 1,
     page_size: int = 20,
     status: InviteStatus = None,
 ) -> tuple[Sequence[TeamMember], int]:
-    """Fetch paginated team members for an organization."""
-    base = select(TeamMember).where(TeamMember.organization == organization)
+    """Fetch paginated team members."""
+    base = select(TeamMember)
     if status:
         base = base.where(TeamMember.status == status)
 
@@ -41,13 +40,13 @@ async def list_team_members(
 
 
 async def get_team_member_by_id(
-    db: AsyncSession, member_id: UUID, organization: str
+    db: AsyncSession, member_id: UUID
 ) -> TeamMember | None:
-    """Fetch a specific team member, scoped to organization."""
+    """Fetch a specific team member."""
     return (
         await db.execute(
             select(TeamMember).where(
-                TeamMember.id == member_id, TeamMember.organization == organization
+                TeamMember.id == member_id
             )
         )
     ).scalar_one_or_none()
@@ -62,14 +61,14 @@ async def create_team_member(db: AsyncSession, data: dict) -> TeamMember:
     return member
 
 
-async def get_member_by_email_and_org(
-    db: AsyncSession, email: str, organization: str
+async def get_member_by_email(
+    db: AsyncSession, email: str
 ) -> TeamMember | None:
-    """Check for existing member in an organization."""
+    """Check for existing member by email."""
     return (
         await db.execute(
             select(TeamMember).where(
-                TeamMember.email == email, TeamMember.organization == organization
+                TeamMember.email == email
             )
         )
     ).scalar_one_or_none()

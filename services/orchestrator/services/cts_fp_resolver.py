@@ -150,7 +150,7 @@ class CTSFPResolver:
     ) -> dict | None:
         """Use Gemini AI to infer TPS name and FP/CTS mapping when ArcGIS has no record."""
         try:
-            from services.orchestrator.core.config import settings
+            from orchestrator.core.config import settings
 
             api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY")
             if not api_key:

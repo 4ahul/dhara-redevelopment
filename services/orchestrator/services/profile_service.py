@@ -5,17 +5,25 @@ Refactored for consistency with the new Service/CRUD architecture.
 """
 
 import logging
+import uuid
+from typing import List
 
 from fastapi import HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.models.user import User
-from services.orchestrator.schemas.profile import (
+from orchestrator.models.user import PortfolioDocument, User
+from orchestrator.schemas.profile import (
+    PortfolioDocumentResponse,
     PortfolioUploadResponse,
     ProfileResponse,
     ProfileUpdate,
 )
-from services.orchestrator.services.cloudinary import upload_avatar, upload_portfolio
+from orchestrator.services.cloudinary import (
+    delete_file,
+    upload_avatar,
+    upload_portfolio,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +73,56 @@ class ProfileService:
             "avatar_url": result["secure_url"],
             "public_id": result["public_id"],
         }
+
+    async def upload_multiple_portfolios(
+        self, user: User, files: List[UploadFile]
+    ) -> List[PortfolioDocumentResponse]:
+        """Upload multiple portfolio files to Cloudinary, create PortfolioDocument records."""
+        documents = []
+        for file in files:
+            result = await upload_portfolio(file)
+            doc = PortfolioDocument(
+                user_id=user.id,
+                name=file.filename,
+                url=result["secure_url"],
+                public_id=result["public_id"],
+                size_bytes=result["bytes"],
+                format=result["format"],
+                resource_type=result["resource_type"],
+            )
+            self.db.add(doc)
+            documents.append(doc)
+        await self.db.flush()
+        for doc in documents:
+            await self.db.refresh(doc)
+        logger.info("Uploaded %d portfolio documents for %s", len(documents), user.email)
+        return [PortfolioDocumentResponse.model_validate(doc) for doc in documents]
+
+    async def list_portfolio_documents(self, user: User) -> List[PortfolioDocumentResponse]:
+        """List all portfolio documents for the user, ordered by upload date descending."""
+        stmt = (
+            select(PortfolioDocument)
+            .where(PortfolioDocument.user_id == user.id)
+            .order_by(PortfolioDocument.uploaded_at.desc())
+        )
+        result = await self.db.execute(stmt)
+        docs = result.scalars().all()
+        return [PortfolioDocumentResponse.model_validate(doc) for doc in docs]
+
+    async def delete_portfolio_document(self, user: User, document_id: uuid.UUID) -> bool:
+        """Delete a portfolio document from Cloudinary and the database."""
+        stmt = select(PortfolioDocument).where(
+            PortfolioDocument.id == document_id,
+            PortfolioDocument.user_id == user.id,
+        )
+        result = await self.db.execute(stmt)
+        doc = result.scalar_one_or_none()
+        if not doc:
+            raise HTTPException(status_code=404, detail="Portfolio document not found")
+        # Delete from Cloudinary
+        delete_file(doc.public_id, resource_type=doc.resource_type)
+        # Delete from DB
+        await self.db.delete(doc)
+        await self.db.flush()
+        logger.info("Deleted portfolio document %s for %s", document_id, user.email)
+        return True

@@ -1,13 +1,13 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Index, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.models.enums import UserRole
+from orchestrator.db.base import Base
+from orchestrator.models.enums import UserRole
 
 
 def _uuid():
@@ -15,7 +15,7 @@ def _uuid():
 
 
 def _now():
-    return datetime.now(UTC)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class User(Base):
@@ -58,8 +58,25 @@ class User(Base):
         "TeamMember", foreign_keys="TeamMember.user_id", back_populates="user", lazy="selectin"
     )
     feasibility_reports = relationship("FeasibilityReport", back_populates="user", lazy="selectin")
+    portfolio_documents = relationship("PortfolioDocument", back_populates="user", lazy="selectin")
 
     __table_args__ = (
         Index("ix_users_role", "role"),
         Index("ix_users_org", "organization"),
     )
+
+
+class PortfolioDocument(Base):
+    __tablename__ = "portfolio_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    public_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(nullable=False)
+    format: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=_now, nullable=False)
+
+    user = relationship("User", back_populates="portfolio_documents")

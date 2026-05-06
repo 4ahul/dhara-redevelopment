@@ -7,14 +7,14 @@ import uuid
 
 from fastapi import HTTPException
 
-from services.orchestrator.schemas import (
+from orchestrator.schemas import (
     ChatMessage,
     SessionCreate,
     SessionResponse,
     UserProfileResponse,
     UserProfileUpdate,
 )
-from services.orchestrator.services.redis import (
+from orchestrator.services.redis import (
     delete_session,
     get_session,
     get_user_profile,
@@ -56,7 +56,7 @@ class LegacyService:
             raise HTTPException(404, "Session not found")
 
         # Lazy import to avoid circular dependency
-        from services.orchestrator.agent import run_agent
+        from orchestrator.agent import run_agent
 
         result = await run_agent(data)
 
@@ -73,7 +73,7 @@ class LegacyService:
         for mod in req.modifications:
             data[mod["field"]] = mod["value"]
 
-        from services.orchestrator.agent import run_agent
+        from orchestrator.agent import run_agent
 
         result = await run_agent(data)
         save_session(session_id, user_id, data)

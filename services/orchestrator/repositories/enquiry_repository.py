@@ -8,8 +8,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.models.enquiry import Enquiry, GetStartedRequest
-from services.orchestrator.models.enums import EnquiryStatus
+from orchestrator.models.enquiry import Enquiry, GetStartedRequest
+from orchestrator.models.enums import EnquiryStatus
 
 
 async def list_enquiries(

@@ -6,7 +6,7 @@ import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
 
-from services.orchestrator.services.redis import get_redis
+from orchestrator.services.redis import get_redis
 
 logger = logging.getLogger("gateway")
 

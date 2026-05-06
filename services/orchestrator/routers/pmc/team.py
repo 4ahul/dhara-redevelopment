@@ -30,8 +30,8 @@ async def list_team(
     user=Depends(get_current_user),
     service: TeamService = Depends(get_team_service),
 ):
-    """List team members in your organization."""
-    result = await service.list_members(user.organization, page, page_size, status)
+    """List team members."""
+    result = await service.list_members(page, page_size, status)
     if "items" in result:
         result["items"] = [_member_to_response(m) for m in result["items"]]
     return result
@@ -45,7 +45,7 @@ async def invite_member(
     service: TeamService = Depends(get_team_service),
 ):
     """Invite a new professional to join your team."""
-    return await service.invite_member(req, user.name, user.email, user.organization, user.id, bg)
+    return await service.invite_member(req, user.name, user.email, user.id, bg)
 
 
 @router.patch("/{member_id}", response_model=TeamMemberResponse)
@@ -56,7 +56,7 @@ async def patch_member(
     service: TeamService = Depends(get_team_service),
 ):
     """Update roles or permissions of a team member."""
-    result = await service.update_member(member_id, user.organization, req)
+    result = await service.update_member(member_id, req)
     return TeamMemberResponse.model_validate(result)
 
 
@@ -67,4 +67,4 @@ async def remove_member(
     service: TeamService = Depends(get_team_service),
 ):
     """Remove a member from the organization."""
-    return await service.remove_member(member_id, user.organization)
+    return await service.remove_member(member_id)

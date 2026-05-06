@@ -12,12 +12,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.core.config import settings
-from services.orchestrator.models.report import SocietyReport
-from services.orchestrator.models.society import Society
-from services.orchestrator.models.team import SocietyTender
-from services.orchestrator.repositories import society_repository
-from services.orchestrator.schemas.society import (
+from orchestrator.core.config import settings
+from orchestrator.models.report import SocietyReport
+from orchestrator.models.society import Society
+from orchestrator.models.team import SocietyTender
+from orchestrator.repositories import society_repository
+from orchestrator.schemas.society import (
     ReportCreate,
     SocietyCreate,
     SocietyUpdate,

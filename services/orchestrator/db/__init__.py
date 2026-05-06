@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from services.orchestrator.core.config import settings
-from services.orchestrator.db.base import Base
+from orchestrator.core.config import settings
+from orchestrator.db.base import Base
 
 logger = logging.getLogger(__name__)
 

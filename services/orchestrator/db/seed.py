@@ -8,16 +8,16 @@ import os
 
 from sqlalchemy import func, select
 
-from services.orchestrator.core.security import hash_password
-from services.orchestrator.db import async_session_factory
+from orchestrator.core.security import hash_password
+from orchestrator.db import async_session_factory
 
 logger = logging.getLogger(__name__)
 
 
 async def seed_defaults():
     """Create default admin user and roles if tables are empty."""
-    from services.orchestrator.models import Role, Society, User
-    from services.orchestrator.models.enums import UserRole
+    from orchestrator.models import Role, Society, User
+    from orchestrator.models.enums import UserRole
 
     async with async_session_factory() as db:
         # ── Seed admin user ──────────────────────────────

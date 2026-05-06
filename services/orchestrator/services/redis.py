@@ -12,7 +12,7 @@ import redis
 from arq import create_pool
 from arq.connections import RedisSettings
 
-from services.orchestrator.core.config import settings
+from orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 

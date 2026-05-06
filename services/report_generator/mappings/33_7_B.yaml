@@ -43,7 +43,6 @@ cells:
     kind: black
     semantic_name: area_sqm
     sources:
-      - manual_inputs.plot_area_sqm
       - mcgm_property.area_sqm
       - plot_area_sqm
     fallback: 0

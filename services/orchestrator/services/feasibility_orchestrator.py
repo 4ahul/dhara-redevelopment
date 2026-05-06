@@ -430,6 +430,9 @@ class FeasibilityOrchestrator:
 
         # Round 1: parallel calls with incremental buffer updates
         round1_results = await self.run_round1(req, job_id=job_id)
+        if round1_results is None:
+            round1_results = {}
+            logger.warning(f"[{job_id}] run_round1 returned None, using empty dict")
         await dossier_service.update_dossier(job_id, "round1", round1_results)
 
         # Extract dependencies for Round 2

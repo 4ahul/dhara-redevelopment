@@ -2,8 +2,8 @@ from sqlalchemy import Boolean, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.db.mixins import TimestampMixin, UUIDMixin
+from orchestrator.db.base import Base
+from orchestrator.db.mixins import TimestampMixin, UUIDMixin
 
 
 class Role(Base, UUIDMixin, TimestampMixin):

@@ -6,8 +6,8 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from services.orchestrator.db.base import Base
-from services.orchestrator.models.enums import EnquiryStatus
+from orchestrator.db.base import Base
+from orchestrator.models.enums import EnquiryStatus
 
 
 def _uuid():

@@ -5,6 +5,7 @@ Aggregates all PMC-facing modules under the /pmc prefix.
 
 from fastapi import APIRouter
 
+from .portfolio_documents import router as portfolio_docs_router
 from .profile import router as profile_router
 from .reports import router as global_reports_router
 from .search import router as search_router
@@ -26,3 +27,4 @@ router.include_router(verification_router)
 router.include_router(search_router)
 router.include_router(team_router)
 router.include_router(profile_router)
+router.include_router(portfolio_docs_router)

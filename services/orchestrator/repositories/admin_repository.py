@@ -6,12 +6,12 @@ Optimized to avoid N+2 query problems.
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.models.enquiry import Enquiry, GetStartedRequest
-from services.orchestrator.models.enums import EnquiryStatus, UserRole
-from services.orchestrator.models.report import FeasibilityReport
-from services.orchestrator.models.society import Society
-from services.orchestrator.models.team import TeamMember
-from services.orchestrator.models.user import User
+from orchestrator.models.enquiry import Enquiry, GetStartedRequest
+from orchestrator.models.enums import EnquiryStatus, UserRole
+from orchestrator.models.report import FeasibilityReport
+from orchestrator.models.society import Society
+from orchestrator.models.team import TeamMember
+from orchestrator.models.user import User
 
 
 async def list_pmc_users_with_stats(

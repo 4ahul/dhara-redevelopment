@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.models.landing import LandingPageContent
+from orchestrator.models.landing import LandingPageContent
 
 
 async def list_active_landing_content(db: AsyncSession) -> Sequence[LandingPageContent]:

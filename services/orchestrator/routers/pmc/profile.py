@@ -3,11 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, File, UploadFile
 
 from ...core.dependencies import get_current_user, get_profile_service
-from ...schemas.profile import (
-    PortfolioUploadResponse,
-    ProfileResponse,
-    ProfileUpdate,
-)
+from ...schemas.profile import ProfileResponse, ProfileUpdate
 from ...services.profile_service import ProfileService
 
 logger = logging.getLogger(__name__)
@@ -28,16 +24,6 @@ async def update_profile(
 ):
     """Update profile information (Name, Organization, etc.)."""
     return await service.update_profile(user, req)
-
-
-@router.post("/portfolio", response_model=PortfolioUploadResponse)
-async def upload_portfolio(
-    file: UploadFile = File(...),
-    user=Depends(get_current_user),
-    service: ProfileService = Depends(get_profile_service),
-):
-    """Upload a portfolio PDF/DOCX to showcase your professional experience."""
-    return await service.handle_portfolio_upload(user, file)
 
 
 @router.post("/avatar")

@@ -7,24 +7,26 @@ Refactored to use CRUD layer for user retrieval.
 import logging
 from uuid import UUID
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.orchestrator.core.security import decode_token
-from services.orchestrator.repositories import user_repository
+from orchestrator.core.config import settings
+from orchestrator.core.security import decode_token
+from orchestrator.repositories import user_repository
 
 logger = logging.getLogger(__name__)
 
 # Standard security scheme for Swagger UI integration
-security = HTTPBearer()
+# auto_error=False to allow test mode bypass
+security = HTTPBearer(auto_error=False)
 
 # ─── DB Session ─────────────────────────────────────────────────────────────
 
 
 async def get_db() -> AsyncSession:
-    """Yield an async DB session. Imported from services.orchestrator.db module at runtime."""
-    from services.orchestrator.db import async_session_factory
+    """Yield an async DB session. Imported from orchestrator.db module at runtime."""
+    from orchestrator.db import async_session_factory
 
     async with async_session_factory() as session:
         try:
@@ -41,10 +43,21 @@ async def get_db() -> AsyncSession:
 
 
 async def get_current_user(
-    auth: HTTPAuthorizationCredentials = Depends(security),
+    request: Request = None,
+    auth: HTTPAuthorizationCredentials = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Extract and validate user from JWT. Returns the full User ORM object."""
+    # Test mode: bypass auth if X-Test-User-ID header is present (dev only)
+    if request and hasattr(request, 'headers') and 'X-Test-User-ID' in request.headers and settings.DEBUG:
+        test_user_id = request.headers.get('X-Test-User-ID')
+        user = await user_repository.get_user_by_id(db, UUID(test_user_id))
+        if user:
+            return user
+    
+    # Normal auth flow
+    if auth is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     token = auth.credentials
     payload = decode_token(token)
     user_id = payload.get("sub")
@@ -61,7 +74,7 @@ async def get_current_user(
 
         if not user:
             # Auto-provision on first request for this Clerk user
-            from services.orchestrator.services.auth_service import AuthService
+            from orchestrator.services.auth_service import AuthService
 
             await AuthService(db).sync_clerk_user(token)
             user = await user_repository.get_user_by_clerk_id(db, user_id)
@@ -102,61 +115,61 @@ def require_role(*allowed_roles: str):
 
 
 async def get_auth_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.auth_service import AuthService
+    from orchestrator.services.auth_service import AuthService
 
     return AuthService(db)
 
 
 async def get_team_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.team_service import TeamService
+    from orchestrator.services.team_service import TeamService
 
     return TeamService(db)
 
 
 async def get_admin_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.admin_service import AdminService
+    from orchestrator.services.admin_service import AdminService
 
     return AdminService(db)
 
 
 async def get_society_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.society_service import SocietyService
+    from orchestrator.services.society_service import SocietyService
 
     return SocietyService(db)
 
 
 async def get_feasibility_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.feasibility_service import FeasibilityService
+    from orchestrator.services.feasibility_service import FeasibilityService
 
     return FeasibilityService(db)
 
 
 async def get_profile_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.profile_service import ProfileService
+    from orchestrator.services.profile_service import ProfileService
 
     return ProfileService(db)
 
 
 async def get_landing_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.landing_service import LandingService
+    from orchestrator.services.landing_service import LandingService
 
     return LandingService(db)
 
 
 async def get_agent_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.agent_service import AgentService
+    from orchestrator.services.agent_service import AgentService
 
     return AgentService(db)
 
 
 async def get_legacy_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.legacy_service import LegacyService
+    from orchestrator.services.legacy_service import LegacyService
 
     return LegacyService(db)
 
 
 async def get_search_service(db: AsyncSession = Depends(get_db)):
-    from services.orchestrator.services.search_service import SearchService
+    from orchestrator.services.search_service import SearchService
 
     return SearchService(db)
 
