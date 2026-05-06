@@ -4,15 +4,14 @@ Intelligent Feasibility Engine
 Analyzes property cards and recommends best DCPR clauses with RAG-powered reasoning
 """
 
-import os
-import sys
 import json
-import re
 import logging
-from pathlib import Path
+import os
+import re
+import sys
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +58,8 @@ class ClauseRecommendation:
     summary: str
     applicability: str
     reasoning: str
-    conditions: List[str]
-    benefits: List[str]
+    conditions: list[str]
+    benefits: list[str]
 
 
 @dataclass
@@ -89,12 +88,12 @@ class FeasibilityReport:
     generated_at: str
     property: PropertyDetails
     best_scheme: str
-    best_clauses: List[ClauseRecommendation]
-    all_schemes: Dict[str, SchemeAnalysis]
-    financial_summary: Dict
-    recommendations: List[str]
-    reasoning_chain: List[str]
-    next_steps: List[str]
+    best_clauses: list[ClauseRecommendation]
+    all_schemes: dict[str, SchemeAnalysis]
+    financial_summary: dict
+    recommendations: list[str]
+    reasoning_chain: list[str]
+    next_steps: list[str]
 
 
 class IntelligentOCR:
@@ -186,7 +185,7 @@ Return ONLY the JSON, no other text."""
 
             # Build raw text from OCR
             raw_text = "\n".join([r[1] for r in result])
-            logger.info(f"  [OCR] Raw text extracted, using AI for parsing...")
+            logger.info("  [OCR] Raw text extracted, using AI for parsing...")
 
             # Try AI extraction first
             prop = self._extract_with_ai(raw_text)
@@ -194,8 +193,9 @@ Return ONLY the JSON, no other text."""
                 return prop
 
             # Fallback to regex extraction
-            logger.info(f"  [OCR] Falling back to regex extraction...")
+            logger.info("  [OCR] Falling back to regex extraction...")
             return self._extract_from_ocr_result(result)
+        return None
 
     def _card_to_property(self, card) -> PropertyDetails:
         """Convert PropertyCard to PropertyDetails"""
@@ -370,9 +370,7 @@ class DCPRClauseFinder:
             self._vectorstore = self.agent.vectorstore
         return self._vectorstore
 
-    def find_applicable_clauses(
-        self, prop: PropertyDetails
-    ) -> List[ClauseRecommendation]:
+    def find_applicable_clauses(self, prop: PropertyDetails) -> list[ClauseRecommendation]:
         """Find best DCPR clauses based on property details"""
         queries = self._build_queries(prop)
         all_results = []
@@ -387,11 +385,11 @@ class DCPRClauseFinder:
         all_results.sort(key=lambda x: x.relevance_score, reverse=True)
         return all_results[:10]
 
-    def _build_queries(self, prop: PropertyDetails) -> List[str]:
+    def _build_queries(self, prop: PropertyDetails) -> list[str]:
         """Build targeted queries based on property"""
         queries = [
             f"FSI {prop.zone_type} zone {prop.road_width_m}m road",
-            f"DCPR 33(7B) 33(20B) residential redevelopment clauses",
+            "DCPR 33(7B) 33(20B) residential redevelopment clauses",
             f"open space marginal setbacks {prop.zone_type}",
             f"building permission {prop.zone_type} zone DCPR requirements",
         ]
@@ -399,21 +397,21 @@ class DCPRClauseFinder:
         if prop.plot_area_sq_m < 4000:
             queries.append(f"FSI table plots under 4000 sqm {prop.road_width_m}m")
         if prop.road_width_m >= 12:
-            queries.append(f"FSI 12 meter road width residential maximum")
+            queries.append("FSI 12 meter road width residential maximum")
         if prop.zone_type == "Residential":
-            queries.append(f"residential zone DCPR clause building requirements")
+            queries.append("residential zone DCPR clause building requirements")
 
         return queries
 
     def _extract_clause_info(
         self, text: str, score: float, prop: PropertyDetails
-    ) -> Optional[ClauseRecommendation]:
+    ) -> ClauseRecommendation | None:
         """Extract and analyze clause information"""
         clause_match = re.search(r"Clause\s*(\d+(?:\([\w]+\))?)", text, re.IGNORECASE)
         table_match = re.search(r"Table\s*No\.?\s*(\d+[a-zA-Z]?)", text, re.IGNORECASE)
 
         clause_id = clause_match.group(1) if clause_match else "General"
-        table_no = table_match.group(1) if table_match else None
+        table_match.group(1) if table_match else None
 
         applicability = self._determine_applicability(text, prop)
         if not applicability:
@@ -446,26 +444,24 @@ class DCPRClauseFinder:
         if "all zones" in text_lower:
             return "Universal application"
 
-        if any(term in text_lower for term in ["redevelopment", "society", "housing"]):
-            if prop.zone_type == "Residential":
-                return f"Potentially applicable for {prop.zone_type} redevelopment"
+        if (
+            any(term in text_lower for term in ["redevelopment", "society", "housing"])
+            and prop.zone_type == "Residential"
+        ):
+            return f"Potentially applicable for {prop.zone_type} redevelopment"
 
         return "May be applicable"
 
-    def _generate_reasoning(
-        self, text: str, prop: PropertyDetails, clause_id: str
-    ) -> str:
+    def _generate_reasoning(self, text: str, prop: PropertyDetails, clause_id: str) -> str:
         """Generate reasoning for clause selection"""
         reasons = []
 
         if "33(7B)" in text or "33(7)" in clause_id:
             reasons.append(
-                f"33(7B) provides basic FSI of 0.5 for rehabilitation-focused redevelopment"
+                "33(7B) provides basic FSI of 0.5 for rehabilitation-focused redevelopment"
             )
         if "33(20B)" in text or "33(20)" in clause_id:
-            reasons.append(
-                f"33(20B) offers higher basic FSI of 2.5 for residential areas"
-            )
+            reasons.append("33(20B) offers higher basic FSI of 2.5 for residential areas")
         if "incentive" in text.lower():
             reasons.append("Contains incentive FSI provisions for eligible projects")
         if "premium" in text.lower():
@@ -483,7 +479,7 @@ class DCPRClauseFinder:
 
         return ". ".join(reasons) if reasons else "Standard building requirements apply"
 
-    def _extract_conditions(self, text: str) -> List[str]:
+    def _extract_conditions(self, text: str) -> list[str]:
         """Extract conditions from text"""
         conditions = []
         text_lower = text.lower()
@@ -499,7 +495,7 @@ class DCPRClauseFinder:
 
         return conditions[:5]
 
-    def _extract_benefits(self, text: str) -> List[str]:
+    def _extract_benefits(self, text: str) -> list[str]:
         """Extract benefits from text"""
         benefits = []
         text_lower = text.lower()
@@ -535,13 +531,10 @@ class DCPRClauseFinder:
         return f"DCPR Clause {clause_id}"
 
     def _is_duplicate(
-        self, clause: ClauseRecommendation, existing: List[ClauseRecommendation]
+        self, clause: ClauseRecommendation, existing: list[ClauseRecommendation]
     ) -> bool:
         """Check if clause is duplicate"""
-        for e in existing:
-            if e.clause_id == clause.clause_id:
-                return True
-        return False
+        return any(e.clause_id == clause.clause_id for e in existing)
 
 
 class SchemeCalculator:
@@ -580,48 +573,48 @@ class SchemeCalculator:
         if area_sqm <= 4000:
             if road_width >= 27:
                 return 3.5
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 3.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 2.5
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 2.25
         elif area_sqm <= 10000:
             if road_width >= 27:
                 return 5.0
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 4.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 3.5
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 2.75
         elif area_sqm <= 20000:
             if road_width >= 27:
                 return 6.5
-            elif road_width >= 18:
+            if road_width >= 18:
                 return 5.0
-            elif road_width >= 12:
+            if road_width >= 12:
                 return 4.0
-            elif road_width >= 9:
+            if road_width >= 9:
                 return 3.5
         return 2.5
 
-    def get_marginal_distances(self, area_sqm: float, road_width: float, height: float = 15.0) -> Dict[str, float]:
+    def get_marginal_distances(
+        self, area_sqm: float, road_width: float, height: float = 15.0
+    ) -> dict[str, float]:
         """Get marginal open spaces (setbacks) per Pune DCPR 2017"""
         # Simplified Pune Residential Setbacks
         front_margin = 3.0
-        if road_width >= 18: front_margin = 6.0
-        elif road_width >= 12: front_margin = 4.5
-        
+        if road_width >= 18:
+            front_margin = 6.0
+        elif road_width >= 12:
+            front_margin = 4.5
+
         side_margin = 3.0
         if height > 15:
             side_margin = max(3.0, height / 4.0)
-            
-        return {
-            "front": front_margin,
-            "side": side_margin,
-            "rear": side_margin
-        }
+
+        return {"front": front_margin, "side": side_margin, "rear": side_margin}
 
     def analyze_scheme(
         self, scheme_id: str, prop: PropertyDetails, affordable_pct: float = 70
@@ -676,7 +669,7 @@ class SchemeCalculator:
     def _get_applicability_reason(self, scheme_id: str, prop: PropertyDetails) -> str:
         """Get reason for applicability"""
         reasons = {
-            "33(7B)": f"Residential zone qualifies for rehabilitation-focused redevelopment",
+            "33(7B)": "Residential zone qualifies for rehabilitation-focused redevelopment",
             "33(20B)": f"Standard redevelopment clause for {prop.zone_type} buildings",
             "33(11)": "For permanent transit camp tenements",
             "30(A)": f"Road width {prop.road_width_m}m meets TOD requirements",
@@ -686,9 +679,7 @@ class SchemeCalculator:
     def _calculate_premium(self, prop: PropertyDetails, total_fsi: float) -> float:
         """Estimate premium cost"""
         base_premium = prop.plot_area_sq_ft * 500
-        fsi_premium = (
-            (total_fsi - 2.5) * prop.plot_area_sq_ft * 1000 if total_fsi > 2.5 else 0
-        )
+        fsi_premium = (total_fsi - 2.5) * prop.plot_area_sq_ft * 1000 if total_fsi > 2.5 else 0
         return base_premium + fsi_premium
 
 
@@ -703,9 +694,7 @@ class FeasibilityEngine:
         self.clause_finder = DCPRClauseFinder()
         self.calculator = SchemeCalculator()
 
-    def analyze_from_file(
-        self, file_path: str, affordable_pct: float = 70
-    ) -> FeasibilityReport:
+    def analyze_from_file(self, file_path: str, affordable_pct: float = 70) -> FeasibilityReport:
         """
         Complete feasibility analysis from property card file
 
@@ -725,9 +714,7 @@ class FeasibilityEngine:
         if not prop.survey_no:
             prop.survey_no = "EXTRACTED_FROM_FILE"
         logger.info(f"  Survey No: {prop.survey_no}")
-        logger.info(
-            f"  Area: {prop.plot_area_sq_m:.0f} sq.m ({prop.plot_area_sq_ft:.0f} sq.ft)"
-        )
+        logger.info(f"  Area: {prop.plot_area_sq_m:.0f} sq.m ({prop.plot_area_sq_ft:.0f} sq.ft)")
         logger.info(f"  Road Width: {prop.road_width_m}m")
         logger.info(f"  Zone: {prop.zone_type}")
 
@@ -747,9 +734,7 @@ class FeasibilityEngine:
 
         logger.info("[4/5] Generating recommendations...")
         best_scheme = self._find_best_scheme(schemes, prop)
-        recommendations = self._generate_recommendations(
-            prop, schemes, clauses, best_scheme
-        )
+        recommendations = self._generate_recommendations(prop, schemes, clauses, best_scheme)
         reasoning = self._generate_reasoning_chain(prop, schemes, clauses, best_scheme)
         next_steps = self._generate_next_steps(prop, best_scheme, clauses)
 
@@ -795,25 +780,18 @@ class FeasibilityEngine:
             road_width_m=road_width,
             zone_type=zone,
         )
-        file_path = "PARAMETERS_ONLY"
         return self._run_analysis(prop, affordable_pct)
 
-    def _run_analysis(
-        self, prop: PropertyDetails, affordable_pct: float
-    ) -> FeasibilityReport:
+    def _run_analysis(self, prop: PropertyDetails, affordable_pct: float) -> FeasibilityReport:
         """Internal analysis runner"""
         clauses = self.clause_finder.find_applicable_clauses(prop)
         schemes = {}
 
         for scheme_id in ["33(7B)", "33(20B)", "33(11)", "30(A)"]:
-            schemes[scheme_id] = self.calculator.analyze_scheme(
-                scheme_id, prop, affordable_pct
-            )
+            schemes[scheme_id] = self.calculator.analyze_scheme(scheme_id, prop, affordable_pct)
 
         best_scheme = self._find_best_scheme(schemes, prop)
-        recommendations = self._generate_recommendations(
-            prop, schemes, clauses, best_scheme
-        )
+        recommendations = self._generate_recommendations(prop, schemes, clauses, best_scheme)
         reasoning = self._generate_reasoning_chain(prop, schemes, clauses, best_scheme)
         next_steps = self._generate_next_steps(prop, best_scheme, clauses)
         financial = self._build_financial_summary(prop, schemes[best_scheme])
@@ -831,50 +809,38 @@ class FeasibilityEngine:
             next_steps=next_steps,
         )
 
-    def _find_best_scheme(
-        self, schemes: Dict[str, SchemeAnalysis], prop: PropertyDetails
-    ) -> str:
+    def _find_best_scheme(self, schemes: dict[str, SchemeAnalysis], prop: PropertyDetails) -> str:
         """Find best scheme based on FSI and conditions"""
         applicable = {k: v for k, v in schemes.items() if v.is_applicable}
 
         if not applicable:
             return "33(20B)"
 
-        best = max(
-            applicable.items(), key=lambda x: (x[1].total_fsi, -x[1].premium_cost)
-        )
+        best = max(applicable.items(), key=lambda x: (x[1].total_fsi, -x[1].premium_cost))
         return best[0]
 
     def _generate_recommendations(
         self,
         prop: PropertyDetails,
-        schemes: Dict[str, SchemeAnalysis],
-        clauses: List[ClauseRecommendation],
+        schemes: dict[str, SchemeAnalysis],
+        clauses: list[ClauseRecommendation],
         best_scheme: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate recommendations with reasoning"""
         recs = []
         best = schemes[best_scheme]
 
-        recs.append(
-            f"Recommended scheme: {best_scheme} with total FSI of {best.total_fsi}"
-        )
+        recs.append(f"Recommended scheme: {best_scheme} with total FSI of {best.total_fsi}")
 
         if best_scheme == "33(7B)":
-            recs.append(
-                "33(7B) provides 0.5 basic FSI + 0.15 incentive FSI for rehabilitation"
-            )
+            recs.append("33(7B) provides 0.5 basic FSI + 0.15 incentive FSI for rehabilitation")
             recs.append("Must allocate 70% of BUA for rehabilitation component")
         elif best_scheme == "33(20B)":
             recs.append("33(20B) offers 2.5 basic FSI for standard redevelopment")
-            recs.append(
-                "No mandatory rehabilitation component if building is not cessed"
-            )
+            recs.append("No mandatory rehabilitation component if building is not cessed")
 
         if prop.road_width_m >= 12:
-            recs.append(
-                f"Road width {prop.road_width_m}m qualifies for enhanced FSI per Table 12"
-            )
+            recs.append(f"Road width {prop.road_width_m}m qualifies for enhanced FSI per Table 12")
 
         if clauses:
             top_clauses = [c.clause_id for c in clauses[:3] if c.clause_id != "General"]
@@ -886,10 +852,10 @@ class FeasibilityEngine:
     def _generate_reasoning_chain(
         self,
         prop: PropertyDetails,
-        schemes: Dict[str, SchemeAnalysis],
-        clauses: List[ClauseRecommendation],
+        schemes: dict[str, SchemeAnalysis],
+        clauses: list[ClauseRecommendation],
         best_scheme: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate step-by-step reasoning"""
         chain = []
 
@@ -927,8 +893,8 @@ class FeasibilityEngine:
         self,
         prop: PropertyDetails,
         best_scheme: str,
-        clauses: List[ClauseRecommendation],
-    ) -> List[str]:
+        clauses: list[ClauseRecommendation],
+    ) -> list[str]:
         """Generate next steps"""
         steps = [
             f"1. Engage architect to prepare plans under {best_scheme}",
@@ -950,9 +916,7 @@ class FeasibilityEngine:
 
         return steps
 
-    def _build_financial_summary(
-        self, prop: PropertyDetails, scheme: SchemeAnalysis
-    ) -> Dict:
+    def _build_financial_summary(self, prop: PropertyDetails, scheme: SchemeAnalysis) -> dict:
         """Build financial summary"""
         rate_per_sqft = 25000
         saleable_value = scheme.saleable_area_sqft * rate_per_sqft
@@ -972,7 +936,7 @@ class FeasibilityEngine:
             "rate_per_sqft": rate_per_sqft,
         }
 
-    def _scheme_to_dict(self, scheme: SchemeAnalysis) -> Dict:
+    def _scheme_to_dict(self, scheme: SchemeAnalysis) -> dict:
         """Convert scheme to dict"""
         return {
             "basic_fsi": scheme.basic_fsi,
@@ -998,20 +962,16 @@ class FeasibilityEngine:
     def export_to_excel(self, report: FeasibilityReport, output_path: str):
         """Export report to Excel with multiple sheets"""
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
         from openpyxl.utils import get_column_letter
 
         wb = Workbook()
 
         # Styles
         header_font = Font(bold=True, color="FFFFFF", size=12)
-        header_fill = PatternFill(
-            start_color="2C3E50", end_color="2C3E50", fill_type="solid"
-        )
+        header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
         subheader_font = Font(bold=True, size=11)
-        subheader_fill = PatternFill(
-            start_color="3498DB", end_color="3498DB", fill_type="solid"
-        )
+        subheader_fill = PatternFill(start_color="3498DB", end_color="3498DB", fill_type="solid")
         thin_border = Border(
             left=Side(style="thin"),
             right=Side(style="thin"),
@@ -1057,9 +1017,7 @@ class FeasibilityEngine:
                 ws1.cell(row=1, column=1).font = Font(bold=True, size=14)
                 ws1.merge_cells(start_row=1, start_column=1, end_row=1, end_column=2)
             elif i == 5:
-                ws1.cell(row=i, column=1).font = Font(
-                    bold=True, size=12, color="FFFFFF"
-                )
+                ws1.cell(row=i, column=1).font = Font(bold=True, size=12, color="FFFFFF")
                 ws1.cell(row=i, column=1).fill = PatternFill(
                     start_color="27AE60", end_color="27AE60", fill_type="solid"
                 )
@@ -1189,9 +1147,7 @@ class FeasibilityEngine:
                 clause.clause_title,
                 f"{clause.relevance_score:.3f}",
                 clause.applicability,
-                clause.reasoning[:100] + "..."
-                if len(clause.reasoning) > 100
-                else clause.reasoning,
+                clause.reasoning[:100] + "..." if len(clause.reasoning) > 100 else clause.reasoning,
                 "; ".join(clause.conditions[:3]) if clause.conditions else "N/A",
                 "; ".join(clause.benefits[:3]) if clause.benefits else "N/A",
             ]
@@ -1315,9 +1271,7 @@ class FeasibilityEngine:
         ws6.cell(row_start, 1).fill = PatternFill(
             start_color="3498DB", end_color="3498DB", fill_type="solid"
         )
-        ws6.merge_cells(
-            start_row=row_start, start_column=1, end_row=row_start, end_column=2
-        )
+        ws6.merge_cells(start_row=row_start, start_column=1, end_row=row_start, end_column=2)
 
         for i, step in enumerate(report.reasoning_chain, row_start + 1):
             ws6.cell(i, 1, value=i - row_start)
@@ -1332,9 +1286,7 @@ class FeasibilityEngine:
         ws6.cell(row_start, 1).fill = PatternFill(
             start_color="E67E22", end_color="E67E22", fill_type="solid"
         )
-        ws6.merge_cells(
-            start_row=row_start, start_column=1, end_row=row_start, end_column=2
-        )
+        ws6.merge_cells(start_row=row_start, start_column=1, end_row=row_start, end_column=2)
 
         for i, step in enumerate(report.next_steps, row_start + 1):
             ws6.cell(i, 1, value=i - row_start)
@@ -1420,9 +1372,7 @@ if __name__ == "__main__":
     parser.add_argument("--area", type=float, help="Plot area in sq.m")
     parser.add_argument("--road-width", type=float, help="Road width in meters")
     parser.add_argument("--zone", default="Residential", help="Zone type")
-    parser.add_argument(
-        "--affordable", type=float, default=70, help="Affordable housing %"
-    )
+    parser.add_argument("--affordable", type=float, default=70, help="Affordable housing %")
     parser.add_argument("--file", help="Property card file (PDF/image)")
     parser.add_argument("--output", default="reports/", help="Output directory")
 
@@ -1439,14 +1389,14 @@ if __name__ == "__main__":
         )
     else:
         logger.error("Provide either --file or (--survey-no and --area)")
-        exit(1)
+        sys.exit(1)
 
     output_base = f"{args.output}{report.report_id}"
     engine.export_to_json(report, f"{output_base}.json")
     engine.export_to_text(report, f"{output_base}.txt")
     engine.export_to_excel(report, f"{output_base}.xlsx")
 
-    logger.info(f"\nReports saved to:")
+    logger.info("\nReports saved to:")
     logger.info(f"  - {output_base}.json")
     logger.info(f"  - {output_base}.txt")
     logger.info(f"  - {output_base}.xlsx")

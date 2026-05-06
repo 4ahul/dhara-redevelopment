@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import re
-from typing import Optional
 
 import httpx
 from PIL import Image, ImageEnhance
@@ -55,7 +54,7 @@ def _prepare_image(image_bytes: bytes) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def _parse_json_response(text: str) -> Optional[dict]:
+def _parse_json_response(text: str) -> dict | None:
     """Parse LLM response as JSON, with fallback for markdown-wrapped responses."""
     text = text.strip()
     # Strip markdown code fences if present
@@ -83,7 +82,7 @@ def _compute_confidence(data: dict) -> str:
 
     if has_cts and has_area:
         return "high"
-    elif has_cts or has_area or has_holders:
+    if has_cts or has_area or has_holders:
         return "medium"
     return "low"
 
@@ -109,15 +108,15 @@ class LLMDataExtractor:
 
     def __init__(
         self,
-        gemini_api_key: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
-        openai_base_url: Optional[str] = None,
+        gemini_api_key: str | None = None,
+        openai_api_key: str | None = None,
+        openai_base_url: str | None = None,
     ):
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY", "")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        self.openai_base_url = (
-            openai_base_url
-            or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        self.openai_base_url = openai_base_url or os.getenv(
+            "OPENAI_BASE_URL", "https://api.openai.com/v1"
         )
 
     async def extract(self, image_bytes: bytes) -> dict:
@@ -138,7 +137,7 @@ class LLMDataExtractor:
             if result:
                 result = _validate_area(result)
                 result["extraction_confidence"] = _compute_confidence(result)
-                result["extraction_source"] = "gemini-2.5-flash"
+                result["extraction_source"] = self.gemini_model
                 return result
 
         # Fallback to GPT-4o
@@ -153,10 +152,10 @@ class LLMDataExtractor:
         logger.warning("All LLM extraction attempts failed")
         return {}
 
-    async def _gemini_extract(self, b64_image: str) -> Optional[dict]:
+    async def _gemini_extract(self, b64_image: str) -> dict | None:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/gemini-2.5-flash:generateContent?key={self.gemini_api_key}"
+            f"models/{self.gemini_model}:generateContent?key={self.gemini_api_key}"
         )
         payload = {
             "contents": [
@@ -177,6 +176,12 @@ class LLMDataExtractor:
                 "temperature": 0,
                 "thinkingConfig": {"thinkingBudget": 0},
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
         try:
             async with httpx.AsyncClient() as client:
@@ -198,7 +203,7 @@ class LLMDataExtractor:
             logger.warning("Gemini PR card extraction failed: %s", e)
         return None
 
-    async def _openai_extract(self, b64_image: str) -> Optional[dict]:
+    async def _openai_extract(self, b64_image: str) -> dict | None:
         url = f"{self.openai_base_url.rstrip('/')}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.openai_api_key}",
@@ -230,16 +235,10 @@ class LLMDataExtractor:
         }
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    url, json=payload, headers=headers, timeout=15.0
-                )
+                resp = await client.post(url, json=payload, headers=headers, timeout=15.0)
                 resp.raise_for_status()
                 data = resp.json()
-            text = (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-            )
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = _parse_json_response(text)
             if parsed:
                 logger.info("OpenAI PR card extraction succeeded")

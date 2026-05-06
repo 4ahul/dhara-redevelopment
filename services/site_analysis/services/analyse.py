@@ -2,38 +2,48 @@ import asyncio
 import functools
 import json
 import logging
-from typing import Optional
 
 import googlemaps
 import httpx
 
-try:
-    from core import settings
-except ImportError:
-    from services.site_analysis.core import settings
+from ..core import settings
 
 logger = logging.getLogger(__name__)
 
 # MCGM DP 2034 MapServer — known working layer URLs
 _MCGM_MAPSERVER = "https://agsmaps.mcgm.gov.in/server/rest/services/Development_Plan_2034/MapServer"
-_ZONE_LAYER_URL = f"{_MCGM_MAPSERVER}/0"       # REVISED PLU ZONES — has ZONE_CODE2, SUBURBS
-_WARD_LAYER_URL = f"{_MCGM_MAPSERVER}/10"      # Ward Boundary — has NAME (ward code)
+_ZONE_LAYER_URL = f"{_MCGM_MAPSERVER}/0"  # REVISED PLU ZONES — has ZONE_CODE2, SUBURBS
+_WARD_LAYER_URL = f"{_MCGM_MAPSERVER}/10"  # Ward Boundary — has NAME (ward code)
 
 
 class SiteAnalysisUnavailableError(Exception):
     """Raised when geocoding fails entirely."""
-    pass
-
 
 
 def infer_area_type(nearby: list) -> str:
     """Infer area type from nearby places."""
     commercial_keywords = {
-        "shopping", "mall", "store", "bank", "restaurant", "cafe",
-        "office", "hotel", "hospital", "clinic", "pharmacy", "gym", "finance",
+        "shopping",
+        "mall",
+        "store",
+        "bank",
+        "restaurant",
+        "cafe",
+        "office",
+        "hotel",
+        "hospital",
+        "clinic",
+        "pharmacy",
+        "gym",
+        "finance",
     }
     residential_keywords = {
-        "residential", "apartment", "housing", "society", "hostel", "pg",
+        "residential",
+        "apartment",
+        "housing",
+        "society",
+        "hostel",
+        "pg",
     }
 
     commercial_score = 0
@@ -59,10 +69,9 @@ def infer_area_type(nearby: list) -> str:
 
     if commercial_score > 5 and residential_score > 5:
         return "Mixed Use (Residential + Commercial)"
-    elif commercial_score > residential_score:
+    if commercial_score > residential_score:
         return "Predominantly Commercial"
-    else:
-        return "Predominantly Residential"
+    return "Predominantly Residential"
 
 
 class SiteAnalysisService:
@@ -74,9 +83,14 @@ class SiteAnalysisService:
             self.gmaps = googlemaps.Client(key=settings.GOOGLE_MAPS_API_KEY)
 
     async def analyse(
-        self, address: str, ward: Optional[str] = None, plot_no: Optional[str] = None
+        self, address: str, ward: str | None = None, plot_no: str | None = None
     ) -> dict:
         """Analyze site: geocode, get nearby landmarks, query MCGM for zone."""
+        from .storage import storage_service
+
+        query_key = address or f"Plot {plot_no}, {ward}"
+
+        # 1. Geocode FIRST (Sequential as it provides lat/lng and standard place_id)
         geocode_result = await self._geocode(address, ward, plot_no)
         if not geocode_result:
             raise SiteAnalysisUnavailableError(
@@ -85,26 +99,75 @@ class SiteAnalysisService:
 
         lat = geocode_result["lat"]
         lng = geocode_result["lng"]
+        place_id = geocode_result.get("place_id")
 
-        # Query MCGM ArcGIS for real zone data
-        zone_data = await self._query_mcgm_zone(lat, lng)
+        # ── Step 0: DB-First Cache Check (now using place_id) ──
+        if place_id:
+            cached = storage_service.get_cached_analysis(place_id)
+            if cached:
+                logger.info(f"Found cached site analysis for place_id: {place_id}")
+                cached["is_cached"] = True
+                # Echo original query key for context
+                cached["query_key"] = query_key
+                return cached
 
-        return {
+        # 2. Parallel Processing Block
+        # We run Nearby Search and ArcGIS queries concurrently to save time
+        logger.info(f"Starting parallel analysis for coords: {lat}, {lng}")
+
+        async def get_nearby():
+            if not self.gmaps:
+                return [], "Predominantly Residential"
+            try:
+                res = await asyncio.to_thread(
+                    functools.partial(
+                        self.gmaps.places_nearby,
+                        location=(lat, lng),
+                        radius=500,
+                        type="point_of_interest",
+                    )
+                )
+                nearby_places = res.get("results", [])[:15]
+                landmarks = [
+                    p.get("name")
+                    for p in nearby_places
+                    if p.get("name") and "unnamed" not in p.get("name").lower()
+                ][:6]
+                area_type = infer_area_type(nearby_places)
+                return landmarks, area_type
+            except Exception as e:
+                logger.warning(f"Nearby search failed: {e}")
+                return [], "Predominantly Residential"
+
+        # Execute parallel tasks
+        nearby_task = get_nearby()
+        zone_task = self._query_mcgm_zone(lat, lng)
+
+        # asyncio.gather allows both to run simultaneously
+        (landmarks, area_type), zone_data = await asyncio.gather(nearby_task, zone_task)
+
+        result = {
             "lat": lat,
             "lng": lng,
             "formatted_address": geocode_result["formatted_address"],
-            "area_type": geocode_result["area_type"],
-            "nearby_landmarks": geocode_result["nearby_landmarks"],
-            "place_id": geocode_result["place_id"],
+            "area_type": area_type,
+            "nearby_landmarks": landmarks,
+            "place_id": place_id,
             "zone_inference": zone_data["zone"] if zone_data else None,
             "ward": zone_data["ward"] if zone_data else None,
             "zone_source": "mcgm_arcgis" if zone_data else "unavailable",
             "maps_url": geocode_result["maps_url"],
         }
 
+        # Cache the result
+        if place_id:
+            storage_service.cache_analysis(place_id, query_key, lat, lng, result)
+
+        return result
+
     async def _geocode(
-        self, address: str, ward: Optional[str] = None, plot_no: Optional[str] = None
-    ) -> Optional[dict]:
+        self, address: str, ward: str | None = None, plot_no: str | None = None
+    ) -> dict | None:
         """Geocode address via Google Maps API or SerpApi fallback."""
         query = address or f"Plot {plot_no}, {ward}, Mumbai, India"
 
@@ -119,36 +182,17 @@ class SiteAnalysisService:
                     formatted_address = result.get("formatted_address", query)
                     place_id = result.get("place_id", "")
 
-                    nearby_result = await asyncio.to_thread(
-                        functools.partial(
-                            self.gmaps.places_nearby,
-                            location=(lat, lng),
-                            radius=500,
-                            type="point_of_interest",
-                        )
-                    )
-
-                    nearby_places = nearby_result.get("results", [])[:15]
-                    landmarks = [
-                        p.get("name")
-                        for p in nearby_places
-                        if p.get("name") and "unnamed" not in p.get("name").lower()
-                    ][:6]
-
-                    area_type = infer_area_type(nearby_places)
                     maps_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lng}&query_place_id={place_id}"
 
                     return {
                         "lat": lat,
                         "lng": lng,
                         "formatted_address": formatted_address,
-                        "area_type": area_type,
-                        "nearby_landmarks": landmarks,
                         "place_id": place_id,
                         "maps_url": maps_url,
                     }
             except Exception as e:
-                logger.error(f"Google Maps API error: {e}")
+                logger.exception(f"Google Maps API error: {e}")
 
         # 2. Fallback to SerpApi
         if settings.SERP_API_KEY:
@@ -161,9 +205,7 @@ class SiteAnalysisService:
                     "type": "search",
                 }
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    resp = await client.get(
-                        "https://serpapi.com/search", params=params
-                    )
+                    resp = await client.get("https://serpapi.com/search", params=params)
                     if resp.status_code == 200:
                         data = resp.json()
                         place_results = data.get("place_results", {})
@@ -174,24 +216,11 @@ class SiteAnalysisService:
                             lat = place_results.get("gps_coordinates", {}).get("latitude")
                             lng = place_results.get("gps_coordinates", {}).get("longitude")
                             formatted_address = place_results.get("address", query)
-                            local_results = data.get("local_results", [])
-                            landmarks = [
-                                r.get("title") for r in local_results if r.get("title")
-                            ][:6]
-
-                            area_type = "Mixed Use (Residential + Commercial)"
-                            if any(
-                                kw in str(place_results).lower()
-                                for kw in ["shop", "mall", "office"]
-                            ):
-                                area_type = "Predominantly Commercial"
 
                             return {
                                 "lat": lat,
                                 "lng": lng,
                                 "formatted_address": formatted_address,
-                                "area_type": area_type,
-                                "nearby_landmarks": landmarks,
                                 "place_id": place_results.get("place_id", "serp_fallback"),
                                 "maps_url": place_results.get("links", {}).get(
                                     "directions",
@@ -199,71 +228,115 @@ class SiteAnalysisService:
                                 ),
                             }
             except Exception as e:
-                logger.error(f"SerpApi fallback error: {e}")
+                logger.exception(f"SerpApi fallback error: {e}")
 
         logger.error("Both Google Maps and SerpApi failed or are unconfigured")
         return None
 
-    async def _query_mcgm_zone(
-        self, lat: float, lng: float
-    ) -> Optional[dict]:
+    async def _query_mcgm_zone(self, lat: float, lng: float) -> dict | None:
         """
-        Query MCGM ArcGIS DP 2034 MapServer for ward and zone at given coordinates.
-        Uses known layer URLs on agsmaps.mcgm.gov.in (the actual MCGM GIS server).
-        Returns {"ward": "G/S", "zone": "R"} or None.
+        Query MCGM ArcGIS DP 2034 MapServer for ward and zone concurrently.
         """
         geometry = json.dumps(
-            {"x": lng, "y": lat, "spatialReference": {"wkid": 4326}}
+            {"x": lng, "y": lat, "spatialReference": {"wkid": settings.ARCGIS_SR_CODE}}
         )
         base_params = {
-            "f": "json",
+            "f": settings.ARCGIS_FORMAT,
             "geometry": geometry,
             "geometryType": "esriGeometryPoint",
             "spatialRel": "esriSpatialRelIntersects",
             "outFields": "*",
             "returnGeometry": "false",
-            "inSR": "4326",
+            "inSR": str(settings.ARCGIS_SR_CODE),
         }
+
+        async def fetch_layer(url):
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as http:
+                    resp = await http.get(f"{url}/query", params=base_params)
+                    resp.raise_for_status()
+                    features = resp.json().get("features", [])
+                    if features:
+                        return features[0].get("attributes", {})
+            except Exception as e:
+                logger.warning(f"MCGM query failed for {url}: {e}")
+            return None
+
+        # Execute both ArcGIS queries in parallel
+        results = await asyncio.gather(fetch_layer(_ZONE_LAYER_URL), fetch_layer(_WARD_LAYER_URL))
+
+        zone_attrs, ward_attrs = results
 
         zone = None
         ward = None
 
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as http:
-                # 1. Query zone layer (REVISED PLU ZONES — layer 0)
-                try:
-                    resp = await http.get(
-                        f"{_ZONE_LAYER_URL}/query", params=base_params
-                    )
-                    resp.raise_for_status()
-                    features = resp.json().get("features", [])
-                    if features:
-                        attrs = features[0].get("attributes", {})
-                        zone = attrs.get("ZONE_CODE2") or attrs.get("ZONE_CODE")
-                except Exception as e:
-                    logger.warning("MCGM zone layer query failed: %s", e)
-
-                # 2. Query ward boundary layer (layer 10)
-                try:
-                    resp = await http.get(
-                        f"{_WARD_LAYER_URL}/query", params=base_params
-                    )
-                    resp.raise_for_status()
-                    features = resp.json().get("features", [])
-                    if features:
-                        attrs = features[0].get("attributes", {})
-                        ward = attrs.get("NAME") or attrs.get("WARD")
-                except Exception as e:
-                    logger.warning("MCGM ward layer query failed: %s", e)
-
-        except Exception as e:
-            logger.warning("MCGM ArcGIS query failed: %s", e)
+        if zone_attrs:
+            zone = zone_attrs.get("ZONE_CODE2") or zone_attrs.get("ZONE_CODE")
+        if ward_attrs:
+            ward = ward_attrs.get("NAME") or ward_attrs.get("WARD")
 
         if zone or ward:
-            logger.info("MCGM query: ward=%s, zone=%s", ward, zone)
+            logger.info("MCGM query parallel result: ward=%s, zone=%s", ward, zone)
             return {"ward": ward, "zone": zone}
 
         return None
+
+    async def autocomplete(self, query: str) -> list[dict]:
+        """Google Maps Places Autocomplete restricted to Mumbai."""
+        if not self.gmaps:
+            raise SiteAnalysisUnavailableError("Google Maps API not configured")
+
+        try:
+            res = await asyncio.to_thread(
+                self.gmaps.places_autocomplete,
+                input_text=query,
+                location=(settings.MUMBAI_CENTER_LAT, settings.MUMBAI_CENTER_LNG),
+                radius=settings.MUMBAI_RADIUS_METERS,
+                strict_bounds=True,
+                components={"country": "in"},
+            )
+            return [
+                {
+                    "place_id": p.get("place_id"),
+                    "description": p.get("description"),
+                    "main_text": p.get("structured_formatting", {}).get("main_text"),
+                    "secondary_text": p.get("structured_formatting", {}).get("secondary_text"),
+                }
+                for p in res
+                if "Mumbai" in p.get("description", "")
+            ]
+        except Exception as e:
+            logger.exception("Google Maps Autocomplete failed: %s", e)
+            raise SiteAnalysisUnavailableError(f"Autocomplete failed: {e}") from e
+
+    async def get_place_details(self, place_id: str) -> dict:
+        """Get detailed info for a specific place_id."""
+        if not self.gmaps:
+            raise SiteAnalysisUnavailableError("Google Maps API not configured")
+
+        try:
+            res = await asyncio.to_thread(
+                self.gmaps.place,
+                place_id=place_id,
+                fields=["name", "formatted_address", "geometry"],
+            )
+            place = res.get("result", {})
+            if not place:
+                raise ValueError("Place not found")
+
+            lat = place.get("geometry", {}).get("location", {}).get("lat")
+            lng = place.get("geometry", {}).get("location", {}).get("lng")
+
+            return {
+                "place_id": place_id,
+                "name": place.get("name"),
+                "formatted_address": place.get("formatted_address"),
+                "lat": lat,
+                "lng": lng,
+            }
+        except Exception as e:
+            logger.exception("Google Maps Place Details failed: %s", e)
+            raise SiteAnalysisUnavailableError(f"Place Details failed: {e}") from e
 
 
 site_analysis_service = SiteAnalysisService()

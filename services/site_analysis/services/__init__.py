@@ -1,1 +1,2 @@
-from .analyse import site_analysis_service, SiteAnalysisUnavailableError
+from .analyse import SiteAnalysisUnavailableError as SiteAnalysisUnavailableError
+from .analyse import site_analysis_service as site_analysis_service

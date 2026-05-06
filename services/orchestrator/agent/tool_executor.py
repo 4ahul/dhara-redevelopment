@@ -7,9 +7,10 @@ import asyncio
 import json
 import logging
 import os
-import httpx
-from core.config import settings
 
+import httpx
+
+from services.orchestrator.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,12 @@ TOOL_URL_MAP = {
 }
 
 # How long to wait for async jobs to complete via polling
-_PR_CARD_POLL_INTERVAL = 3       # seconds between status checks
-_PR_CARD_POLL_TIMEOUT  = 180     # max total seconds to wait
-_MCGM_POLL_INTERVAL    = 3       # seconds between status checks
-_MCGM_POLL_TIMEOUT     = 120     # max total seconds to wait
-_DP_POLL_INTERVAL      = 3       # seconds between status checks
-_DP_POLL_TIMEOUT       = 120     # max total seconds to wait
+_PR_CARD_POLL_INTERVAL = 3  # seconds between status checks
+_PR_CARD_POLL_TIMEOUT = 180  # max total seconds to wait
+_MCGM_POLL_INTERVAL = 3  # seconds between status checks
+_MCGM_POLL_TIMEOUT = 120  # max total seconds to wait
+_DP_POLL_INTERVAL = 3  # seconds between status checks
+_DP_POLL_TIMEOUT = 120  # max total seconds to wait
 
 
 class ToolExecutor:
@@ -45,13 +46,15 @@ class ToolExecutor:
     def _cache_key(self, tool_name: str, tool_args: dict) -> str:
         """Stable cache key from tool name + sorted args."""
         import hashlib
+
         arg_str = json.dumps(tool_args, sort_keys=True, default=str)
         h = hashlib.md5(f"{tool_name}:{arg_str}".encode()).hexdigest()
         return f"tool_cache:{tool_name}:{h}"
 
     async def _get_cached(self, key: str):
         try:
-            from services.redis import get_redis
+            from services.orchestrator.services.redis import get_redis
+
             r = get_redis()
             if r:
                 data = r.get(key)
@@ -63,7 +66,8 @@ class ToolExecutor:
 
     async def _set_cached(self, key: str, result: dict):
         try:
-            from services.redis import get_redis
+            from services.orchestrator.services.redis import get_redis
+
             r = get_redis()
             if r and "error" not in result:
                 r.setex(key, self._CACHE_TTL, json.dumps(result, default=str))
@@ -87,7 +91,11 @@ class ToolExecutor:
         result = await self._execute_tool_inner(tool_name, tool_args, http_client)
 
         # Cache successful results
-        if tool_name in self._CACHEABLE_TOOLS and isinstance(result, dict) and "error" not in result:
+        if (
+            tool_name in self._CACHEABLE_TOOLS
+            and isinstance(result, dict)
+            and "error" not in result
+        ):
             await self._set_cached(self._cache_key(tool_name, tool_args), result)
 
         return result
@@ -125,25 +133,44 @@ class ToolExecutor:
             if "spreadsheetml" in ct:
                 return self._save_report(response, ext="xlsx")
 
-            return response.json()
+            raw = response.json()
+            # If the response is wrapped in InternalServiceResponse, unwrap it
+            if isinstance(raw, dict) and "status" in raw and "data" in raw:
+                # If it's a success, return just the data
+                if raw["status"] == "success":
+                    return raw["data"]
+                # If it's an error, return the error message
+                if raw["status"] == "error":
+                    return {"error": raw.get("error") or "Service returned error status"}
+
+            return raw
 
         except httpx.TimeoutException:
-            logger.error("Tool %s timed out at %s", tool_name, url)
+            logger.exception("Tool %s timed out at %s", tool_name, url)
             return {"error": f"{tool_name} timed out"}
         except httpx.HTTPStatusError as e:
-            logger.error("Tool %s HTTP %d: %s", tool_name, e.response.status_code, e.response.text[:200])
+            logger.exception(
+                "Tool %s HTTP %d: %s", tool_name, e.response.status_code, e.response.text[:200]
+            )
             # Parse structured error body from our services (503s return JSON with detail)
             try:
                 err_body = e.response.json().get("detail", {})
                 if isinstance(err_body, dict):
-                    return {"error": err_body.get("message", f"{tool_name} returned {e.response.status_code}"),
-                            "status_code": e.response.status_code,
-                            "suggestion": err_body.get("suggestion", "")}
+                    return {
+                        "error": err_body.get(
+                            "message", f"{tool_name} returned {e.response.status_code}"
+                        ),
+                        "status_code": e.response.status_code,
+                        "suggestion": err_body.get("suggestion", ""),
+                    }
             except Exception:
                 pass
-            return {"error": f"{tool_name} returned {e.response.status_code}", "detail": e.response.text[:500]}
+            return {
+                "error": f"{tool_name} returned {e.response.status_code}",
+                "detail": e.response.text[:500],
+            }
         except Exception as e:
-            logger.error("Tool %s failed: %s", tool_name, e)
+            logger.exception("Tool %s failed: %s", tool_name, e)
             return {"error": str(e)}
 
     # ── PR Card: submit → poll → return ─────────────────────────────────────
@@ -168,7 +195,10 @@ class ToolExecutor:
         except httpx.TimeoutException:
             return {"error": "PR Card service did not respond to submit request"}
         except httpx.HTTPStatusError as e:
-            return {"error": f"PR Card submit failed: HTTP {e.response.status_code}", "detail": e.response.text[:500]}
+            return {
+                "error": f"PR Card submit failed: HTTP {e.response.status_code}",
+                "detail": e.response.text[:500],
+            }
         except Exception as e:
             return {"error": f"PR Card submit error: {e}"}
 
@@ -353,6 +383,7 @@ class ToolExecutor:
 
     def _save_report(self, response: httpx.Response, ext: str = "pdf") -> dict:
         import uuid
+
         disposition = response.headers.get("content-disposition", "")
         if "filename=" in disposition:
             filename = disposition.split("filename=")[-1].strip('"')

@@ -3,10 +3,11 @@ PostgreSQL storage service for PR Cards.
 Includes form_state persistence so CAPTCHA retry works across process restarts.
 """
 
+import asyncio as _asyncio
+import functools as _functools
 import json
 import logging
 import uuid
-from typing import Optional
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -19,7 +20,7 @@ class StorageService:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
-        self._init_db()
+        # Schema is managed by Alembic
 
     # ------------------------------------------------------------------ #
     # Connection                                                           #
@@ -89,7 +90,7 @@ class StorageService:
             conn.close()
             logger.info("Database initialized")
         except Exception as e:
-            logger.error(f"Database initialization error: {e}")
+            logger.exception(f"Database initialization error: {e}")
 
     # ------------------------------------------------------------------ #
     # Write                                                                #
@@ -101,9 +102,9 @@ class StorageService:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str],
+        survey_no_part1: str | None,
         mobile: str,
-        property_uid: Optional[str],
+        property_uid: str | None,
         property_uid_known: bool = False,
         record_of_right: str = "Property Card",
         language: str = "EN",
@@ -151,18 +152,18 @@ class StorageService:
             logger.info(f"Created PR Card: {pr_id}")
             return pr_id
         except Exception as e:
-            logger.error(f"Failed to create PR Card: {e}")
+            logger.exception(f"Failed to create PR Card: {e}")
             raise
 
     def update_pr_card(
         self,
         pr_id: str,
         status: str,
-        image: Optional[bytes] = None,
-        error_message: Optional[str] = None,
-        captcha_image: Optional[bytes] = None,
-        image_url: Optional[str] = None,
-        extracted_data: Optional[dict] = None,
+        image: bytes | None = None,
+        error_message: str | None = None,
+        captcha_image: bytes | None = None,
+        image_url: str | None = None,
+        extracted_data: dict | None = None,
     ):
         """Update status, image, error, and/or image_url for an existing PR Card."""
         try:
@@ -173,7 +174,7 @@ class StorageService:
                 cur.execute(
                     """
                     UPDATE pr_cards
-                    SET status = %s, image = %s, image_url = %s, 
+                    SET status = %s, image = %s, image_url = %s,
                         extracted_data = %s, updated_at = CURRENT_TIMESTAMP
                     WHERE id = %s
                     """,
@@ -210,14 +211,14 @@ class StorageService:
             conn.close()
             logger.info(f"Updated PR Card {pr_id}: status={status}")
         except Exception as e:
-            logger.error(f"Failed to update PR Card: {e}")
+            logger.exception(f"Failed to update PR Card: {e}")
             raise
 
     # ------------------------------------------------------------------ #
     # Read                                                                 #
     # ------------------------------------------------------------------ #
 
-    def get_pr_card(self, pr_id: str) -> Optional[dict]:
+    def get_pr_card(self, pr_id: str) -> dict | None:
         """Fetch metadata (no binary blobs) for a PR Card."""
         try:
             conn = self._get_connection()
@@ -237,10 +238,10 @@ class StorageService:
             conn.close()
             return dict(row) if row else None
         except Exception as e:
-            logger.error(f"Failed to get PR Card: {e}")
+            logger.exception(f"Failed to get PR Card: {e}")
             return None
 
-    def get_form_state(self, pr_id: str) -> Optional[dict]:
+    def get_form_state(self, pr_id: str) -> dict | None:
         """Return the saved form_state JSON for a PR Card (used for captcha retry)."""
         try:
             conn = self._get_connection()
@@ -253,10 +254,10 @@ class StorageService:
                 return row[0] if isinstance(row[0], dict) else json.loads(row[0])
             return None
         except Exception as e:
-            logger.error(f"Failed to get form_state: {e}")
+            logger.exception(f"Failed to get form_state: {e}")
             return None
 
-    def get_pr_card_image(self, pr_id: str) -> Optional[bytes]:
+    def get_pr_card_image(self, pr_id: str) -> bytes | None:
         """Return the stored PR Card image bytes."""
         try:
             conn = self._get_connection()
@@ -267,10 +268,10 @@ class StorageService:
             conn.close()
             return bytes(row[0]) if row and row[0] else None
         except Exception as e:
-            logger.error(f"Failed to get PR Card image: {e}")
+            logger.exception(f"Failed to get PR Card image: {e}")
             return None
 
-    def get_captcha_image(self, pr_id: str) -> Optional[bytes]:
+    def get_captcha_image(self, pr_id: str) -> bytes | None:
         """Return the stored CAPTCHA image bytes."""
         try:
             conn = self._get_connection()
@@ -281,7 +282,7 @@ class StorageService:
             conn.close()
             return bytes(row[0]) if row and row[0] else None
         except Exception as e:
-            logger.error(f"Failed to get CAPTCHA image: {e}")
+            logger.exception(f"Failed to get CAPTCHA image: {e}")
             return None
 
     def list_pr_cards(self, limit: int = 50, offset: int = 0) -> list:
@@ -304,12 +305,99 @@ class StorageService:
             conn.close()
             return [dict(r) for r in rows]
         except Exception as e:
-            logger.error(f"Failed to list PR Cards: {e}")
+            logger.exception(f"Failed to list PR Cards: {e}")
             return []
 
+    def find_completed_pr_card(
+        self,
+        district: str,
+        taluka: str,
+        village: str,
+        survey_no: str,
+        survey_no_part1: str | None = None,
+    ) -> dict | None:
+        """Find the most recent completed PR Card for these parameters within 30 days."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
 
-import asyncio as _asyncio
-import functools as _functools
+            # Standardize inputs
+            d = district.strip().title()
+            t = taluka.strip().title()
+            v = village.strip().upper()
+            s = survey_no.strip()
+
+            query = """
+                SELECT id, district, taluka, village, survey_no, survey_no_part1,
+                       mobile, property_uid, status, error_message, form_state,
+                       image_url, extracted_data, created_at
+                FROM pr_cards
+                WHERE district = %s AND taluka = %s AND village = %s 
+                  AND survey_no = %s AND status = 'completed'
+                  AND created_at > NOW() - INTERVAL '30 days'
+            """
+            params = [d, t, v, s]
+
+            if survey_no_part1:
+                query += " AND survey_no_part1 = %s"
+                params.append(survey_no_part1.strip())
+            else:
+                query += " AND (survey_no_part1 IS NULL OR survey_no_part1 = '')"
+
+            query += " ORDER BY created_at DESC LIMIT 1"
+
+            cur.execute(query, tuple(params))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception(f"Failed to find completed PR Card: {e}")
+            return None
+
+    def find_processing_pr_card(
+        self,
+        district: str,
+        taluka: str,
+        village: str,
+        survey_no: str,
+        survey_no_part1: str | None = None,
+    ) -> dict | None:
+        """Find an in-flight processing job (started in the last 10 mins)."""
+        try:
+            conn = self._get_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            d = district.strip().title()
+            t = taluka.strip().title()
+            v = village.strip().upper()
+            s = survey_no.strip()
+
+            query = """
+                SELECT id, status, created_at
+                FROM pr_cards
+                WHERE district = %s AND taluka = %s AND village = %s 
+                  AND survey_no = %s AND status = 'processing'
+                  AND created_at > NOW() - INTERVAL '10 minutes'
+            """
+            params = [d, t, v, s]
+
+            if survey_no_part1:
+                query += " AND survey_no_part1 = %s"
+                params.append(survey_no_part1.strip())
+            else:
+                query += " AND (survey_no_part1 IS NULL OR survey_no_part1 = '')"
+
+            query += " ORDER BY created_at DESC LIMIT 1"
+
+            cur.execute(query, tuple(params))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(row) if row else None
+        except Exception as e:
+            logger.exception(f"Failed to find processing PR Card: {e}")
+            return None
 
 
 class AsyncStorageService(StorageService):
@@ -333,3 +421,13 @@ class AsyncStorageService(StorageService):
 
     async def get_pr_card_image(self, pr_id: str):
         return await _asyncio.to_thread(StorageService.get_pr_card_image, self, pr_id)
+
+    async def find_completed_pr_card(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_completed_pr_card, self, **kwargs)
+        )
+
+    async def find_processing_pr_card(self, **kwargs):
+        return await _asyncio.to_thread(
+            _functools.partial(StorageService.find_processing_pr_card, self, **kwargs)
+        )

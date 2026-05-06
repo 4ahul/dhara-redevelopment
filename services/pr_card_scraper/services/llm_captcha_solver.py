@@ -8,7 +8,6 @@ import base64
 import io
 import logging
 import os
-from typing import Optional
 
 import httpx
 from PIL import Image, ImageEnhance, ImageFilter
@@ -48,18 +47,18 @@ class LLMCaptchaSolver:
 
     def __init__(
         self,
-        gemini_api_key: Optional[str] = None,
-        openai_api_key: Optional[str] = None,
-        openai_base_url: Optional[str] = None,
+        gemini_api_key: str | None = None,
+        openai_api_key: str | None = None,
+        openai_base_url: str | None = None,
     ):
         self.gemini_api_key = gemini_api_key or os.getenv("GEMINI_API_KEY", "")
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        self.openai_base_url = (
-            openai_base_url
-            or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        self.openai_base_url = openai_base_url or os.getenv(
+            "OPENAI_BASE_URL", "https://api.openai.com/v1"
         )
 
-    async def solve(self, image_bytes: bytes) -> Optional[str]:
+    async def solve(self, image_bytes: bytes) -> str | None:
         """
         Try Gemini Flash first, then OpenAI. Returns cleaned text or None.
         """
@@ -80,10 +79,10 @@ class LLMCaptchaSolver:
 
         return None
 
-    async def _gemini_solve(self, b64_image: str) -> Optional[str]:
+    async def _gemini_solve(self, b64_image: str) -> str | None:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/gemini-2.5-flash:generateContent?key={self.gemini_api_key}"
+            f"models/{self.gemini_model}:generateContent?key={self.gemini_api_key}"
         )
         payload = {
             "contents": [
@@ -102,8 +101,13 @@ class LLMCaptchaSolver:
             "generationConfig": {
                 "maxOutputTokens": 256,
                 "temperature": 0,
-                "thinkingConfig": {"thinkingBudget": 0},
             },
+            "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ],
         }
         try:
             async with httpx.AsyncClient() as client:
@@ -125,7 +129,7 @@ class LLMCaptchaSolver:
             logger.warning("Gemini CAPTCHA failed: %s", e)
         return None
 
-    async def _openai_solve(self, b64_image: str) -> Optional[str]:
+    async def _openai_solve(self, b64_image: str) -> str | None:
         url = f"{self.openai_base_url.rstrip('/')}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.openai_api_key}",
@@ -150,23 +154,17 @@ class LLMCaptchaSolver:
                             },
                         },
                     ],
-                }
+                },
             ],
             "max_tokens": 10,
             "temperature": 0,
         }
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    url, json=payload, headers=headers, timeout=5.0
-                )
+                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
                 resp.raise_for_status()
                 data = resp.json()
-            text = (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-            )
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             cleaned = _clean(text)
             if cleaned:
                 logger.info("OpenAI CAPTCHA: '%s' -> '%s'", text.strip(), cleaned)

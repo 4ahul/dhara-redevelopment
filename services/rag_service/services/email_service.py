@@ -1,9 +1,8 @@
+import logging
 import os
 import smtplib
-import logging
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ FROM_NAME = os.environ.get("FROM_NAME", "Dhara RAG")
 
 
 def send_email(
-    to_email: str, subject: str, html_content: str, text_content: Optional[str] = None
+    to_email: str, subject: str, html_content: str, text_content: str | None = None
 ) -> bool:
     if not SMTP_USER or not SMTP_PASSWORD:
         logger.info(f"[EMAIL] Mock send to {to_email}: {subject}")
@@ -87,13 +86,13 @@ def send_verification_email(to_email: str, verification_link: str) -> bool:
     """
     text_content = f"""
     Verify your Dhara RAG account
-    
+
     Thank you for signing up for Dhara RAG. Please click the link below to verify your email address:
-    
+
     {verification_link}
-    
+
     This link will expire in 24 hours.
-    
+
     If you didn't create an account with Dhara RAG, please ignore this email.
     """
     return send_email(to_email, subject, html_content, text_content)
@@ -139,13 +138,13 @@ def send_password_reset_email(to_email: str, reset_link: str) -> bool:
     """
     text_content = f"""
     Reset your Dhara RAG password
-    
+
     We received a request to reset your password. Click the link below to create a new password:
-    
+
     {reset_link}
-    
+
     This link will expire in 1 hour.
-    
+
     If you didn't request a password reset, please ignore this email.
     """
     return send_email(to_email, subject, html_content, text_content)
@@ -191,15 +190,15 @@ def send_welcome_email(to_email: str, full_name: str) -> bool:
     """
     text_content = f"""
     Welcome, {full_name}!
-    
+
     Your Dhara RAG account has been successfully verified. You can now start using our PMC Regulatory Intelligence platform.
-    
+
     With Dhara RAG, you can:
     - Query DCPR 2034 regulations using AI-powered semantic search
     - Analyze property feasibility for redevelopment projects
     - Generate compliance reports
     - Track workflow progress
-    
+
     Get started by asking your first regulatory question!
     """
     return send_email(to_email, subject, html_content, text_content)

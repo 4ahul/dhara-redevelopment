@@ -2,10 +2,11 @@
 Agent Service — Orchestrates AI agent execution and real-time WebSocket communication.
 """
 
-import json
-import logging
 import asyncio
-from fastapi import WebSocket, WebSocketDisconnect
+import contextlib
+import logging
+
+from fastapi import WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     def __init__(self):
         self.active: dict[str, list[WebSocket]] = {}
+        self.tasks: set[asyncio.Task] = set()
 
     async def connect(self, sid: str, ws: WebSocket):
         await ws.accept()
@@ -22,24 +24,22 @@ class ConnectionManager:
     def disconnect(self, sid: str, ws: WebSocket):
         if sid in self.active:
             self.active[sid] = [c for c in self.active[sid] if c != ws]
-            if not self.active[sid]: 
+            if not self.active[sid]:
                 del self.active[sid]
 
     async def broadcast(self, sid: str, msg: dict):
         dead = []
         for ws in self.active.get(sid, []):
-            try: 
+            try:
                 await ws.send_json(msg)
-            except: 
+            except Exception:
                 dead.append(ws)
-        for ws in dead: 
+        for ws in dead:
             self.disconnect(sid, ws)
 
     async def send(self, ws: WebSocket, msg: dict):
-        try: 
+        with contextlib.suppress(Exception):
             await ws.send_json(msg)
-        except: 
-            pass
 
 
 # Global manager to maintain state across service instances
@@ -57,7 +57,8 @@ class AgentService:
         Delegates all agent logic to run_agent(); this method only handles streaming.
         """
         import uuid as _uuid
-        from agent.runner import run_agent
+
+        from services.orchestrator.agent.runner import run_agent
 
         await self.mgr.broadcast(
             session_id, {"type": "status", "status": "started", "message": "Agent started..."}

@@ -10,17 +10,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pymilvus import (
-    connections,
-    utility,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
 
 
 def main():
-    print("Minimal rebuild - 200 chunks for testing")
 
     # Load env
     env_file = Path(__file__).parent.parent / ".env"
@@ -35,7 +34,6 @@ def main():
     MILVUS_PORT = os.environ.get("MILVUS_PORT", "19530")
     MILVUS_TOKEN = os.environ.get("MILVUS_TOKEN", "")
 
-    print("Connecting to Milvus...")
     if MILVUS_TOKEN:
         connections.connect(
             alias="default",
@@ -49,7 +47,6 @@ def main():
 
     # Drop old
     if utility.has_collection("documents"):
-        print("Dropping collection...")
         utility.drop_collection("documents")
 
     # Create collection
@@ -68,24 +65,19 @@ def main():
         "params": {"nlist": 128},
     }
     collection.create_index(field_name="embedding", index_params=index_params)
-    print("[OK] Collection created")
 
     # Load DCPR - just first few pages
     dcpr_file = Path("data/docs/DCPR 2034 updated upto 30.9.24 for circulation (1).pdf")
     if not dcpr_file.exists():
-        print("DCPR file not found")
         return
 
-    print("Loading DCPR PDF (first 20 pages)...")
     from pypdf import PdfReader
 
     reader = PdfReader(dcpr_file)
     # Just first 20 pages for quick test
     text = "\n".join([p.extract_text() or "" for p in reader.pages[:20]])
-    print(f"Loaded {len(text)} chars")
 
     # Chunk
-    print("Chunking...")
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 
     splitter = RecursiveCharacterTextSplitter(
@@ -96,12 +88,11 @@ def main():
     chunks = splitter.create_documents([text])
     # Limit to 200
     chunks = chunks[:200]
-    print(f"Created {len(chunks)} chunks")
 
     # Embed and index
-    print("Embedding with Ollama...")
-    from langchain_ollama import OllamaEmbeddings
     import time
+
+    from langchain_ollama import OllamaEmbeddings
 
     embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
@@ -116,16 +107,13 @@ def main():
         # Embed
         start = time.time()
         vectors = embeddings.embed_documents(texts)
-        embed_time = time.time() - start
+        time.time() - start
 
         # Insert
         collection.insert([texts, vectors])
         collection.flush()
 
-        print(f"  {min(i + batch_size, total)}/{total} ({embed_time:.1f}s)")
-
     collection.load()
-    print(f"\nDone! Indexed {len(chunks)} chunks")
 
 
 if __name__ == "__main__":

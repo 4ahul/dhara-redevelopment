@@ -4,9 +4,8 @@ Check WhatsApp Compliance Updates
 Run: Every hour
 """
 
-import sys
-import json
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def check_whatsapp_compliance():
 
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent))
-        from integrations.whatsapp_integration import WhatsAppIntegration
+        from services.rag_service.integrations.whatsapp_integration import WhatsAppIntegration
 
         whatsapp = WhatsAppIntegration()
 
@@ -51,7 +50,7 @@ def check_whatsapp_compliance():
         return len(urgent)
 
     except Exception as e:
-        logger.error(f"WhatsApp check failed: {e}")
+        logger.exception(f"WhatsApp check failed: {e}")
         return 0
 
 
@@ -69,7 +68,6 @@ def send_alert(updates):
 
     # TODO: Implement actual notification
     # Options: Email, Slack, WhatsApp message, SMS
-    print(f"\n[ALERT]\n{message}")
 
 
 if __name__ == "__main__":

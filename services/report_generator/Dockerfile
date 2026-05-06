@@ -1,25 +1,53 @@
-FROM python:3.11-slim
+# ─── BUILDER ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace (root + dhara_shared)
+COPY pyproject.toml uv.lock ./
+COPY dhara_shared/ ./dhara_shared/
+COPY services/report_generator/pyproject.toml ./services/report_generator/
+
+# Install service dependencies via uv (same pattern as orchestrator)
+RUN uv pip install --system -r services/report_generator/pyproject.toml
+# Re-install dhara_shared non-editable to override any editable workspace install
+RUN uv pip install --system ./dhara_shared
+
+# ─── RUNTIME ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libreoffice \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Copy ALL installed packages from builder (where uv placed them)
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+# Belt-and-suspenders: ensure dhara_shared is available
+COPY dhara_shared/src/dhara_shared/ /usr/local/lib/python3.12/site-packages/dhara_shared/
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+# Service code
+COPY services/__init__.py /app/services/
+COPY services/report_generator/ /app/services/report_generator/
+COPY services/report_generator/entrypoint.sh /app/entrypoint.sh
 
-COPY core/ ./core/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY routers/ ./routers/
-COPY templates/ ./templates/
-COPY main.py .
+RUN chmod +x /app/entrypoint.sh
 
-
-# Force Python to look at the local folder
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004"]
+EXPOSE 8004
+
+CMD ["python", "-m", "uvicorn", "services.report_generator.main:app", "--host", "0.0.0.0", "--port", "8004"]

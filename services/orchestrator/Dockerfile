@@ -1,30 +1,53 @@
-FROM python:3.11-slim
+# ─── BUILDER ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace (root + dhara_shared)
+COPY pyproject.toml uv.lock ./
+COPY dhara_shared/ ./dhara_shared/
+COPY services/orchestrator/pyproject.toml ./services/orchestrator/
+
+# Install service dependencies via uv
+RUN uv pip install --system -r services/orchestrator/pyproject.toml
+# Re-install dhara_shared non-editable to override any editable workspace install
+RUN uv pip install --system ./dhara_shared
+
+# ─── RUNTIME ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    cron \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv
+# Copy ALL installed packages from builder (where uv placed them)
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Install dependencies only (no local package install to avoid stale code)
-COPY pyproject.toml .
-# If you have a requirements.txt, use that. Otherwise, install from pyproject.
-RUN uv pip install --system .
+# Service code
+COPY services/__init__.py /app/services/
+COPY services/orchestrator/ /app/services/orchestrator/
+COPY services/orchestrator/entrypoint.sh /app/entrypoint.sh
+COPY services/orchestrator/scripts/setup_cron.sh /app/services/orchestrator/scripts/setup_cron.sh
 
-# Copy packages in dependency order (for image stability)
-COPY core/ ./core/
-COPY db/ ./db/
-COPY models/ ./models/
-COPY schemas/ ./schemas/
-COPY services/ ./services/
-COPY agent/ ./agent/
-COPY routers/ ./routers/
-COPY main.py .
+RUN chmod +x /app/entrypoint.sh
 
-
-# Force Python to look at the local folder BEFORE system packages
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+EXPOSE 8000
+
+CMD ["uvicorn", "services.orchestrator.main:app", "--host", "0.0.0.0", "--port", "8000"]

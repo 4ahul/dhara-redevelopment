@@ -1,38 +1,49 @@
-FROM python:3.12-slim
+# ─── BUILDER ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
 
 # Install uv for fast dependency management
-RUN pip install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dhara_shared and install it
+COPY dhara_shared/ /build/dhara_shared/
+RUN uv pip install --system /build/dhara_shared
+
+# Install service dependencies
+COPY services/rag_service/pyproject.toml /build/services/rag_service/
+RUN uv pip install --system --no-sources -r /build/services/rag_service/pyproject.toml
+
+# ─── RUNTIME ──────────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-# Copy dependency files first for caching
-COPY pyproject.toml .
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-ENV UV_HTTP_TIMEOUT=300
-RUN uv pip install --system .
-RUN pip install pydantic-settings itsdangerous
+# Copy ALL installed packages from builder (where uv placed them)
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy the rest of the application
-COPY . .
+# Service code
+COPY services/__init__.py /app/services/
+COPY services/rag_service/ /app/services/rag_service/
+COPY services/rag_service/entrypoint.sh /app/entrypoint.sh
 
-# Create necessary directories
-RUN mkdir -p logs data/docs data/vectors reports data/uploads data/workflows data/projects data/templates
+RUN chmod +x /app/entrypoint.sh
 
-# Environment Variables (Defaults)
-ENV PORT=8006
-ENV HOST=0.0.0.0
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
-# Expose backend port
 EXPOSE 8006
 
-# Start FastAPI server
-CMD ["uvicorn", "main.py:app", "--host", "0.0.0.0", "--port", "8006"]
+CMD ["uvicorn", "services.rag_service.main:app", "--host", "0.0.0.0", "--port", "8006"]

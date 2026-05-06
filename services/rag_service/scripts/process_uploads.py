@@ -4,8 +4,6 @@ Process Uploaded Documents
 Run: Every 15 minutes
 """
 
-import sys
-import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -59,7 +57,7 @@ def process_pending_uploads():
         logger.info(f"Processed {processed_count} documents")
 
     except Exception as e:
-        logger.error(f"Processing failed: {e}")
+        logger.exception(f"Processing failed: {e}")
 
 
 if __name__ == "__main__":

@@ -13,13 +13,10 @@ Key strategy:
 
 import asyncio
 import base64
-import json
 import logging
-from typing import Optional
 
 from playwright.async_api import (
     Page,
-    Request,
     Response,
     async_playwright,
 )
@@ -28,8 +25,7 @@ from playwright_stealth import Stealth
 logger = logging.getLogger(__name__)
 
 MCGM_WEBAPP_URL = (
-    "https://mcgm.maps.arcgis.com/apps/webappviewer/index.html"
-    "?id=3a5c0a98a75341b985c10700dec6c4b8"
+    "https://mcgm.maps.arcgis.com/apps/webappviewer/index.html?id=3a5c0a98a75341b985c10700dec6c4b8"
 )
 
 # How long to wait for the ArcGIS SPA to fully boot (ms)
@@ -54,12 +50,21 @@ class MCGMBrowserScraper:
         ward: str,
         village: str,
         cts_no: str,
+        tps_name: str | None = None,
+        use_fp: bool = False,
     ) -> dict:
-        """Open the MCGM WebApp, navigate the CTS lookup wizard, and return
+        """Open the MCGM WebApp, navigate the property lookup wizard, and return
         structured result dict with keys:
           - feature: raw ArcGIS feature dict (geometry + attributes) or None
           - screenshot_b64: base64 PNG of the map (or None)
           - error: error message string (or None)
+
+        Args:
+            ward: Ward code (e.g. "K/W")
+            village: Village name (for CTS mode)
+            cts_no: CTS or FP number
+            tps_name: TPS scheme name (for FP mode, e.g. "VILE PARLE")
+            use_fp: If True, use "Locate Plot with FP No" widget
         """
         playwright = None
         browser = None
@@ -76,6 +81,7 @@ class MCGMBrowserScraper:
             )
             context = await browser.new_context(
                 viewport={"width": 1920, "height": 1080},
+                ignore_https_errors=True,
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -85,8 +91,7 @@ class MCGMBrowserScraper:
             page = await context.new_page()
             await self._stealth.apply_stealth_async(page)
 
-            result = await self._run(page, ward, village, cts_no)
-            return result
+            return await self._run(page, ward, village, cts_no, tps_name, use_fp)
 
         except Exception as e:
             logger.error("Browser scraper fatal error: %s", e, exc_info=True)
@@ -99,8 +104,27 @@ class MCGMBrowserScraper:
 
     # ── Internal flow ─────────────────────────────────────────────────────────
 
-    async def _run(self, page: Page, ward: str, village: str, cts_no: str) -> dict:
-        """Full automation flow. Returns result dict."""
+    async def _run(
+        self,
+        page: Page,
+        ward: str,
+        village: str,
+        cts_no: str,
+        tps_name: str | None = None,
+        use_fp: bool = False,
+    ) -> dict:
+        """Full automation flow. Returns result dict.
+
+        Args:
+            village: Village name (for CTS mode)
+            tps_name: TPS scheme name (for FP mode)
+            use_fp: If True, use FP widget; otherwise use CTS widget
+        """
+        # For FP mode, use TPS instead of village
+        effective_village = tps_name if use_fp else village
+
+        # Building data from popup
+        building_data = {}
 
         # ── 1. Intercept ArcGIS feature query responses ────────────────────
         captured_features: list[dict] = []
@@ -122,7 +146,8 @@ class MCGMBrowserScraper:
                 return
             # Filter for polygon geometry (has 'rings')
             poly_features = [
-                f for f in features
+                f
+                for f in features
                 if isinstance(f.get("geometry"), dict)
                 and "rings" in f.get("geometry", {})
                 and f.get("attributes", {}).get("FP_NO") is not None
@@ -140,7 +165,9 @@ class MCGMBrowserScraper:
         # ── 2. Navigate to MCGM WebApp ────────────────────────────────────
         logger.info("Navigating to MCGM WebApp...")
         try:
-            await page.goto(MCGM_WEBAPP_URL, timeout=APP_LOAD_TIMEOUT, wait_until="domcontentloaded")
+            await page.goto(
+                MCGM_WEBAPP_URL, timeout=APP_LOAD_TIMEOUT, wait_until="domcontentloaded"
+            )
         except Exception as e:
             logger.warning("Navigation did not complete cleanly (continuing): %s", e)
 
@@ -151,6 +178,20 @@ class MCGMBrowserScraper:
                 timeout=APP_LOAD_TIMEOUT,
             )
             logger.info("ArcGIS map container detected")
+
+            # ── 2a. Dismiss Splash Screen/Disclaimer ──────────────────────
+            # This appears as an overlay with a "Proceed" or "OK" button
+            try:
+                proceed_btn = page.locator(
+                    "button:has-text('Proceed'), .btn:has-text('Proceed'), input[value='Proceed']"
+                ).first
+                if await proceed_btn.is_visible(timeout=5000):
+                    await proceed_btn.click()
+                    logger.info("Dismissed splash screen/disclaimer")
+                    await asyncio.sleep(2)
+            except Exception:
+                pass
+
         except Exception:
             logger.warning("Map container selector not found — proceeding anyway")
 
@@ -160,7 +201,9 @@ class MCGMBrowserScraper:
         # ── 3. Open the CTS/CS No locate widget ──────────────────────────
         # First check if the Locate Property panel is already open; if not, click its icon
         try:
-            panel_icon = page.locator("[title='Locate Property'], .jimu-widget-onscreen-icon:has-text('Locate')")
+            panel_icon = page.locator(
+                "[title='Locate Property'], .jimu-widget-onscreen-icon:has-text('Locate')"
+            )
             if await panel_icon.count() > 0 and not await panel_icon.first.is_visible(timeout=2000):
                 await panel_icon.first.click()
                 logger.info("Clicked Locate Property icon to open panel")
@@ -180,25 +223,33 @@ class MCGMBrowserScraper:
         except Exception as e:
             logger.debug("Debug element scan error: %s", e)
 
-        opened = await self._open_cts_widget(page)
-        if not opened:
-            return {
-                "feature": None,
-                "screenshot_b64": None,
-                "error": "Could not open CTS/CS No locate widget",
-            }
-
-        # ── 3b. Click the "Proceed" button on the info/instruction page ──
+        # ── 3a. Debug: dump page structure ────────────────────────────────────
         try:
-            proceed_btn = page.locator("button:has-text('Proceed'), .btn:has-text('Proceed'), input[value='Proceed']").first
-            if await proceed_btn.is_visible(timeout=3000):
-                await proceed_btn.click()
-                logger.info("Clicked 'Proceed' button")
-                await asyncio.sleep(3)
-            else:
-                logger.info("No Proceed button found — form may already be showing")
+            body_html = await page.content()
+            body_len = len(body_html)
+            logger.info("Page HTML length: %d bytes", body_len)
+            # Check for key elements
+            has_map = await page.locator(".jimu-map, #map_root, [class*='esri']").count()
+            has_widgets = await page.locator("[class*='widget']").count()
+            logger.info("Map elements: %d, Widget elements: %d", has_map, has_widgets)
         except Exception as e:
-            logger.debug("Proceed button check: %s", e)
+            logger.debug("Debug dump failed: %s", str(e)[:100])
+
+        opened = await self._open_property_widget(page, use_fp=use_fp)
+        if not opened:
+            # Try CTS widget as last resort
+            if not use_fp:
+                opened = await self._open_cts_widget(page)
+
+            if not opened:
+                return {
+                    "feature": None,
+                    "screenshot_b64": None,
+                    "error": "Could not open property locate widget",
+                }
+
+        # Extra wait for widget form to settle
+        await asyncio.sleep(2)
 
         # ── 4. Select Ward ────────────────────────────────────────────────
         logger.info("Selecting ward: %s", ward)
@@ -206,48 +257,47 @@ class MCGMBrowserScraper:
             page, label_text="Ward", option_value=ward
         )
         if not ward_selected:
-            return {
-                "feature": None,
-                "screenshot_b64": None,
-                "error": f"Could not select ward '{ward}'",
-            }
+            # Quick fallback: directly fill the first visible input matching "ward"
+            ward_selected = await self._fill_form_input(page, "Ward", ward)
+        if not ward_selected:
+            logger.warning("Ward selection failed, trying to continue anyway...")
 
-        # Wait for Village dropdown to populate
-        await asyncio.sleep(2)
-
-        # ── 5. Select Village ─────────────────────────────────────────────
-        logger.info("Selecting village: %s", village)
-        village_selected = await self._select_dropdown_option(
-            page, label_text="Village", option_value=village
-        )
-        if not village_selected:
-            # Try partial match — village names can differ slightly
-            village_selected = await self._select_dropdown_option(
-                page, label_text="Village", option_value=village, partial=True
-            )
-        if not village_selected:
-            return {
-                "feature": None,
-                "screenshot_b64": None,
-                "error": f"Could not select village '{village}'",
-            }
-
-        # Wait for CTS input to be enabled
         await asyncio.sleep(1)
 
-        # ── 6. Enter CTS No ───────────────────────────────────────────────
-        logger.info("Entering CTS No: %s", cts_no)
-        cts_entered = await self._enter_cts_no(page, cts_no)
+        # ── 5. Select Village or TPS ───────────────────────────────────────
+        # For FP mode: use TPS dropdown instead of Village
+        dropdown_label = "TPS" if use_fp else "Village"
+        logger.info("Selecting %s: %s", dropdown_label, effective_village)
+        village_selected = await self._select_dropdown_option(
+            page, label_text=dropdown_label, option_value=effective_village
+        )
+        if not village_selected:
+            village_selected = await self._fill_form_input(page, dropdown_label, effective_village)
+        if not village_selected:
+            logger.warning("%s selection failed, trying to continue anyway...", dropdown_label)
+
+        await asyncio.sleep(1)
+
+        # ── 6. Enter CTS/FP No ───────────────────────────────────────────
+        logger.info("Entering property No: %s (FP=%s)", cts_no, use_fp)
+        cts_entered = await self._enter_cts_no(page, cts_no, use_fp=use_fp)
+        if not cts_entered:
+            cts_entered = await self._fill_form_input(page, "CTS", cts_no)
         if not cts_entered:
             return {
                 "feature": None,
                 "screenshot_b64": None,
-                "error": f"Could not enter CTS No '{cts_no}'",
+                "error": f"Could not enter property No '{cts_no}'",
             }
 
-        # ── 7. Click Search ───────────────────────────────────────────────
+        # ── 7. Click Search ───────────────────────────────────────────
         logger.info("Clicking Search/Find button...")
         searched = await self._click_search(page)
+        if not searched:
+            # Keyboard fallback
+            await page.keyboard.press("Enter")
+            await asyncio.sleep(2)
+            searched = True
         if not searched:
             return {
                 "feature": None,
@@ -255,8 +305,17 @@ class MCGMBrowserScraper:
                 "error": "Could not click Search button",
             }
 
+        # After Search, wait for building details popup and ArcGIS network response.
+        # NOTE: the portal shows a Ward confirmation dropdown after Search (not a Village
+        # dropdown) — the second village-selection block that was here was incorrectly
+        # trying to select the village name from ward codes (A/B/G/S...).
+        await asyncio.sleep(3)
+        building_data = await self._get_building_details(page)
+
         # ── 8. Wait for network response ──────────────────────────────────
-        logger.info("Waiting for ArcGIS query response (max %ds)...", QUERY_RESPONSE_TIMEOUT // 1000)
+        logger.info(
+            "Waiting for ArcGIS query response (max %ds)...", QUERY_RESPONSE_TIMEOUT // 1000
+        )
         deadline = QUERY_RESPONSE_TIMEOUT / 1000
         elapsed = 0.0
         poll_interval = 0.5
@@ -294,10 +353,16 @@ class MCGMBrowserScraper:
             return {
                 "feature": None,
                 "screenshot_b64": screenshot_b64,
+                "building_data": building_data,
                 "error": "Property not found in MCGM ArcGIS database",
             }
 
-        return {"feature": feature, "screenshot_b64": screenshot_b64, "error": None}
+        return {
+            "feature": feature,
+            "screenshot_b64": screenshot_b64,
+            "building_data": building_data,
+            "error": None,
+        }
 
     # ── Widget / UI helpers ───────────────────────────────────────────────────
 
@@ -312,7 +377,6 @@ class MCGMBrowserScraper:
         Each row is a <TR role="button"> with class "single-task".
         """
         # Strategy 1: Click the task row containing "CTS" text
-        # Use multiple selectors — try click without checking visibility
         selectors_to_try = [
             "tr.single-task:has-text('CTS/CS No')",
             ".task-name-div:has-text('CTS')",
@@ -323,7 +387,7 @@ class MCGMBrowserScraper:
         for sel in selectors_to_try:
             try:
                 el = page.locator(sel).first
-                count = await el.count() if hasattr(el, 'count') else 1
+                count = await el.count() if hasattr(el, "count") else 1
                 if count > 0:
                     await el.click(timeout=5000, force=True)
                     logger.info("Opened CTS widget via selector: %s", sel)
@@ -346,9 +410,71 @@ class MCGMBrowserScraper:
                     await asyncio.sleep(2)
                     return True
         except Exception as e:
-            logger.debug("Row scan failed: %s", e)
+            logger.debug("Row scan failed: %s", str(e)[:60])
 
         logger.warning("Could not find CTS locate widget")
+        return False
+
+    async def _open_property_widget(self, page: Page, use_fp: bool = False) -> bool:
+        """Open the appropriate property locate widget.
+
+        Args:
+            use_fp: If True, click "Locate Plot with FP No"; otherwise "Locate Land with CTS/CS No"
+        """
+        widget_type = "FP" if use_fp else "CTS/CS"
+
+        # Selectors for each widget type
+        if use_fp:
+            selectors = [
+                "tr.single-task:has-text('FP')",
+                ".task-name-div:has-text('FP')",
+                "text=Locate Plot with FP No",
+                "text=Locate via FP",
+                "text=Locate via CTS or FP",
+                "tr:has-text('FP')",
+                "td:has-text('FP')",
+            ]
+        else:
+            selectors = [
+                "tr.single-task:has-text('CTS')",
+                ".task-name-div:has-text('CTS')",
+                "text=Locate Land with CTS/CS No",
+                "text=Locate via CTS",
+                "text=Locate via CTS or FP",
+                "tr:has-text('CTS')",
+                "td:has-text('CTS')",
+            ]
+
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                count = await el.count() if hasattr(el, "count") else 1
+                if count > 0:
+                    await el.click(timeout=5000, force=True)
+                    logger.info("Opened %s widget via: %s", widget_type, sel)
+                    await asyncio.sleep(2)
+                    return True
+            except Exception as e:
+                logger.debug("Selector %s failed: %s", sel, str(e)[:60])
+                continue
+
+        # Fallback: scan all elements
+        search_text = "FP" if use_fp else "CTS"
+        try:
+            rows = page.locator("tr, td, div.list-item-name, [role='button']")
+            count = await rows.count()
+            for i in range(count):
+                row = rows.nth(i)
+                txt = (await row.text_content() or "").strip()
+                if search_text in txt and len(txt) < 80:
+                    await row.click(force=True)
+                    logger.info("Opened %s widget via scan: %s", widget_type, txt[:60])
+                    await asyncio.sleep(2)
+                    return True
+        except Exception as e:
+            logger.debug("Row scan failed: %s", str(e)[:60])
+
+        logger.warning("Could not find %s locate widget", widget_type)
         return False
 
     async def _select_dropdown_option(
@@ -358,19 +484,122 @@ class MCGMBrowserScraper:
         option_value: str,
         partial: bool = False,
     ) -> bool:
-        """Find a <select> or custom dropdown labelled `label_text` and choose `option_value`."""
+        """Find a <select> or custom dropdown labelled `label_text` and choose `option_value`.
+        Uses JavaScript injection for direct, fast selection."""
         val_upper = option_value.upper()
 
-        # Try native <select> elements
-        select_selectors = [
-            f"select[name*='{label_text.lower()}']",
-            f"select[id*='{label_text.lower()}']",
-            f"label:has-text('{label_text}') + select",
-            f"label:has-text('{label_text}') ~ select",
-            # Esri/Dojo widget pattern
-            f"[data-field*='{label_text.upper()}'] select",
-            "select",  # last resort — all selects
-        ]
+        # Strategy 1: JavaScript injection - find and set the value directly
+        try:
+            result = await page.evaluate(
+                """(label) => {
+                const labels = document.querySelectorAll('label, span, div');
+                for (let l of labels) {
+                    if (l.textContent && l.textContent.toUpperCase().includes(label.toUpperCase())) {
+                        // Look for associated select/input nearby
+                        let next = l.nextElementSibling;
+                        while (next) {
+                            if (next.tagName === 'SELECT') {
+                                // Found a select - try to find matching option
+                                const opts = next.options;
+                                for (let i = 0; i < opts.length; i++) {
+                                    const txt = opts[i].textContent.toUpperCase();
+                                    const val = opts[i].value;
+                                    if (txt.includes(label.toUpperCase()) || label.toUpperCase().includes(txt)) {
+                                        next.selectedIndex = i;
+                                        next.dispatchEvent(new Event('change'));
+                                        return { success: true, method: 'select', value: val };
+                                    }
+                                }
+                            }
+                            // Check for dijit/form input
+                            if (next.tagName === 'INPUT' || next.classList.contains('dijit')) {
+                                next.value = label;
+                                next.dispatchEvent(new Event('change'));
+                                return { success: true, method: 'input', value: label };
+                            }
+                            next = next.nextElementSibling;
+                        }
+                    }
+                }
+                return { success: false };
+            }""",
+                option_value,
+            )
+
+            if result and result.get("success"):
+                logger.info(
+                    "JavaScript selected %s in %s dropdown: %s", option_value, label_text, result
+                )
+                return True
+        except Exception as e:
+            logger.debug("JS dropdown selection failed: %s", str(e)[:80])
+
+        # Strategy 2: Try ArcGIS checkBtn index-based selection (stable for this UI)
+        try:
+            # Map labels to their consistent indexes in the "Locate Property" widget
+            label_indexes = {"Ward": 0, "Village": 1, "TPS": 1, "CTS": 2}
+            idx = label_indexes.get(label_text)
+            if idx is not None:
+                # Find all checkBtn elements in the LocateProperty widget
+                dropdowns = page.locator(".jimu-widget-custom-widget-LocateProperty .checkBtn")
+                if await dropdowns.count() > idx:
+                    trigger = dropdowns.nth(idx)
+                    await trigger.click()
+                    logger.info("Clicked %s dropdown (index %d)", label_text, idx)
+                    await asyncio.sleep(2)
+
+                    # Try to find the item in the popup
+                    # Dojo popups are often at the end of the body
+                    item_selector = f"div.item:has-text('{option_value}')"
+                    item = page.locator(item_selector).first
+
+                    # If not visible, try typing in any visible input inside the widget
+                    if not await item.is_visible(timeout=1000):
+                        inputs = page.locator(".jimu-widget-custom-widget-LocateProperty input")
+                        if await inputs.count() > 0:
+                            # Usually the last clicked dropdown focuses the relevant input
+                            await page.keyboard.type(option_value, delay=50)
+                            await asyncio.sleep(2)
+
+                    # Click the matching item
+                    item = page.locator(item_selector).first
+                    if await item.is_visible(timeout=3000):
+                        await item.click()
+                        logger.info("Selected %s via index %d + text match", option_value, idx)
+                        return True
+
+                    # Last resort: press Enter
+                    await page.keyboard.press("Enter")
+                    logger.info("Selected %s via index %d + Enter fallback", option_value, idx)
+                    return True
+        except Exception as e:
+            logger.debug("Index-based checkBtn failed: %s", str(e)[:60])
+
+        # Strategy 3: Try dijit form fields directly by common IDs (from ArcGIS portal)
+        field_map = {
+            "Ward": "SelectWardR",
+            "Village": "SelectVillageR",
+            "TPS": "SelectVillageR",
+            "CTS": "SelectCTSR",
+        }
+        field_id = field_map.get(label_text, f"Select{label_text}R")
+
+        try:
+            dijit_input = page.locator(f"input[id='{field_id}']").first
+            if await dijit_input.is_visible(timeout=2000):
+                await dijit_input.click()
+                await asyncio.sleep(0.5)
+                await dijit_input.fill(option_value)
+                await asyncio.sleep(1)
+                await page.keyboard.press("ArrowDown")
+                await page.keyboard.press("Enter")
+                logger.info("Selected %s via dijit field %s", option_value, field_id)
+                return True
+        except Exception as e:
+            logger.debug("Dijit field %s failed: %s", field_id, str(e)[:60])
+
+        # Strategy 3: Try native select elements
+        select_selectors = ["select"]
 
         for sel in select_selectors:
             try:
@@ -378,39 +607,23 @@ class MCGMBrowserScraper:
                 count = await elements.count()
                 for i in range(count):
                     el = elements.nth(i)
-                    if not await el.is_visible(timeout=1000):
+                    if not await el.is_visible(timeout=500):
                         continue
-                    # Try to find the matching option
-                    option_sel = (
-                        f"option:has-text('{option_value}')"
-                        if not partial
-                        else f"option"
-                    )
-                    opts = el.locator(option_sel)
-                    if partial:
-                        # Scan all options for partial match
-                        opts_count = await opts.count()
-                        for j in range(opts_count):
-                            opt_text = (await opts.nth(j).text_content() or "").upper()
-                            if val_upper in opt_text:
-                                opt_val = await opts.nth(j).get_attribute("value") or opt_text
-                                await el.select_option(value=opt_val)
-                                logger.info(
-                                    "Selected '%s' in %s dropdown (partial match '%s')",
-                                    opt_text.strip(),
-                                    label_text,
-                                    option_value,
-                                )
-                                return True
-                    else:
-                        if await opts.count() > 0:
-                            await el.select_option(label=option_value)
-                            logger.info("Selected '%s' in %s dropdown", option_value, label_text)
+                    all_opts = el.locator("option")
+                    opts_count = await all_opts.count()
+                    for j in range(opts_count):
+                        opt_text = (await all_opts.nth(j).text_content() or "").strip()
+                        if opt_text.upper() == val_upper or (
+                            partial and val_upper in opt_text.upper()
+                        ):
+                            opt_val = await all_opts.nth(j).get_attribute("value") or opt_text
+                            await el.select_option(value=opt_val)
+                            logger.info("Selected '%s' via native select", opt_text)
                             return True
             except Exception:
                 continue
 
-        # Fallback: Esri custom dropdown (div-based)
+        # Fallback: Esri custom dropdown
         return await self._select_custom_dropdown(page, label_text, option_value, partial)
 
     async def _select_custom_dropdown(
@@ -422,68 +635,162 @@ class MCGMBrowserScraper:
     ) -> bool:
         """Handle Esri/Dojo custom select widgets (div-based dropdowns)."""
         val_upper = option_value.upper()
-        # Try to find a container labelled with our field name then click it
-        containers = page.locator(
-            f"[class*='dijitSelect'], [class*='Select'], [role='listbox'], [role='combobox']"
+
+        # More aggressive approach: look for any dropdown-like elements near the label
+        all_containers = page.locator(
+            "[class*='dijit'], [role='listbox'], [role='combobox'], .dijitSelect"
         )
-        count = await containers.count()
+        count = await all_containers.count()
+        logger.debug("Found %d potential dropdown containers", count)
+
+        # Try finding the dropdown by clicking near the label
         for i in range(count):
-            container = containers.nth(i)
+            container = all_containers.nth(i)
             try:
-                # Check label nearby
-                label = await container.evaluate(
-                    "el => el.previousElementSibling ? el.previousElementSibling.textContent : ''"
-                )
-                if label_text.upper() not in label.upper():
+                if not await container.is_visible(timeout=500):
                     continue
-                await container.click()
-                await asyncio.sleep(0.5)
-                # Find option items
-                items = page.locator("[class*='dijitMenuItem'], [role='option']")
-                items_count = await items.count()
-                for j in range(items_count):
-                    item = items.nth(j)
-                    txt = (await item.text_content() or "").upper()
-                    if (partial and val_upper in txt) or (not partial and txt == val_upper):
-                        await item.click()
-                        logger.info(
-                            "Custom dropdown: selected '%s' for %s", txt.strip(), label_text
-                        )
-                        return True
-            except Exception:
+                # Check if there's a label nearby
+                prev = await container.evaluate("""el => {
+                    let prev = el.previousElementSibling;
+                    while (prev) {
+                        if (prev.offsetParent !== null) return prev.textContent;
+                        prev = prev.previousElementSibling;
+                    }
+                    return '';
+                }""")
+                if prev and label_text.upper() in prev.upper():
+                    # This is our dropdown - click it to open options
+                    await container.click()
+                    await asyncio.sleep(1)
+                    # Now find the option in the popup menu
+                    menu_items = page.locator(
+                        "[class*='dijitMenuItem'], [role='option'], .dijitMenuItem"
+                    )
+                    items_count = await menu_items.count()
+                    for j in range(items_count):
+                        item = menu_items.nth(j)
+                        txt = (await item.text_content() or "").strip()
+                        if txt:
+                            txt_upper = txt.upper()
+                            match = (partial and val_upper in txt_upper) or (
+                                not partial and txt_upper == val_upper
+                            )
+                            if match:
+                                await item.click()
+                                logger.info(
+                                    "Custom dropdown: selected '%s' for %s", txt, label_text
+                                )
+                                return True
+            except Exception as e:
+                logger.debug("Container %d failed: %s", i, str(e)[:60])
                 continue
+
+        # Try finding by clicking the visible text of the dropdown (the "button" part)
+        try:
+            buttons = page.locator(".dijitButtonNode, .dijitDropDownButton")
+            btn_count = await buttons.count()
+            for i in range(btn_count):
+                btn = buttons.nth(i)
+                txt = await btn.text_content()
+                if txt and label_text.upper() in txt.upper():
+                    await btn.click()
+                    await asyncio.sleep(1)
+                    # Look for option in menu
+                    items = page.locator("[class*='MenuItem']")
+                    for j in range(await items.count()):
+                        opt = items.nth(j)
+                        opt_txt = (await opt.text_content() or "").strip()
+                        if opt_txt:
+                            opt_upper = opt_txt.upper()
+                            match = (partial and val_upper in opt_upper) or (
+                                not partial and opt_upper == val_upper
+                            )
+                            if match:
+                                await opt.click()
+                                logger.info(
+                                    "Selected via dropdown button: %s for %s", opt_txt, label_text
+                                )
+                                return True
+        except Exception as e:
+            logger.debug("Dropdown button approach failed: %s", str(e)[:60])
+
         return False
 
-    async def _enter_cts_no(self, page: Page, cts_no: str) -> bool:
-        """Type the CTS number into the input field."""
+    async def _enter_cts_no(self, page: Page, cts_no: str, use_fp: bool = False) -> bool:
+        """Type the CTS or FP number into the input field.
+
+        Args:
+            cts_no: The CTS or FP number to enter
+            use_fp: If True, this is an FP number (VI/18 format)
+        """
         input_selectors = [
+            ".jimu-widget-custom-widget-LocateProperty input[placeholder*='CTS']",
+            ".jimu-widget-custom-widget-LocateProperty input[placeholder*='CS No']",
+            ".jimu-widget-custom-widget-LocateProperty input[placeholder*='FP']",
+            ".jimu-widget-custom-widget-LocateProperty input[id*='SelectCTSR']",
             "input[placeholder*='CTS']",
-            "input[placeholder*='CS No']",
-            "input[name*='cts']",
-            "input[id*='cts']",
-            "input[type='text']",  # last resort
+            "input[id*='SelectCTSR']",
+            "input[type='text']:not(.arcgisSearch input)",
         ]
+
         for sel in input_selectors:
             try:
                 el = page.locator(sel).first
                 if await el.is_visible(timeout=2000):
-                    await el.triple_click()
-                    await el.type(cts_no, delay=50)
-                    logger.info("Entered CTS No '%s' into input '%s'", cts_no, sel)
+                    await el.clear()
+                    await el.fill(cts_no)
+                    await asyncio.sleep(0.5)
+                    await el.press("Tab")
+                    logger.info("Entered property No '%s' via selector '%s'", cts_no, sel)
                     return True
-            except Exception:
+            except Exception as e:
+                logger.debug("Selector %s failed: %s", sel, str(e)[:50])
                 continue
+
+        # Try with JavaScript - find any visible input in the form
+        try:
+            result = await page.evaluate(
+                """(val) => {
+                // Find all text inputs that are visible
+                const inputs = document.querySelectorAll('input[type="text"], input[dijit="TextBox"]');
+                for (let inp of inputs) {
+                    // Check if visible (has size and not hidden)
+                    if (inp.offsetParent !== null && inp.style.display !== 'none') {
+                        // Also check parent containers
+                        let parent = inp.parentElement;
+                        while (parent) {
+                            if (parent.style && parent.style.display === 'none') break;
+                            parent = parent.parentElement;
+                        }
+                        inp.value = val;
+                        inp.dispatchEvent(new Event('input', { bubbles: true }));
+                        inp.dispatchEvent(new Event('change', { bubbles: true }));
+                        return inp.id || inp.name;
+                    }
+                }
+                return null;
+            }""",
+                cts_no,
+            )
+            if result:
+                logger.info("Entered property No via JS: '%s' (field: %s)", cts_no, result)
+                return True
+        except Exception as e:
+            logger.debug("JS fallback failed: %s", str(e)[:50])
+
+        logger.warning("Could not enter property No '%s'", cts_no)
         return False
 
     async def _click_search(self, page: Page) -> bool:
-        """Click the Search/Find/Locate button."""
+        """Click the Search or Apply button."""
         button_selectors = [
+            ".jimu-widget-custom-widget-LocateProperty .apply-btn",
+            ".jimu-widget-custom-widget-LocateProperty button:has-text('Apply')",
+            ".jimu-widget-custom-widget-LocateProperty .btn:has-text('Apply')",
+            "button:has-text('Apply')",
             "button:has-text('Search')",
-            "button:has-text('Find')",
-            "button:has-text('Locate')",
-            "button:has-text('Go')",
-            "input[type='submit']",
-            "input[type='button'][value*='Search']",
+            "input[type='button'][value='Apply']",
+            "input[type='button'][value='Search']",
             "input[type='button'][value*='Find']",
             "[class*='search-btn']",
             "[class*='find-btn']",
@@ -509,11 +816,168 @@ class MCGMBrowserScraper:
 
         return False
 
+    async def _fill_form_input(self, page: Page, field_label: str, value: str) -> bool:
+        """Direct form input filling as fallback."""
+        field_ids = {
+            "Ward": ["SelectWardR", "wardInput"],
+            "Village": ["SelectVillageR", "villageInput"],
+            "CTS": ["SelectCTSR", "ctsInput", "ctsNo"],
+        }
+        ids = field_ids.get(field_label, [])
+
+        for fid in ids:
+            try:
+                inp = page.locator(f"input[id='{fid}'], input[name='{fid}'], #{fid}").first
+                if await inp.is_visible(timeout=1000):
+                    await inp.fill(value)
+                    logger.info("Filled %s via input#%s", value, fid)
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def _get_building_details(self, page: Page) -> dict:
+        """Click Apply button and extract building details from popup.
+
+        After filling the form, click Apply to see building info popup.
+        Then click arrows (carousel) to get more details like floors, height, etc.
+        """
+        building_data = {}
+
+        # Click Apply button - try more selectors
+        apply_selectors = [
+            "button:has-text('Apply')",
+            "input[value='Apply']",
+            "button.btn-primary",
+            "#btnApply",
+            "[id*='Apply']",
+        ]
+
+        clicked_apply = False
+        for sel in apply_selectors:
+            try:
+                btn = page.locator(sel)
+                if await btn.count() > 0 and await btn.first.is_visible(timeout=2000):
+                    await btn.first.click()
+                    logger.info("Clicked Apply button via: %s", sel)
+                    clicked_apply = True
+                    break
+            except Exception as e:
+                logger.debug("Apply selector %s failed: %s", sel, str(e)[:50])
+                continue
+
+        if not clicked_apply:
+            logger.warning("Could not click Apply button")
+            return building_data
+
+        # Wait a bit for popup to appear
+        await asyncio.sleep(2)
+
+        # Try to capture popup/building info
+        try:
+            # Take screenshot to see what's on screen
+            png = await page.screenshot()
+            logger.info("Screenshot captured after Apply click (%d bytes)", len(png))
+
+            # Look for any visible popup or info panel
+            body_text = await page.locator("body").text_content()
+            if body_text and len(body_text) > 100:
+                building_data["page_text"] = body_text[:3000]
+                logger.info("Page text length after Apply: %d chars", len(body_text))
+
+            # Look for any modal/popup
+            modal_selectors = [
+                ".modal",
+                ".popup",
+                "[class*='modal']",
+                "[class*='popup']",
+                ".esri-popup",
+                "[role='dialog']",
+            ]
+
+            for sel in modal_selectors:
+                try:
+                    modal = page.locator(sel)
+                    if await modal.count() > 0:
+                        for i in range(await modal.count()):
+                            if await modal.nth(i).is_visible(timeout=1000):
+                                text = await modal.nth(i).text_content()
+                                if text and len(text) > 20:
+                                    building_data[f"modal_{sel}"] = text[:1000]
+                                    logger.info("Found modal content via %s: %s", sel, text[:200])
+                except Exception:
+                    continue
+
+            # Click any navigation arrows in popup
+            nav_selectors = [
+                "button >> nth=0",
+                "[class*='arrow']",
+                ".esri-popup__navigation",
+            ]
+
+            for sel in nav_selectors:
+                try:
+                    nav = page.locator(sel)
+                    if await nav.count() > 0:
+                        for i in range(min(await nav.count(), 3)):
+                            await nav.nth(i).click()
+                            await asyncio.sleep(1)
+                            logger.info("Clicked navigation %d", i)
+                except Exception:
+                    continue
+
+        except Exception as e:
+            logger.warning("Error capturing building details: %s", str(e)[:100])
+
+        return building_data
+
+    async def _extract_building_details_from_popup(self, page: Page) -> dict:
+        """Extract structured building details from popup content."""
+        details = {}
+
+        try:
+            # Look for common building info labels
+            labels = [
+                "Building Name",
+                "Building Type",
+                "Construction Type",
+                "Floors",
+                "Height",
+                "SAC Number",
+                "Address",
+            ]
+
+            for label in labels:
+                # Try to find label + value pairs
+                selectors = [
+                    f"text={label}:near(text)",
+                    f"span:has-text('{label}')",
+                    f"div:has-text('{label}')",
+                ]
+                for sel in selectors:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.is_visible(timeout=1000):
+                            parent = el.locator("xpath=..")
+                            value_el = parent.locator("span, div, label").nth(1)
+                            if await value_el.is_visible(timeout=500):
+                                value = await value_el.text_content()
+                                if value:
+                                    key = label.lower().replace(" ", "_")
+                                    details[key] = value.strip()
+                    except Exception:
+                        continue
+
+        except Exception as e:
+            logger.debug("Extraction failed: %s", str(e)[:50])
+
+        return details
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _find_best_match(features: list[dict], ward: str, cts_no: str) -> Optional[dict]:
+def _find_best_match(features: list[dict], ward: str, cts_no: str) -> dict | None:
     """Return the feature whose attributes best match the requested ward/cts_no."""
     ward_upper = ward.upper()
     cts_upper = cts_no.upper()

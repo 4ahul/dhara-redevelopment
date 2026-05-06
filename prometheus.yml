@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'orchestrator'
+    static_configs:
+      - targets: ['orchestrator:8000']
+  
+  - job_name: 'site_analysis'
+    static_configs:
+      - targets: ['site_analysis:8001']
+      
+  - job_name: 'aviation_height'
+    static_configs:
+      - targets: ['aviation_height:8002']
+      
+  - job_name: 'ready_reckoner'
+    static_configs:
+      - targets: ['ready_reckoner:8003']
+      
+  - job_name: 'report_generator'
+    static_configs:
+      - targets: ['report_generator:8004']
+      
+  - job_name: 'pr_card_scraper'
+    static_configs:
+      - targets: ['pr_card_scraper:8005']
+      
+  - job_name: 'rag_service'
+    static_configs:
+      - targets: ['rag_service:8006']
+      
+  - job_name: 'mcgm_property_lookup'
+    static_configs:
+      - targets: ['mcgm_property_lookup:8007']
+      
+  - job_name: 'dp_remarks_report'
+    static_configs:
+      - targets: ['dp_remarks_report:8008']

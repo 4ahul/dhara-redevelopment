@@ -1,30 +1,36 @@
 import asyncio
+import importlib as _importlib
+import json as _json
 import uuid
-import os
-import sys
-
-service_dir = os.path.dirname(os.path.abspath(__file__))
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
+from io import BytesIO
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from io import BytesIO
 
-from schemas.report import (
+from ..core.config import OUTPUT_DIR, settings
+from ..feasibility.dispatcher import generate as feasibility_generate
+from ..schemas.report import (
     ReportRequest,
+    TemplateApplyRequest,
     TemplateFieldSchema,
     TemplateFieldsResponse,
-    TemplateApplyRequest,
     TemplateReportRequest,
 )
-from services.data_normalizer import normalize_report_data
-from services.pdf_builder import build_feasibility_pdf
-from services.template_service import template_service
-from services.excel_to_pdf import generate_report_with_pdf
-from core.config import OUTPUT_DIR, settings, resolve_scheme_key
+from ..services.data_normalizer import normalize_report_data
+from ..services.excel_to_pdf import generate_report_with_pdf
+from ..services.pdf_builder import build_feasibility_pdf
+from ..services.template_service import template_service
+
+# Root of the report_generator service (one level above routers/)
+_svc_root = Path(__file__).parent.parent
+MAPPING_PATH = str(_svc_root / "mappings" / "33_7_B.yaml")
+TEMPLATE_PATH = str(_svc_root / "templates" / "FINAL TEMPLATE _ 33 (7)(B).xlsx")
+DOSSIER_PATH = str(_svc_root / "dossiers" / "33_7_B.dossier.json")
 
 router = APIRouter()
+
+_importlib.import_module("..feasibility.calcs", package=__package__)
 
 
 def _build_all_data(req: TemplateReportRequest) -> dict:
@@ -44,6 +50,7 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
         "num_commercial": req.num_commercial,
         "existing_commercial_carpet_sqft": req.existing_commercial_carpet_sqft,
         "existing_residential_carpet_sqft": req.existing_residential_carpet_sqft,
+        "existing_bua_sqft": req.existing_bua_sqft,
         "sale_rate_per_sqft": req.sale_rate_per_sqft,
         # ── Nested dicts from microservices ────────────────────────
         "site_analysis": req.site_analysis or {},
@@ -65,8 +72,6 @@ def _build_all_data(req: TemplateReportRequest) -> dict:
 async def generate_report(req: ReportRequest):
     """
     Generate the feasibility report PDF.
-    Excel copy is produced from the hardcoded 33(20)(B) CLUBBING template
-    (testing mode — see template_service._FORCED_TEMPLATE_NAME).
     """
     report_id = str(uuid.uuid4())[:8].upper()
     safe_name = req.society_name.replace(" ", "_")
@@ -75,9 +80,8 @@ async def generate_report(req: ReportRequest):
     pdf_path = str(OUTPUT_DIR / pdf_filename)
     xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
-    # Testing mode: every /generate call uses the fixed 33(20)(B) CLUBBING template.
-    target_scheme = "33(20)(B)"
-    target_rd_type = "CLUBBING"
+    target_scheme = req.scheme or "33(7)(B)"
+    target_rd_type = req.redevelopment_type or "CLUBBING"
 
     all_data = {
         "society_name": req.society_name,
@@ -113,7 +117,7 @@ async def generate_report(req: ReportRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}") from e
 
     return FileResponse(
         path=pdf_path,
@@ -142,12 +146,14 @@ async def list_available_templates():
         else:
             scheme = key
             rd_type = "CLUBBING"
-        available.append({
-            "scheme": scheme,
-            "redevelopment_type": rd_type,
-            "template_key": key,
-            "template_file": tpl,
-        })
+        available.append(
+            {
+                "scheme": scheme,
+                "redevelopment_type": rd_type,
+                "template_key": key,
+                "template_file": tpl,
+            }
+        )
     return {"templates": available}
 
 
@@ -180,9 +186,9 @@ async def get_template_fields(
             ],
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {e}") from e
 
 
 @router.post("/templates/apply")
@@ -198,34 +204,36 @@ async def apply_template_values(req: TemplateApplyRequest):
         return StreamingResponse(
             BytesIO(excel_bytes),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": f"attachment; filename=feasibility_{req.scheme}.xlsx"
-            },
+            headers={"Content-Disposition": f"attachment; filename=feasibility_{req.scheme}.xlsx"},
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error: {e}") from e
 
 
 @router.post("/generate/template")
 async def generate_template_report(req: TemplateReportRequest):
     """
-    Generate feasibility report using Excel templates. (Hardcoded to 33(20)(B) CLUBBING for testing)
+    Generate feasibility report using Excel templates.
     """
     try:
         report_id = str(uuid.uuid4())[:8].upper()
         safe_name = req.society_name.replace(" ", "_")
-        
-        target_scheme = "33(7)(B)"
-        target_rd_type = req.redevelopment_type.value if hasattr(req.redevelopment_type, "value") else str(req.redevelopment_type)
+
+        target_scheme = req.scheme
+        target_rd_type = (
+            req.redevelopment_type.value
+            if hasattr(req.redevelopment_type, "value")
+            else str(req.redevelopment_type)
+        )
 
         all_data = _build_all_data(req)
 
         xlsx_filename = f"Feasibility_{target_scheme}_{target_rd_type}_{safe_name}_{report_id}.xlsx"
         xlsx_path = str(OUTPUT_DIR / xlsx_filename)
 
-        excel_bytes, saved_path = template_service.generate_full_report(
+        excel_bytes, _saved_path = template_service.generate_full_report(
             scheme=target_scheme,
             all_data=all_data,
             output_path=xlsx_path,
@@ -239,11 +247,11 @@ async def generate_template_report(req: TemplateReportRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Template report generation failed: {e}"
-        )
+        ) from e
 
 
 @router.post("/generate/template-with-pdf")
@@ -254,19 +262,19 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
     try:
         report_id = str(uuid.uuid4())[:8].upper()
         safe_name = req.society_name.replace(" ", "_")
-        
-        # HARDCODED FOR TESTING
-        test_scheme = "33(20)(B)"
-        test_rd_type = "CLUBBING"
 
-        # HARDCODED FOR TESTING: Force 33(20)(B)
-        # target_scheme = req.scheme
-        target_scheme = "33(20)(B)"
-        target_rd_type = req.redevelopment_type
+        # HARDCODED FOR TESTING
+
+        target_scheme = req.scheme
+        target_rd_type = (
+            req.redevelopment_type.value
+            if hasattr(req.redevelopment_type, "value")
+            else str(req.redevelopment_type)
+        )
 
         all_data = _build_all_data(req)
 
-        excel_path, pdf_path = generate_report_with_pdf(
+        excel_path, _pdf_path = generate_report_with_pdf(
             scheme=target_scheme,
             all_data=all_data,
             output_dir=OUTPUT_DIR,
@@ -287,8 +295,65 @@ async def generate_template_report_with_pdf(req: TemplateReportRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Template report with PDF generation failed: {e}"
+        ) from e
+
+
+@router.post("/generate/feasibility-report")
+async def generate_feasibility_report(req: TemplateReportRequest):
+    """Fill the 33(7)(B) template with microservice + user-input data."""
+    try:
+        safe_name = req.society_name.replace(" ", "_")
+        report_id = str(uuid.uuid4())[:8].upper()
+        xlsx_filename = f"Feasibility_33_7_B_{safe_name}_{report_id}.xlsx"
+        xlsx_path = str(OUTPUT_DIR / xlsx_filename)
+
+        resp = await asyncio.to_thread(
+            feasibility_generate,
+            request=_build_all_data(req),
+            mapping_path=MAPPING_PATH,
+            template_path=TEMPLATE_PATH,
+            output_path=xlsx_path,
         )
+
+        if not resp.success or resp.excel_bytes is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": resp.error, "missing_fields": resp.missing_fields},
+            )
+
+        import json as _json
+
+        return StreamingResponse(
+            BytesIO(resp.excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={xlsx_filename}",
+                "X-Report-Missing-Fields": str(len(resp.missing_fields)),
+                "X-Report-Calc-Errors": str(len(resp.calculation_errors)),
+                "X-Report-Skipped-Formulas": str(len(resp.skipped_formula_cells)),
+                "X-Report-Expiring-Cells": _json.dumps(resp.expiring_cells)
+                if resp.expiring_cells
+                else "{}",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Feasibility report generation failed: {e}"
+        ) from e
+
+
+@router.get("/feasibility/dossier")
+async def get_feasibility_dossier(scheme: str = Query("33(7)(B)")):
+    if scheme != "33(7)(B)":
+        raise HTTPException(status_code=404, detail=f"No dossier for scheme {scheme}")
+    try:
+        with open(DOSSIER_PATH, encoding="utf-8") as f:
+            return _json.load(f)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Dossier not generated yet") from e

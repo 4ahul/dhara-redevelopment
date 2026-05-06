@@ -4,15 +4,12 @@ Extract → Clean → Chunk → Embed → Insert to Milvus
 Uses OpenAI text-embedding-3-small (1536 dim) with enhanced schema.
 """
 
+import json
 import os
 import sys
 import time
-import json
-import hashlib
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, field
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -25,19 +22,18 @@ if env_file.exists():
             os.environ.setdefault(key.strip(), val.strip())
 
 from pymilvus import (
-    connections,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
     utility,
 )
-
-# Import our modules
-from scripts.text_cleaner import clean_and_detect, detect_doc_type, detect_chunk_type
-from scripts.unified_extractor import extract_all_documents, ExtractedDocument
 from scripts.semantic_chunker import HybridChunker
 
+# Import our modules
+from scripts.text_cleaner import clean_and_detect, detect_chunk_type, detect_doc_type
+from scripts.unified_extractor import ExtractedDocument, extract_all_documents
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -60,7 +56,6 @@ MILVUS_TOKEN = os.environ.get("MILVUS_TOKEN", "")
 
 def setup_milvus_collection(drop_existing: bool = True) -> Collection:
     """Create Milvus collection with enhanced metadata schema."""
-    print(f"[MILVUS] Connecting to {MILVUS_HOST}:{MILVUS_PORT}...")
 
     if MILVUS_TOKEN:
         connections.connect(
@@ -72,17 +67,12 @@ def setup_milvus_collection(drop_existing: bool = True) -> Collection:
             timeout=30,
         )
     else:
-        connections.connect(
-            alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=30
-        )
-    print("[MILVUS] Connected")
+        connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=30)
 
     if utility.has_collection(COLLECTION_NAME):
         if drop_existing:
-            print(f"[MILVUS] Dropping existing collection: {COLLECTION_NAME}")
             utility.drop_collection(COLLECTION_NAME)
         else:
-            print(f"[MILVUS] Using existing collection: {COLLECTION_NAME}")
             return Collection(COLLECTION_NAME)
 
     fields = [
@@ -98,9 +88,7 @@ def setup_milvus_collection(drop_existing: bool = True) -> Collection:
         FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=EMBEDDING_DIM),
     ]
 
-    schema = CollectionSchema(
-        fields, description="Dhara RAG - Document embeddings with metadata"
-    )
+    schema = CollectionSchema(fields, description="Dhara RAG - Document embeddings with metadata")
     collection = Collection(COLLECTION_NAME, schema)
 
     # HNSW index for fast retrieval (Phase 6)
@@ -115,9 +103,6 @@ def setup_milvus_collection(drop_existing: bool = True) -> Collection:
     collection.create_index(field_name="embedding", index_params=index_params)
     collection.load()
 
-    print(
-        f"[MILVUS] Collection created: {COLLECTION_NAME} (HNSW, {EMBEDDING_DIM}-dim COSINE)"
-    )
     return collection
 
 
@@ -126,7 +111,7 @@ def setup_milvus_collection(drop_existing: bool = True) -> Collection:
 # ---------------------------------------------------------------------------
 
 
-def chunk_document(doc: ExtractedDocument) -> List[Dict[str, Any]]:
+def chunk_document(doc: ExtractedDocument) -> list[dict[str, Any]]:
     """
     Chunk a document into pieces with metadata.
     Returns list of dicts with text, source, page, language, doc_type, etc.
@@ -155,7 +140,7 @@ def chunk_document(doc: ExtractedDocument) -> List[Dict[str, Any]]:
         # Chunk the page
         chunks = chunker.chunk_text(cleaned_text, source=doc.relative_path)
 
-        for chunk_idx, (chunk_text, metadata) in enumerate(chunks):
+        for chunk_idx, (chunk_text, _metadata) in enumerate(chunks):
             if len(chunk_text.strip()) < 50:
                 continue
 
@@ -163,11 +148,11 @@ def chunk_document(doc: ExtractedDocument) -> List[Dict[str, Any]]:
             chunk_type = detect_chunk_type(chunk_text)
 
             # Clean again (in case chunking introduced issues)
-            chunk_text = chunk_text.strip()
+            cleaned_chunk = chunk_text.strip()
 
             all_chunks.append(
                 {
-                    "text": chunk_text,
+                    "text": cleaned_chunk,
                     "source": doc.relative_path,
                     "page": page.page_num,
                     "language": language,
@@ -199,7 +184,7 @@ def get_embeddings_client():
     )
 
 
-def embed_batch(texts: List[str], embeddings_client) -> List[List[float]]:
+def embed_batch(texts: list[str], embeddings_client) -> list[list[float]]:
     """Embed a batch of texts."""
     return embeddings_client.embed_documents(texts)
 
@@ -211,7 +196,7 @@ def embed_batch(texts: List[str], embeddings_client) -> List[List[float]]:
 
 def insert_chunks_to_milvus(
     collection: Collection,
-    chunks: List[Dict[str, Any]],
+    chunks: list[dict[str, Any]],
     embeddings_client,
     batch_size: int = BATCH_SIZE,
 ) -> int:
@@ -242,12 +227,8 @@ def insert_chunks_to_milvus(
 
             if (i + batch_size) % 500 == 0 or (i + batch_size) >= len(chunks):
                 collection.flush()
-                print(
-                    f"  Indexed {min(i + batch_size, len(chunks))}/{len(chunks)} chunks"
-                )
 
-        except Exception as e:
-            print(f"  Batch error at {i}: {e}")
+        except Exception:
             continue
 
     collection.flush()
@@ -261,7 +242,7 @@ def insert_chunks_to_milvus(
 PROGRESS_FILE = Path("data/indexing_progress.json")
 
 
-def load_progress() -> Dict[str, str]:
+def load_progress() -> dict[str, str]:
     """Load indexed file hashes for resume support."""
     if PROGRESS_FILE.exists():
         try:
@@ -271,7 +252,7 @@ def load_progress() -> Dict[str, str]:
     return {}
 
 
-def save_progress(progress: Dict[str, str]):
+def save_progress(progress: dict[str, str]):
     """Save progress."""
     PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
     PROGRESS_FILE.write_text(json.dumps(progress, indent=2))
@@ -299,41 +280,26 @@ def run_pipeline(
         skip_ocr: Skip OCR for scanned documents (faster but less content)
         resume: Resume from last progress
     """
-    print("=" * 70)
-    print("DHARA RAG - UNIFIED INDEX PIPELINE")
-    print("=" * 70)
-    print(f"  Documents: {docs_dir}")
-    print(f"  Embedding: OpenAI text-embedding-3-small ({EMBEDDING_DIM} dim)")
-    print(f"  Milvus:    {MILVUS_HOST}:{MILVUS_PORT}")
-    print(f"  Index:     HNSW (M=16, efConstruction=256)")
-    print(
-        f"  Schema:    text, source, page, language, doc_type, chunk_type, chunk_index, file_hash"
-    )
-    print("=" * 70)
 
     overall_start = time.time()
 
     # Load progress for resume
     progress = load_progress() if resume else {}
     if progress:
-        print(f"[RESUME] Found {len(progress)} previously indexed files")
+        pass
 
     # Phase 1: Extract all documents
-    print("\n--- Phase 1: Document Extraction ---")
     documents = extract_all_documents(docs_dir, max_workers=max_extract_workers)
 
     # Filter out empty/failed docs
     valid_docs = [d for d in documents if d.total_chars > 0]
     if resume:
         valid_docs = [d for d in valid_docs if d.file_hash not in progress]
-    print(f"\n  Valid documents to process: {len(valid_docs)}")
 
     if not valid_docs:
-        print("No documents to index!")
         return
 
     # Phase 2: Chunk all documents
-    print("\n--- Phase 2: Chunking ---")
     chunk_start = time.time()
     all_chunks = []
 
@@ -341,17 +307,11 @@ def run_pipeline(
         chunks = chunk_document(doc)
         all_chunks.extend(chunks)
         if (i + 1) % 20 == 0:
-            print(
-                f"  Chunked {i + 1}/{len(valid_docs)} docs ({len(all_chunks)} chunks)"
-            )
+            pass
 
-    chunk_elapsed = time.time() - chunk_start
-    print(
-        f"  Total chunks: {len(all_chunks)} (from {len(valid_docs)} docs in {chunk_elapsed:.1f}s)"
-    )
+    time.time() - chunk_start
 
     if not all_chunks:
-        print("No chunks created!")
         return
 
     # Stats
@@ -361,29 +321,24 @@ def run_pipeline(
         lang_stats[c["language"]] = lang_stats.get(c["language"], 0) + 1
         dtype_stats[c["doc_type"]] = dtype_stats.get(c["doc_type"], 0) + 1
 
-    print("\n  Language distribution:")
-    for lang, count in sorted(lang_stats.items(), key=lambda x: -x[1]):
-        print(f"    {lang}: {count} chunks")
+    for _lang, _count in sorted(lang_stats.items(), key=lambda x: -x[1]):
+        pass
 
-    print("\n  Document type distribution:")
-    for dtype, count in sorted(dtype_stats.items(), key=lambda x: -x[1]):
-        print(f"    {dtype}: {count} chunks")
+    for _dtype, _count in sorted(dtype_stats.items(), key=lambda x: -x[1]):
+        pass
 
     # Phase 3: Setup Milvus
-    print("\n--- Phase 3: Milvus Setup ---")
     collection = setup_milvus_collection(drop_existing=drop_existing)
 
     # Phase 4: Embed and Insert
-    print("\n--- Phase 4: Embedding & Indexing ---")
     embeddings_client = get_embeddings_client()
 
     # Test embedding
-    test_vec = embeddings_client.embed_query("test")
-    print(f"  Embedding dimension: {len(test_vec)} (expected: {EMBEDDING_DIM})")
+    embeddings_client.embed_query("test")
 
     index_start = time.time()
-    total_inserted = insert_chunks_to_milvus(collection, all_chunks, embeddings_client)
-    index_elapsed = time.time() - index_start
+    insert_chunks_to_milvus(collection, all_chunks, embeddings_client)
+    time.time() - index_start
 
     # Save progress
     for doc in valid_docs:
@@ -391,22 +346,10 @@ def run_pipeline(
     save_progress(progress)
 
     # Final stats
-    total_elapsed = time.time() - overall_start
-    print("\n" + "=" * 70)
-    print("INDEXING COMPLETE")
-    print("=" * 70)
-    print(f"  Documents processed: {len(valid_docs)}")
-    print(f"  Chunks indexed:      {total_inserted}")
-    print(f"  Extraction time:     {chunk_elapsed:.1f}s")
-    print(f"  Indexing time:       {index_elapsed:.1f}s")
-    print(f"  Total time:          {total_elapsed:.1f}s")
-    print(f"  Index type:          HNSW (M=16, efConstruction=256)")
-    print(f"  Embedding model:     OpenAI text-embedding-3-small ({EMBEDDING_DIM}d)")
-    print("=" * 70)
+    time.time() - overall_start
 
     # Verify collection
     collection.load()
-    print(f"\n  Collection count: {collection.num_entities} entities")
 
 
 if __name__ == "__main__":
@@ -414,14 +357,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Dhara RAG Index Pipeline")
     parser.add_argument("--docs-dir", default="data/docs", help="Documents directory")
-    parser.add_argument(
-        "--no-drop", action="store_true", help="Don't drop existing collection"
-    )
+    parser.add_argument("--no-drop", action="store_true", help="Don't drop existing collection")
     parser.add_argument("--workers", type=int, default=4, help="Extraction workers")
     parser.add_argument("--skip-ocr", action="store_true", help="Skip OCR")
-    parser.add_argument(
-        "--resume", action="store_true", help="Resume from last progress"
-    )
+    parser.add_argument("--resume", action="store_true", help="Resume from last progress")
     args = parser.parse_args()
 
     run_pipeline(

@@ -1,17 +1,17 @@
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
 
 
-class RecordOfRight(str, Enum):
+class RecordOfRight(StrEnum):
     SEVEN_TWELVE = "7/12"
     EIGHT_A = "8A"
     PROPERTY_CARD = "Property Card"
     K_PRAT = "K-Prat"
 
 
-class PRCardStatus(str, Enum):
+class PRCardStatus(StrEnum):
     PROCESSING = "processing"
     CAPTCHA_REQUIRED = "captcha_required"
     COMPLETED = "completed"
@@ -34,19 +34,17 @@ class PRCardRequest(BaseModel):
     survey_no: str = Field(..., description="Survey / CTS / Gat number, e.g. '1'")
 
     # ── Optional — fine to omit ───────────────────────────────────────────────
-    survey_no_part1: Optional[str] = Field(
+    survey_no_part1: str | None = Field(
         None,
         description="Part-1 of survey number when survey has sub-parts. "
-                    "If omitted, survey_no is used as Part-1.",
+        "If omitted, survey_no is used as Part-1.",
     )
     mobile: str = Field(
         "9999999999",
         description="Mobile number for OTP/verification field on the site. "
-                    "A valid 10-digit number; defaults to a placeholder.",
+        "A valid 10-digit number; defaults to a placeholder.",
     )
-    property_uid: Optional[str] = Field(
-        None, description="Property UID / ULPIN if already known"
-    )
+    property_uid: str | None = Field(None, description="Property UID / ULPIN if already known")
     property_uid_known: bool = Field(
         False,
         description="Set True only if property_uid is being supplied",
@@ -67,19 +65,19 @@ class PRCardResponse(BaseModel):
     Works for both async (/scrape) and synchronous (/scrape/sync) endpoints.
     """
 
-    id: Optional[str] = None          # UUID — None for sync calls that skip DB
+    id: str | None = None  # UUID — None for sync calls that skip DB
     status: PRCardStatus
     district: str
     taluka: str
     village: str
     survey_no: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
     # ── Result payload ────────────────────────────────────────────────────────
-    error_message: Optional[str] = None
-    image_url: Optional[str] = None   # Source URL / "data:image/jpeg;base64"
-    download_url: Optional[str] = None  # Absolute URL to download via /download/{id}
-    extracted_data: Optional[dict] = None
+    error_message: str | None = None
+    image_url: str | None = None  # Source URL / "data:image/jpeg;base64"
+    download_url: str | None = None  # Absolute URL to download via /download/{id}
+    extracted_data: dict | None = None
 
 
 class CaptchaSubmitRequest(BaseModel):

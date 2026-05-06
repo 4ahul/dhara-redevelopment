@@ -1,18 +1,18 @@
 """
-CAPTCHA solver — 3-tier strategy:
-  1. LLM Vision (Gemini Flash → GPT-4o-mini) — fast, accurate
-  2. ddddocr (primary OCR) — offline fallback
-  3. pytesseract — last resort
-Returns a list of candidate strings (most likely first).
+CAPTCHA solver — 4-tier strategy:
+  1. LLM Vision (Gemini/OpenAI) — highest accuracy, recommended
+  2. Internal OCR Service — project-specific
+  3. ddddocr (Primary OCR) — local fallback
+  4. pytesseract — last resort
 """
 
 import io
 import logging
-from typing import List
 
 from PIL import Image, ImageEnhance
 
 from .llm_captcha_solver import LLMCaptchaSolver
+from .ocr_service_solver import OCRServiceSolver
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +36,13 @@ _CONFUSION_PAIRS = [
 
 
 class CaptchaSolver:
-    """3-tier CAPTCHA solver: LLM → ddddocr → pytesseract."""
+    """4-tier CAPTCHA solver: LLM Vision → Internal OCR → ddddocr → pytesseract."""
 
     def __init__(self, use_gpu: bool = False):
         self.use_gpu = use_gpu
         self._reader = None
         self._tesseract_available = None
+        self._ocr_service_solver = OCRServiceSolver()
         self._llm_solver = LLMCaptchaSolver()
 
     def _reader_instance(self):
@@ -64,23 +65,31 @@ class CaptchaSolver:
                 self._tesseract_available = False
         return self._tesseract_available
 
-    async def solve(self, image_bytes: bytes) -> List[str]:
+    async def solve(self, image_bytes: bytes) -> list[str]:
         """
-        Solve CAPTCHA — tries LLM first (high accuracy), falls back to OCR.
+        Solve CAPTCHA — tries LLM Vision first (highest accuracy), then falls back.
         Returns a deduplicated list of candidate strings (most likely first).
         """
-        candidates: List[str] = []
+        candidates: list[str] = []
 
-        # ── Tier 1: LLM Vision (Gemini Flash → GPT-4o-mini) ─────────────
+        # ── Tier 1: LLM Vision (Gemini/OpenAI) ───────────────────────────
         try:
             llm_result = await self._llm_solver.solve(image_bytes)
             if llm_result:
-                logger.info("LLM CAPTCHA result: '%s'", llm_result)
                 candidates.append(llm_result)
+                logger.info("LLM Vision CAPTCHA solved: '%s'", llm_result)
         except Exception as e:
-            logger.warning("LLM CAPTCHA solver error: %s", e)
+            logger.warning("LLM Vision solver error: %s", e)
 
-        # ── Tier 2 & 3: OCR fallback ────────────────────────────────────
+        # ── Tier 2: Internal OCR Service ────────────────────────────────
+        try:
+            ocr_svc_result = await self._ocr_service_solver.solve(image_bytes)
+            if ocr_svc_result:
+                candidates.append(ocr_svc_result)
+        except Exception as e:
+            logger.warning("Internal OCR Service solver error: %s", e)
+
+        # ── Tier 3 & 4: Local OCR fallback ─────────────────────────────
         ocr_candidates = self._ocr_solve(image_bytes)
         for c in ocr_candidates:
             if c not in candidates:
@@ -88,7 +97,7 @@ class CaptchaSolver:
 
         return candidates
 
-    def _ocr_solve(self, image_bytes: bytes) -> List[str]:
+    def _ocr_solve(self, image_bytes: bytes) -> list[str]:
         """Original OCR-based solver (ddddocr + pytesseract)."""
         try:
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -97,7 +106,7 @@ class CaptchaSolver:
             if w > 300 or h > 150:
                 img = self._crop_captcha_region(img)
 
-            candidates: List[tuple] = []
+            candidates: list[tuple] = []
 
             # ddddocr
             try:
@@ -160,7 +169,9 @@ class CaptchaSolver:
 
             arr = np.array(gray)
 
-            adaptive = cv2.adaptiveThreshold(arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+            adaptive = cv2.adaptiveThreshold(
+                arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+            )
             yield Image.fromarray(adaptive), "adaptive_thresh"
 
             _, binary = cv2.threshold(arr, 127, 255, cv2.THRESH_BINARY_INV)
@@ -199,7 +210,7 @@ class CaptchaSolver:
         cleaned = "".join(c for c in text.strip() if c in _ALLOWED)
         return cleaned if 4 <= len(cleaned) <= 8 else ""
 
-    def _build_variant_list(self, candidates: list) -> List[str]:
+    def _build_variant_list(self, candidates: list) -> list[str]:
         if not candidates:
             return []
 
@@ -210,7 +221,7 @@ class CaptchaSolver:
             if text not in seen:
                 seen[text] = conf
 
-        result: List[str] = []
+        result: list[str] = []
 
         for text in list(seen.keys())[:2]:
             if text not in result:
@@ -222,7 +233,7 @@ class CaptchaSolver:
         logger.info("OCR candidates (%d): %s", len(result), result[:10])
         return result
 
-    def _confusion_variants(self, text: str) -> List[str]:
+    def _confusion_variants(self, text: str) -> list[str]:
         variants = set()
 
         def _expand(current: str, pair_idx: int):

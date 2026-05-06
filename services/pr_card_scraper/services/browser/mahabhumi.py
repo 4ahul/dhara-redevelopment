@@ -1,11 +1,12 @@
-import logging
 import asyncio
+import contextlib
 import difflib
+import logging
 import re
-from typing import Optional
-from unidecode import unidecode
+
 from playwright.async_api import Page, TimeoutError
 from tenacity import retry, stop_after_attempt, wait_exponential
+from unidecode import unidecode
 
 logger = logging.getLogger(__name__)
 
@@ -135,40 +136,69 @@ class MahabhumiFormHandler:
     def __init__(self, page: Page):
         self.page = page
 
-    @retry(
-        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
-    )
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def navigate_to_base(self):
-        """Navigate to the base URL with retries.
-
-        Uses 'domcontentloaded' (not 'networkidle') because the Bhulekh site
-        loads many slow third-party resources that prevent networkidle from
-        being reached within a reasonable timeout.
-        """
+        """Navigate to base URL with rigorous session isolation."""
         logger.info(f"Navigating to {self.BASE_URL}")
         try:
-            # Clear storage/cookies to avoid session conflicts
+            # Clear all session artifacts to avoid "Already logged in" errors
             context = self.page.context
             await context.clear_cookies()
+            await self.page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
 
-            try:
-                await self.page.goto(
-                    self.BASE_URL, wait_until="domcontentloaded", timeout=45000
-                )
-            except Exception:
-                # Last-resort: commit=True means the navigation was initiated
-                await self.page.goto(
-                    self.BASE_URL, wait_until="commit", timeout=30000
-                )
-
-            # Give the page JS a moment to wire up before we start clicking
+            # Bhulekh site is notoriously slow; wait for initial commit then settle
+            await self.page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=60000)
             await asyncio.sleep(3)
             await self._dismiss_overlays()
         except Exception as e:
             logger.warning(f"Navigation attempt failed: {e}")
-            raise e
+            raise
 
-    async def _wait_for_loading(self):
+    async def _wait_for_options(self, selector: str, timeout_ms: int = 30000):
+        """Smart wait for a dropdown to populate with options beyond the default."""
+        try:
+            await self.page.wait_for_function(
+                "selector => document.querySelectorAll(selector + ' option').length > 1",
+                arg=selector,
+                timeout=timeout_ms,
+            )
+            return True
+        except Exception:
+            # Check if there's a "No records found" dialog blocking us
+            if await self.page.locator("#customAlertOverlay").is_visible():
+                msg = await self.page.locator("#customAlertOverlay").inner_text()
+                logger.warning("Site reported: %s", msg.strip())
+            return False
+
+    async def _select_with_retry(self, selector: str, value: str, label: str | None = None):
+        """Select an option and verify it stuck, retrying on slow postbacks."""
+        for attempt in range(3):
+            if not await self._wait_for_options(selector):
+                logger.warning(
+                    "Dropdown %s failed to populate on attempt %d", selector, attempt + 1
+                )
+                # Force a small wait and retry
+                await asyncio.sleep(2)
+                continue
+
+            try:
+                if label:
+                    await self.page.select_option(selector, label=label)
+                else:
+                    await self.page.select_option(selector, value=value)
+
+                await self._fire_change(selector)
+                await self._wait_for_loading()
+
+                # Critical: Verify selection stuck
+                current_val = await self.page.eval_on_selector(selector, "el => el.value")
+                if current_val != "0" and (not value or current_val == value):
+                    return True
+            except Exception as e:
+                logger.warning("Selection retry %d for %s failed: %s", attempt + 1, selector, e)
+                await asyncio.sleep(2)
+
+        return False
         """Wait for ASP.NET UpdatePanel / overlays to settle."""
         await asyncio.sleep(0.5)
         # Only wait on selectors that actually exist; presence-check first avoids
@@ -179,18 +209,18 @@ class MahabhumiFormHandler:
                     await self.page.wait_for_selector(selector, state="hidden", timeout=5000)
             except Exception:
                 pass
-        try:
+        with contextlib.suppress(Exception):
             await self.page.wait_for_load_state("networkidle", timeout=4000)
-        except Exception:
-            pass
         await asyncio.sleep(0.3)
+        return None
 
     async def _fire_change(self, selector: str):
         """
         Fire a change event that ASP.NET UpdatePanel will respond to.
         Covers: native bubbling event, jQuery trigger, and direct onchange invocation.
         """
-        await self.page.evaluate("""
+        await self.page.evaluate(
+            """
             selector => {
                 const el = document.querySelector(selector);
                 if (!el) return;
@@ -201,19 +231,22 @@ class MahabhumiFormHandler:
                 // 3. ASP.NET __doPostBack embedded in onchange attribute
                 if (el.onchange) { try { el.onchange(); } catch(e) {} }
             }
-        """, selector)
+        """,
+            selector,
+        )
 
-    async def _select_with_retry(self, selector: str, value: str, label: Optional[str] = None):
-        """Select an option and retry if the value doesn't stick or dropdown is empty."""
+    async def _select_with_retry(self, selector: str, value: str, label: str | None = None):
+        """Select an option and verify it stuck, retrying on slow postbacks."""
         for attempt in range(3):
-            try:
-                # Wait for options to load
-                await self.page.wait_for_function(
-                    f"selector => document.querySelectorAll(selector + ' option').length > 1",
-                    arg=selector,
-                    timeout=20000
+            if not await self._wait_for_options(selector):
+                logger.warning(
+                    "Dropdown %s failed to populate on attempt %d", selector, attempt + 1
                 )
+                # Force a small wait and retry
+                await asyncio.sleep(2)
+                continue
 
+            try:
                 if label:
                     await self.page.select_option(selector, label=label)
                 else:
@@ -221,15 +254,15 @@ class MahabhumiFormHandler:
 
                 await self._fire_change(selector)
                 await self._wait_for_loading()
-                await asyncio.sleep(2)
 
-                # Verify selection
-                new_val = await self.page.eval_on_selector(selector, "el => el.value")
-                if new_val != "0" and (not value or new_val == value):
+                # Critical: Verify selection stuck
+                current_val = await self.page.eval_on_selector(selector, "el => el.value")
+                if current_val != "0" and (not value or current_val == value):
                     return True
             except Exception as e:
-                logger.warning(f"Selection failed for {selector} on attempt {attempt+1}: {e}")
-                await asyncio.sleep(3)
+                logger.warning("Selection retry %d for %s failed: %s", attempt + 1, selector, e)
+                await asyncio.sleep(2)
+
         return False
 
     async def fill_form(
@@ -238,18 +271,20 @@ class MahabhumiFormHandler:
         taluka: str,
         village: str,
         survey_no: str,
-        survey_no_part1: Optional[str],
+        survey_no_part1: str | None,
         mobile: str,
         record_of_right: str = "Property Card",
         language: str = "EN",
         property_uid_known: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """Fill form sequentially as per user's strict workflow requirements."""
 
         # 1. Click Property Card
         logger.info(f"Step 1: Selecting record type: {record_of_right}")
-        radio_id = self.RECORD_RADIO_IDS.get(record_of_right, self.RECORD_RADIO_IDS["Property Card"])
+        radio_id = self.RECORD_RADIO_IDS.get(
+            record_of_right, self.RECORD_RADIO_IDS["Property Card"]
+        )
         await self._dismiss_overlays()
         await self.page.click(f"#{radio_id}", force=True)
         await self._wait_for_loading()
@@ -283,19 +318,19 @@ class MahabhumiFormHandler:
         # 6. Enter CTS Number and hit Search
         search_value = survey_no_part1 if survey_no_part1 else survey_no
         logger.info(f"Step 6: Entering CTS number: {search_value}")
-        
+
         # Try finding the text box
         box_sel = "#ContentPlaceHolder1_txtcsno"
         if not await self.page.is_visible(box_sel):
-             box_sel = "#ContentPlaceHolder1_txtSurveyNoNew"
-             
+            box_sel = "#ContentPlaceHolder1_txtSurveyNoNew"
+
         await self.page.fill(box_sel, search_value)
         await asyncio.sleep(0.5)
-        
+
         btn_sel = "#ContentPlaceHolder1_btnsearchfind"
         if not await self.page.is_visible(btn_sel):
             btn_sel = "#ContentPlaceHolder1_btnSearch"
-            
+
         await self.page.click(btn_sel)
         logger.info("Clicked Search button")
         await self._wait_for_loading()
@@ -312,7 +347,7 @@ class MahabhumiFormHandler:
         await asyncio.sleep(0.5)
 
         # 9. Language (default English)
-        logger.info(f"Step 9: Setting language to English")
+        logger.info("Step 9: Setting language to English")
         await self._select_with_retry("#ContentPlaceHolder1_ddllangforAll", "en_in")
         await self._wait_for_loading()
 
@@ -335,7 +370,9 @@ class MahabhumiFormHandler:
                     "() => document.querySelectorAll('#ContentPlaceHolder1_ddlsurveyno option').length"
                 )
                 if opt_count > 1:
-                    logger.info(f"Survey result dropdown appeared with {opt_count} options — selecting '{survey_no}'")
+                    logger.info(
+                        f"Survey result dropdown appeared with {opt_count} options — selecting '{survey_no}'"
+                    )
                     await self._select_fuzzy("#ContentPlaceHolder1_ddlsurveyno", survey_no)
                     return
         except Exception:
@@ -377,7 +414,8 @@ class MahabhumiFormHandler:
                         }
                         return false;
                     }""",
-                    grid_sel, survey_no,
+                    grid_sel,
+                    survey_no,
                 )
                 if clicked:
                     logger.info(f"Selected survey from GridView: '{survey_no}'")
@@ -387,7 +425,9 @@ class MahabhumiFormHandler:
             except Exception:
                 continue
 
-        logger.warning(f"Could not find survey result selector for '{survey_no}' — continuing anyway")
+        logger.warning(
+            f"Could not find survey result selector for '{survey_no}' — continuing anyway"
+        )
 
     async def _dismiss_overlays(self):
         """Dismiss any custom alert overlays."""
@@ -417,7 +457,9 @@ class MahabhumiFormHandler:
     async def _save_debug_screenshot(self, label: str):
         """Save a debug screenshot to outputs/ for post-mortem inspection."""
         try:
-            import os, time
+            import os
+            import time
+
             out = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outputs")
             os.makedirs(out, exist_ok=True)
             path = os.path.join(out, f"debug_{label}_{int(time.time())}.png")
@@ -437,7 +479,9 @@ class MahabhumiFormHandler:
             )
         except TimeoutError:
             logger.warning(f"Dropdown {selector} options did not load in time")
-            await self._save_debug_screenshot(f"timeout_{selector.replace('#','').replace('_','-')}")
+            await self._save_debug_screenshot(
+                f"timeout_{selector.replace('#', '').replace('_', '-')}"
+            )
             return
 
         options = await self.page.eval_on_selector_all(
@@ -453,12 +497,25 @@ class MahabhumiFormHandler:
         for opt in options:
             if not opt["value"] or opt["value"] == "0":
                 continue
-            opt_norm = self._norm(opt["text"])
+            opt_text = opt["text"].strip()
+            opt_norm = self._norm(opt_text)
 
-            # Also match against just the place name (last segment after comma).
-            # Bhulekh Property Card talukas are "उप अधीक्षक भूमि अभिलेख, हवेली" —
-            # matching only against "हवेली" gives far better accuracy.
-            opt_place_raw = opt["text"].split(",")[-1].strip()
+            # 1. Check for absolute match first (before normalization)
+            if opt_text == target_text:
+                best_val = opt["value"]
+                best_text = opt_text
+                best_score = 1.0
+                break
+
+            # 2. Check for absolute match (after normalization)
+            if opt_norm == target_norm:
+                best_val = opt["value"]
+                best_text = opt_text
+                best_score = 1.0
+                break
+
+            # 3. Fuzzy matching logic
+            opt_place_raw = opt_text.split(",")[-1].strip()
             opt_place = self._norm(opt_place_raw)
 
             # Full-string score
@@ -476,7 +533,7 @@ class MahabhumiFormHandler:
             if score > best_score:
                 best_score = score
                 best_val = opt["value"]
-                best_text = opt["text"]
+                best_text = opt_text
 
         # Always log top matches to help with debugging
         all_opts = [o["text"].strip() for o in options if o["value"] and o["value"] != "0"]
@@ -490,9 +547,7 @@ class MahabhumiFormHandler:
             return
 
         if best_val and best_score > 0.3:
-            logger.info(
-                f"Fuzzy match: '{target_text}' -> '{best_text}' (score: {best_score:.2f})"
-            )
+            logger.info(f"Fuzzy match: '{target_text}' -> '{best_text}' (score: {best_score:.2f})")
             await self.page.select_option(selector, best_val)
             await self._fire_change(selector)
             await self._wait_for_loading()
@@ -503,8 +558,7 @@ class MahabhumiFormHandler:
         roman = unidecode(text).lower()
         roman = re.sub(r"(.)\1+", r"\1", roman)
         roman = roman.rstrip("aeiou")
-        roman = re.sub(r"[^a-z0-9]", "", roman)
-        return roman
+        return re.sub(r"[^a-z0-9]", "", roman)
 
     async def get_captcha_image(self) -> bytes:
         """Capture CAPTCHA image bytes and save a debug copy to outputs/."""
@@ -514,7 +568,7 @@ class MahabhumiFormHandler:
             img_bytes = await captcha_loc.screenshot(timeout=5000)
         except Exception as e:
             logger.warning(f"Element screenshot failed ({e}), trying JS extraction")
-            b64 = await self.page.evaluate('''() => {
+            b64 = await self.page.evaluate("""() => {
                 const img = document.querySelector("#ContentPlaceHolder1_captchaImage");
                 const canvas = document.createElement("canvas");
                 canvas.width = img.width || img.naturalWidth || 200;
@@ -522,13 +576,16 @@ class MahabhumiFormHandler:
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 return canvas.toDataURL("image/png").split(",")[1];
-            }''')
+            }""")
             import base64
+
             img_bytes = base64.b64decode(b64)
 
         # Save debug copy so we can check what the OCR is reading
         try:
-            import os, time
+            import os
+            import time
+
             out = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outputs")
             os.makedirs(out, exist_ok=True)
             path = os.path.join(out, f"captcha_{int(time.time())}.png")
@@ -561,10 +618,10 @@ class MahabhumiFormHandler:
                 continue
         # Fallback: just reload the captcha image element
         try:
-            await self.page.evaluate('''() => {
+            await self.page.evaluate("""() => {
                 const img = document.querySelector("#ContentPlaceHolder1_captchaImage");
                 if (img) img.src = img.src + "?" + Date.now();
-            }''')
+            }""")
             logger.info("Refreshed CAPTCHA via src reload")
             await asyncio.sleep(2)
         except Exception as e:
@@ -607,12 +664,10 @@ class MahabhumiFormHandler:
                         "not found",
                         "सापडले नाही",
                         "error6",
-                        "try again"
+                        "try again",
                     ]
                 )
                 if is_validation_error:
-                    raise RuntimeError(
-                        f"Form validation error: {self._last_dialog_message}"
-                    )
+                    raise RuntimeError(f"Form validation error: {self._last_dialog_message}")
         finally:
             self.page.remove_listener("dialog", handle_dialog)

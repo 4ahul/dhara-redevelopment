@@ -5,9 +5,8 @@ Maintains context and preserves logical sections.
 """
 
 import re
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
-from langchain_core.documents import Document
+from typing import Any
 
 
 @dataclass
@@ -19,7 +18,7 @@ class Chunk:
     chunk_type: str  # paragraph, heading, list, table, clause
     topic: str
     section: str
-    page: Optional[int] = None
+    page: int | None = None
     chunk_index: int = 0
 
 
@@ -103,12 +102,11 @@ class SemanticChunker:
             return "table"
         return "paragraph"
 
-    def split_into_sections(self, text: str) -> List[str]:
+    def split_into_sections(self, text: str) -> list[str]:
         """Split text into logical sections based on headings"""
         lines = text.split("\n")
         sections = []
         current_section = []
-        current_heading = ""
 
         for line in lines:
             line_stripped = line.strip()
@@ -119,7 +117,6 @@ class SemanticChunker:
                 if current_section:
                     sections.append("\n".join(current_section))
                 current_section = [line]
-                current_heading = line_stripped
             else:
                 current_section.append(line)
 
@@ -129,7 +126,7 @@ class SemanticChunker:
 
         return sections
 
-    def split_section(self, section: str, section_name: str = "") -> List[Chunk]:
+    def split_section(self, section: str, section_name: str = "") -> list[Chunk]:
         """Split a section into chunks while preserving context"""
         chunks = []
 
@@ -141,21 +138,16 @@ class SemanticChunker:
         chunk_index = 0
 
         for para in paragraphs:
-            para = para.strip()
-            if not para:
+            stripped_para = para.strip()
+            if not stripped_para:
                 continue
 
-            para_type = self.identify_content_type(para)
+            para_type = self.identify_content_type(stripped_para)
 
             # Handle headings - start new chunk
             if para_type == "heading":
-                if (
-                    current_chunk
-                    and sum(len(c) for c in current_chunk) >= self.min_chunk_size
-                ):
-                    chunks.append(
-                        self._create_chunk(current_chunk, section_name, chunk_index)
-                    )
+                if current_chunk and sum(len(c) for c in current_chunk) >= self.min_chunk_size:
+                    chunks.append(self._create_chunk(current_chunk, section_name, chunk_index))
                     chunk_index += 1
                 current_chunk = [para]
                 current_size = len(para)
@@ -163,9 +155,7 @@ class SemanticChunker:
 
             # Check if adding this paragraph would exceed max size
             if current_size + len(para) > self.max_chunk_size and current_chunk:
-                chunks.append(
-                    self._create_chunk(current_chunk, section_name, chunk_index)
-                )
+                chunks.append(self._create_chunk(current_chunk, section_name, chunk_index))
                 chunk_index += 1
 
                 # Handle overlap for context
@@ -190,7 +180,7 @@ class SemanticChunker:
 
         return chunks
 
-    def _create_chunk(self, lines: List[str], section: str, index: int) -> Chunk:
+    def _create_chunk(self, lines: list[str], section: str, index: int) -> Chunk:
         """Create a Chunk object from lines, preserving section context"""
         content = "\n\n".join(lines)
         first_line = lines[0].strip() if lines else ""
@@ -218,7 +208,7 @@ class SemanticChunker:
             chunk_index=index,
         )
 
-    def chunk_text(self, text: str, source: str = "") -> List[Tuple[str, str]]:
+    def chunk_text(self, text: str, source: str = "") -> list[tuple[str, str]]:
         """
         Main method to chunk text.
         Returns list of (chunk_text, metadata_json) tuples.
@@ -269,7 +259,7 @@ class HybridChunker:
         self.fallback_size = fallback_size
         self.overlap = overlap
 
-    def chunk_text(self, text: str, source: str = "") -> List[Tuple[str, str]]:
+    def chunk_text(self, text: str, source: str = "") -> list[tuple[str, str]]:
         """Chunk text using hybrid approach"""
         # Try semantic chunking first
         chunks = self.semantic_chunker.chunk_text(text, source)
@@ -295,13 +285,12 @@ def create_chunker(chunking_strategy: str = "semantic", **kwargs) -> Any:
     """Factory function to create appropriate chunker"""
     if chunking_strategy == "semantic":
         return SemanticChunker(**kwargs)
-    elif chunking_strategy == "hybrid":
+    if chunking_strategy == "hybrid":
         return HybridChunker(**kwargs)
-    else:
-        # Default to langchain's RecursiveCharacterTextSplitter
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
+    # Default to langchain's RecursiveCharacterTextSplitter
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        return RecursiveCharacterTextSplitter(**kwargs)
+    return RecursiveCharacterTextSplitter(**kwargs)
 
 
 if __name__ == "__main__":
@@ -311,7 +300,7 @@ if __name__ == "__main__":
 
 ## What is FSI?
 
-Floor Space Index (FSI) is the ratio of the total floor area of a building to the total area of the plot on which the building is constructed. 
+Floor Space Index (FSI) is the ratio of the total floor area of a building to the total area of the plot on which the building is constructed.
 
 FSI is calculated by dividing the total built-up area by the total plot area.
 
@@ -345,8 +334,5 @@ FSI regulations are crucial for property development and must be carefully consi
     chunker = SemanticChunker(max_chunk_size=600)
     chunks = chunker.chunk_text(test_text, "test.txt")
 
-    print(f"Created {len(chunks)} semantic chunks:\n")
-    for i, (text, meta) in enumerate(chunks):
-        print(f"--- Chunk {i + 1} ({meta}) ---")
-        print(text[:200] + "..." if len(text) > 200 else text)
-        print()
+    for _i, (_text, _meta) in enumerate(chunks):
+        pass

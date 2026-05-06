@@ -1,26 +1,83 @@
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   traefik:
     image: traefik:v3
+    container_name: traefik
     ports:
-      - "80:80"
-      - "8080:8080"
+      - "80:80"       # Web entrypoint
+      - "8080:8080"   # Dashboard
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+    logging: *default-logging
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686" # UI
+      - "4318:4318"   # OTLP HTTP
+    networks:
+      - dhara_net
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/monitoring/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    networks:
+      - dhara_net
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/monitoring`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.middlewares.grafana-strip.stripprefix.prefixes=/monitoring"
+      - "traefik.http.routers.grafana.middlewares=grafana-strip"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    logging: *default-logging
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,40 +91,30 @@ services:
       - POSTGRES_USER=redevelopment
       - POSTGRES_PASSWORD=redevelopment
       - POSTGRES_DB=redevelopment
-      - POSTGRES_MULTIPLE_DATABASES=orchestrator_db,rag_service_db,pr_card_scraper_db,mcgm_property_lookup_db,dp_remarks_report_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "redevelopment"]
+      test: [ "CMD", "pg_isready", "-U", "redevelopment" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
   orchestrator:
-    build: ./services/orchestrator
-    image: redevelopment-ai/orchestrator:v1
-    volumes:
-      - ./services/orchestrator:/app
-      - ./report_outputs:/tmp/reports
-      - upload_data:/tmp/uploads
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
     ports:
       - "8000:8000"
+    
+    env_file:
+      - .env
+      - ./services/orchestrator/.env
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL}
-      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
-      - CLERK_JWT_KEY=${CLERK_JWT_KEY}
-      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY}
-      - CLERK_JWT_ISSUER=${CLERK_JWT_ISSUER:-clerk.accounts.dev}
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - DATABASE_URL=postgresql+asyncpg://redevelopment:redevelopment@postgres:5432/orchestrator_db
       - REDIS_URL=redis://redis:6379
       - SITE_ANALYSIS_URL=http://site_analysis:8001
@@ -78,112 +125,345 @@ services:
       - RAG_URL=http://rag_service:8006
       - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
       - DP_REPORT_URL=http://dp_remarks_report:8008
-      - READY_RECKONER_URL=http://ready_reckoner:8003
-      - SERP_API_KEY=${SERP_API_KEY}
-      - SERPER_API_KEY=${SERPER_API_KEY}
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@dharaai.com}
-      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Dhara AI}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
-      - PYTHONPATH=.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      - ./services/orchestrator:/app/services/orchestrator
+      - dossiers_data:/app/dossiers
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orchestrator.rule=PathPrefix(`/orchestrator`)"
+      - "traefik.http.routers.orchestrator.entrypoints=web"
+      - "traefik.http.middlewares.orchestrator-strip.stripprefix.prefixes=/orchestrator"
+      - "traefik.http.routers.orchestrator.middlewares=orchestrator-strip"
+    logging: *default-logging
+    restart: unless-stopped
+
+  orchestrator_worker:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    command: ["arq", "services.orchestrator.services.worker.WorkerSettings"]
+    env_file:
+      - .env
+      - ./services/orchestrator/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://redevelopment:redevelopment@postgres:5432/orchestrator_db
+      - REDIS_URL=redis://redis:6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - SITE_ANALYSIS_URL=http://site_analysis:8001
+      - HEIGHT_URL=http://aviation_height:8002
+      - PREMIUM_URL=http://ready_reckoner:8003
+      - REPORT_URL=http://report_generator:8004
+      - PR_CARD_URL=http://pr_card_scraper:8005
+      - RAG_URL=http://rag_service:8006
+      - MCGM_PROPERTY_URL=http://mcgm_property_lookup:8007
+      - DP_REPORT_URL=http://dp_remarks_report:8008
+      - ENABLE_METRICS=true
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/orchestrator:/app/services/orchestrator
+      - dossiers_data:/app/dossiers
+    networks:
+      - dhara_net
+    logging: *default-logging
     restart: unless-stopped
 
   site_analysis:
-    build: ./services/site_analysis
+    build:
+      context: .
+      dockerfile: services/site_analysis/Dockerfile
+    image: redevelopment-ai/site_analysis:v1
     ports:
       - "8001:8001"
+    volumes:
+      - ./services/site_analysis:/app/services/site_analysis
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/site_analysis/.env
     environment:
-      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      - SERP_API_KEY=${SERP_API_KEY}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.site-analysis.rule=PathPrefix(`/site-analysis`)"
+      - "traefik.http.routers.site-analysis.entrypoints=web"
+      - "traefik.http.middlewares.site-analysis-strip.stripprefix.prefixes=/site-analysis"
+      - "traefik.http.routers.site-analysis.middlewares=site-analysis-strip"
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
   aviation_height:
-    build: ./services/aviation_height
+    build:
+      context: .
+      dockerfile: services/aviation_height/Dockerfile
+    image: redevelopment-ai/aviation_height:v1
     ports:
       - "8002:8002"
+    volumes:
+      - ./services/aviation_height:/app/services/aviation_height
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/aviation_height/.env
     environment:
-      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      - SERP_API_KEY=${SERP_API_KEY}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.height.rule=PathPrefix(`/height`)"
+      - "traefik.http.routers.height.entrypoints=web"
+      - "traefik.http.middlewares.height-strip.stripprefix.prefixes=/height"
+      - "traefik.http.routers.height.middlewares=height-strip"
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8002/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
   ready_reckoner:
-    build: ./services/ready_reckoner
+    build:
+      context: .
+      dockerfile: services/ready_reckoner/Dockerfile
+    image: redevelopment-ai/ready_reckoner:v1
     ports:
       - "8003:8003"
+    volumes:
+      - ./services/ready_reckoner:/app/services/ready_reckoner
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/ready_reckoner/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ready-reckoner.rule=PathPrefix(`/ready-reckoner`)"
+      - "traefik.http.routers.ready-reckoner.entrypoints=web"
+      - "traefik.http.middlewares.ready-reckoner-strip.stripprefix.prefixes=/ready-reckoner"
+      - "traefik.http.routers.ready-reckoner.middlewares=ready-reckoner-strip"
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8003/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
   report_generator:
-    build: ./services/report_generator
+    build:
+      context: .
+      dockerfile: services/report_generator/Dockerfile
+    image: redevelopment-ai/report_generator:v1
     ports:
       - "8004:8004"
     volumes:
       - ./report_outputs:/tmp/reports
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/report_generator/.env
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.report.rule=PathPrefix(`/report`)"
+      - "traefik.http.routers.report.entrypoints=web"
+      - "traefik.http.middlewares.report-strip.stripprefix.prefixes=/report"
+      - "traefik.http.routers.report.middlewares=report-strip"
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8004/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
   pr_card_scraper:
-    build: ./services/pr_card_scraper
+    build:
+      context: .
+      dockerfile: services/pr_card_scraper/Dockerfile
+    image: redevelopment-ai/pr_card_scraper:v1
     ports:
       - "8005:8005"
+    env_file:
+      - ./services/pr_card_scraper/.env
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
       - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/pr_card_scraper_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
     depends_on:
       - postgres
     networks:
       - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pr-card.rule=PathPrefix(`/pr-card`)"
+      - "traefik.http.routers.pr-card.entrypoints=web"
+      - "traefik.http.middlewares.pr-card-strip.stripprefix.prefixes=/pr-card"
+      - "traefik.http.routers.pr-card.middlewares=pr-card-strip"
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8005/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
+  mcgm_property_lookup:
+    build:
+      context: .
+      dockerfile: services/mcgm_property_lookup/Dockerfile
+    image: redevelopment-ai/mcgm_property_lookup:v1
+    ports:
+      - "8007:8007"
+    volumes:
+      - ./services/mcgm_property_lookup:/app/services/mcgm_property_lookup
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/mcgm_property_lookup/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
+    depends_on:
+      - postgres
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mcgm.rule=PathPrefix(`/mcgm`)"
+      - "traefik.http.routers.mcgm.entrypoints=web"
+      - "traefik.http.middlewares.mcgm-strip.stripprefix.prefixes=/mcgm"
+      - "traefik.http.routers.mcgm.middlewares=mcgm-strip"
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8007/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dp_remarks_report:
+    build:
+      context: .
+      dockerfile: services/dp_remarks_report/Dockerfile
+    image: redevelopment-ai/dp_remarks_report:v1
+    ports:
+      - "8008:8008"
+    volumes:
+      - ./services/dp_remarks_report:/app/services/dp_remarks_report
+      - ./dhara_shared:/app/dhara_shared:ro
+    env_file:
+      - ./services/dp_remarks_report/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/dp_remarks_report_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
+    depends_on:
+      - postgres
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dp-remarks.rule=PathPrefix(`/dp-remarks`)"
+      - "traefik.http.routers.dp-remarks.entrypoints=web"
+      - "traefik.http.middlewares.dp-remarks-strip.stripprefix.prefixes=/dp-remarks"
+      - "traefik.http.routers.dp-remarks.middlewares=dp-remarks-strip"
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8008/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  ocr_service:
+    build:
+      context: .
+      dockerfile: services/ocr_service/Dockerfile
+    image: redevelopment-ai/ocr_service:v1
+    ports:
+      - "8009:8009"
+    volumes:
+      - ./services/ocr_service:/app/services/ocr_service
+    env_file:
+      - ./services/ocr_service/.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ocr.rule=PathPrefix(`/ocr`)"
+      - "traefik.http.routers.ocr.entrypoints=web"
+      - "traefik.http.middlewares.ocr-strip.stripprefix.prefixes=/ocr"
+      - "traefik.http.routers.ocr.middlewares=ocr-strip"
+    logging: *default-logging
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8009/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  rag_service:
+    build:
+      context: .
+      dockerfile: services/rag_service/Dockerfile
+    image: redevelopment-ai/rag_service:v2
+    ports:
+      - "8006:8006"
+    env_file:
+      - ./services/rag_service/.env
+    environment:
+      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - ENABLE_METRICS=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dhara_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rag.rule=PathPrefix(`/rag`)"
+      - "traefik.http.routers.rag.entrypoints=web"
+      - "traefik.http.middlewares.rag-strip.stripprefix.prefixes=/rag"
+      - "traefik.http.routers.rag.middlewares=rag-strip"
+
   milvus:
-    image: milvusdb/milvus:2.6-20260317-200a2d76
-    command: ["milvus", "run", "standalone"]
+    image: milvusdb/milvus:v2.4.0
+    command: [ "milvus", "run", "standalone" ]
     ports:
       - "19530:19530"
       - "9091:9091"
@@ -191,25 +471,24 @@ services:
       - seccomp:unconfined
     environment:
       - ETCD_ENDPOINTS=milvus_etcd:2379
-      - MINIO_ADDRESS=milvus_minio:9000
       - KNOWHERE_SIMD_TYPE=auto
-      - COMMON_STORAGETYPE=minio
+      - COMMON_STORAGETYPE=local
+      - COMMON_LOG_LEVEL=warning
     volumes:
       - milvus_data:/var/lib/milvus
     networks:
       - dhara_net
+    logging: *default-logging
     depends_on:
       milvus_etcd:
         condition: service_healthy
-      milvus_minio:
-        condition: service_healthy
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-      start_period: 10s
-
+      test: [ "CMD", "curl", "-f", "http://localhost:9091/healthz" ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 150s
 
   milvus_etcd:
     image: quay.io/coreos/etcd:v3.5.5
@@ -220,104 +499,35 @@ services:
       - ETCD_SNAPSHOT_COUNT=50000
     volumes:
       - etcd_data:/etcd
-    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
+    command: etcd -advertise-client-urls=http://milvus_etcd:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - dhara_net
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "etcdctl", "endpoint", "health"]
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-  milvus_minio:
-    image: minio/minio:latest
-    environment:
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-    volumes:
-      - minio_data:/minio_data
-    command: minio server /minio_data
-    networks:
-      - dhara_net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  mcgm_property_lookup:
-    build: ./services/mcgm_property_lookup
+  milvus_attu:
+    image: zilliz/attu:latest
     ports:
-      - "8007:8007"
+      - "8081:3000"
     environment:
-      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db
-    depends_on:
-      - postgres
+      - MILVUS_URL=milvus:19530
     networks:
       - dhara_net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-  dp_remarks_report:
-    build: ./services/dp_remarks_report
-    ports:
-      - "8008:8008"
-    environment:
-      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/dp_remarks_report_db
+    logging: *default-logging
     depends_on:
-      - postgres
-    networks:
-      - dhara_net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-  rag_service:
-    build: ./services/rag_service
-    image: redevelopment-ai/rag-service:v2
-    ports:
-      - "8006:8006"
-    environment:
-      - PORT=8006
-      - DEV_MODE=true
-      - DATABASE_URL=postgresql://redevelopment:redevelopment@postgres:5432/rag_service_db
-      - SECRET_KEY=${SECRET_KEY:-7c995f82ba3a032a562b71010459672b6ad0710d690f9f89c82150a39300ada8}
-      - MILVUS_HOST=milvus
-      - MILVUS_PORT=19530
-      - MILVUS_COLLECTION=${MILVUS_COLLECTION:-documents}
-      - MILVUS_COLLECTION_RAG=${MILVUS_COLLECTION_RAG:-dcpr_knowledge}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
       milvus:
         condition: service_healthy
-    networks:
-      - dhara_net
-    volumes:
-      - ./services/rag_service/data:/app/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8006/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 60s
 
 networks:
   dhara_net:
@@ -329,4 +539,7 @@ volumes:
   upload_data:
   milvus_data:
   etcd_data:
-  minio_data:
+  dossiers_data:
+  prometheus_data:
+  grafana_data:
+

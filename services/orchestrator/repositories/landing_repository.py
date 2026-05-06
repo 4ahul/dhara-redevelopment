@@ -2,19 +2,23 @@
 Landing Page CRUD Operations — Repository for CMS-style content.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.landing import LandingPageContent
+
+from services.orchestrator.models.landing import LandingPageContent
+
 
 async def list_active_landing_content(db: AsyncSession) -> Sequence[LandingPageContent]:
     """Fetch all active landing page sections ordered by display_order."""
     stmt = (
         select(LandingPageContent)
-        .where(LandingPageContent.is_active == True)
+        .where(LandingPageContent.is_active)
         .order_by(LandingPageContent.display_order.asc())
     )
     return (await db.execute(stmt)).scalars().all()
+
 
 async def create_landing_content(db: AsyncSession, data: dict) -> LandingPageContent:
     """Initialize a new landing page section."""

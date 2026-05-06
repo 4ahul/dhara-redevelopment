@@ -11,12 +11,28 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.7.0",
     "reportlab>=4.0.0",
+    "PyYAML>=6.0",
+    "python-multipart>=0.0.12",
+    "dhara_shared",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["routers*", "services*", "core*", "schemas*"]
+include = ["routers*", "services*", "core*", "schemas*", "feasibility*"]
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+

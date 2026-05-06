@@ -1,0 +1,260 @@
+[
+  {
+    "cell": "Details!A1",
+    "expected": "Maheshwar Mansion CHS"
+  },
+  {
+    "cell": "Details!M1",
+    "expected": "Cts No. /FP No.:-"
+  },
+  {
+    "cell": "Details!M2",
+    "expected": null
+  },
+  {
+    "cell": "Details!P4",
+    "expected": 1487.5,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!P7",
+    "expected": 0
+  },
+  {
+    "cell": "Details!P14",
+    "expected": 0
+  },
+  {
+    "cell": "Details!N17",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R17",
+    "expected": 18.3,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!B19",
+    "expected": 0
+  },
+  {
+    "cell": "Details!N20",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R25",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R26",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R27",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R28",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R29",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R30",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R31",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R32",
+    "expected": 0
+  },
+  {
+    "cell": "Details!R33",
+    "expected": 0
+  },
+  {
+    "cell": "Details!O40",
+    "expected": 100
+  },
+  {
+    "cell": "Details!J45",
+    "expected": 0
+  },
+  {
+    "cell": "Details!O47",
+    "expected": 0
+  },
+  {
+    "cell": "Details!Q47",
+    "expected": 22305
+  },
+  {
+    "cell": "Details!N49",
+    "expected": 12
+  },
+  {
+    "cell": "Details!P49",
+    "expected": 138
+  },
+  {
+    "cell": "Details!N50",
+    "expected": 12
+  },
+  {
+    "cell": "Details!O50",
+    "expected": 150
+  },
+  {
+    "cell": "Details!P50",
+    "expected": 138
+  },
+  {
+    "cell": "Details!Q50",
+    "expected": 125
+  },
+  {
+    "cell": "Details!O51",
+    "expected": 1500
+  },
+  {
+    "cell": "Details!Q51",
+    "expected": 1500
+  },
+  {
+    "cell": "Details!J54",
+    "expected": 128870
+  },
+  {
+    "cell": "Details!O54",
+    "expected": 36
+  },
+  {
+    "cell": "Details!Q54",
+    "expected": 36
+  },
+  {
+    "cell": "Details!N55",
+    "expected": 12
+  },
+  {
+    "cell": "Details!O55",
+    "expected": 0
+  },
+  {
+    "cell": "Details!P55",
+    "expected": 138
+  },
+  {
+    "cell": "Details!Q55",
+    "expected": 36
+  },
+  {
+    "cell": "Details!O58",
+    "expected": 150
+  },
+  {
+    "cell": "Details!N62",
+    "expected": 0.25,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!N63",
+    "expected": 0.4,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!O64",
+    "expected": 0
+  },
+  {
+    "cell": "Details!N65",
+    "expected": 0.6,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!O65",
+    "expected": 2
+  },
+  {
+    "cell": "Details!N66",
+    "expected": 0.6,
+    "tolerance": 0.001
+  },
+  {
+    "cell": "Details!O66",
+    "expected": 0
+  },
+  {
+    "cell": "Construction Cost!D8",
+    "expected": 3600
+  },
+  {
+    "cell": "Construction Cost!D12",
+    "expected": 3600
+  },
+  {
+    "cell": "Construction Cost!D15",
+    "expected": 2200
+  },
+  {
+    "cell": "Construction Cost!H21",
+    "expected": 2000
+  },
+  {
+    "cell": "MCGM PAYMENTS!B327",
+    "expected": null
+  },
+  {
+    "cell": "SUMMARY 1!I98",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!C19",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!D19",
+    "expected": 75000
+  },
+  {
+    "cell": "Profit & Loss Statement!C20",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!D20",
+    "expected": 60000
+  },
+  {
+    "cell": "Profit & Loss Statement!C21",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!D21",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!C22",
+    "expected": "=C18-C19-C20-C21"
+  },
+  {
+    "cell": "Profit & Loss Statement!D22",
+    "expected": 0
+  },
+  {
+    "cell": "Profit & Loss Statement!D28",
+    "expected": 50000
+  },
+  {
+    "cell": "Profit & Loss Statement!C30",
+    "expected": 75
+  },
+  {
+    "cell": "Profit & Loss Statement!D30",
+    "expected": 1200000
+  }
+]

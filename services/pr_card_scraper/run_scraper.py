@@ -3,32 +3,34 @@
 Standalone PR Card Scraper — Updated to use Playwright and Modular architecture.
 """
 
-import sys
-import os
-import asyncio
-import logging
 import argparse
+import asyncio
 import json
+import logging
+import os
+import sys
 
 # ── make service modules importable ──────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 
-from services.browser import BaseBrowser, MahabhumiScraper
+import contextlib
+
+from services.pr_card_scraper.services.browser import BaseBrowser, MahabhumiScraper
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  SCRAPE TARGETS
 # ═════════════════════════════════════════════════════════════════════════════
 TARGETS = [
     # Narhe is in Haveli taluka (न-हे visible in dropdown, CTS survey type)
-    dict(
-        district="pune",
-        taluka="Haveli",
-        village="Narhe",
-        survey_no="1",
-        survey_no_part1=None,
-        mobile="9999999999",
-    ),
+    {
+        "district": "pune",
+        "taluka": "Haveli",
+        "village": "Narhe",
+        "survey_no": "1",
+        "survey_no_part1": None,
+        "mobile": "9999999999",
+    },
 ]
 
 OUTPUT_DIR = os.path.join(_HERE, "outputs")
@@ -49,22 +51,20 @@ async def run_one_target(target: dict, headless: bool) -> dict:
 
         async def on_captcha(img_bytes: bytes) -> str:
             """Prompt user to solve CAPTCHA when auto-solver fails."""
-            import sys, subprocess
+            import subprocess
+            import sys
+
             captcha_path = os.path.join(OUTPUT_DIR, "captcha_manual.png")
             with open(captcha_path, "wb") as f:
                 f.write(img_bytes)
             # Open the image automatically
-            try:
+            with contextlib.suppress(Exception):
                 subprocess.Popen(["explorer", captcha_path])
-            except Exception:
-                pass
-            print(f"\n[CAPTCHA REQUIRED] Image: {captcha_path}")
             if not sys.stdin.isatty():
                 # Non-interactive: poll for a captcha_answer.txt file (30s timeout)
                 answer_file = os.path.join(OUTPUT_DIR, "captcha_answer.txt")
                 if os.path.exists(answer_file):
                     os.remove(answer_file)
-                print(f"Write the CAPTCHA answer to: {answer_file}")
                 for _ in range(120):
                     await asyncio.sleep(1)
                     if os.path.exists(answer_file):
@@ -73,13 +73,11 @@ async def run_one_target(target: dict, headless: bool) -> dict:
                         os.remove(answer_file)
                         return answer
                 return None
-            print("Type the CAPTCHA and press Enter: ", end="", flush=True)
             loop = asyncio.get_running_loop()
             answer = await loop.run_in_executor(None, input)
             return answer.strip()
 
-        result = await scraper.scrape_pr_card(on_captcha=on_captcha, **target)
-        return result
+        return await scraper.scrape_pr_card(on_captcha=on_captcha, **target)
     except Exception as exc:
         logger.error(f"Unhandled exception: {exc}", exc_info=True)
         return {"status": "failed", "error": str(exc)}
@@ -99,9 +97,7 @@ async def main(headless: bool):
         if result.get("status") == "completed":
             logger.info("SUCCESS!")
             logger.info(f"Output: {result.get('output_path')}")
-            logger.info(
-                f"Extracted Data: {json.dumps(result.get('extracted_data'), indent=2)}"
-            )
+            logger.info(f"Extracted Data: {json.dumps(result.get('extracted_data'), indent=2)}")
         else:
             logger.error(f"FAILED: {result.get('error')}")
 

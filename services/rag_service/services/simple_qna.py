@@ -1,0 +1,59 @@
+import os
+
+os.environ["HF_TOKEN"] = "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"
+
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+
+from .intelligent_rag import IntelligentRAG
+
+rag = IntelligentRAG()
+
+questions = [
+    "What is basic FSI for residential on 9m road?",
+    "Max FSI for 2500 sqm on 12m road?",
+    "Explain 33(7) scheme for societies?",
+    "Parking requirements for 100 flats?",
+    "Marginal distances for 7 floors?",
+    "TDR process explained?",
+    "What is premium FSI?",
+    "33(7B) vs 33(7) comparison?",
+    "Maximum building height?",
+    "Table 12 FSI values?",
+    "Basement FSI exemption?",
+    "Terrace area in FSI?",
+    "Affordable housing under 33(7)?",
+    "Parking dimensions?",
+    "Tandem parking allowed?",
+    "Ground floor commercial rules?",
+    "33(20B) SRA scheme?",
+    "Open space requirements?",
+    "Height for different road widths?",
+    "TDR certificate process?",
+]
+
+
+results = []
+for i, q in enumerate(questions, 1):
+    try:
+        r = rag.query(q)
+        results.append(
+            {
+                "Q_No": i,
+                "Question": q,
+                "Answer": r["answer"],
+                "Confidence": f"{r['confidence']:.0%}",
+            }
+        )
+    except Exception as e:
+        results.append({"Q_No": i, "Question": q, "Answer": f"Error: {e!s}", "Confidence": "0%"})
+
+df = pd.DataFrame(results)
+Path("data").mkdir(exist_ok=True)
+ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f"data/PMC_QA_{len(questions)}_{ts}.xlsx"
+df.to_excel(filename, index=False)
+
+passed = sum(1 for r in results if float(r["Confidence"].replace("%", "")) >= 30)

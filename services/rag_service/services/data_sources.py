@@ -4,18 +4,14 @@ Government Data Sources Integration
 Fetches data from: Mahabhoomi Bhulekh, BMC, NOCAS, MCGM
 """
 
-import os
 import json
+import logging
 import re
 import time
-import logging
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
-from abc import ABC, abstractmethod
-import requests
-from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,9 +44,9 @@ class PropertyDetails:
     longitude: float = 0.0
     property_type: str = ""
     tenure: str = ""
-    existing_structure: Dict = field(default_factory=dict)
-    setback_details: Dict = field(default_factory=dict)
-    amenity_details: Dict = field(default_factory=dict)
+    existing_structure: dict = field(default_factory=dict)
+    setback_details: dict = field(default_factory=dict)
+    amenity_details: dict = field(default_factory=dict)
     data_source: str = ""
     last_updated: datetime = None
 
@@ -63,7 +59,7 @@ class ComplianceRegulation:
     effective_date: datetime = None
     source: str = ""
     category: str = ""  # dcpr, fire, environment, rera, etc.
-    applicability: List[str] = field(default_factory=list)  # schemes this applies to
+    applicability: list[str] = field(default_factory=list)  # schemes this applies to
     url: str = ""
     file_path: str = ""
 
@@ -77,7 +73,7 @@ class DataSource(ABC):
         self.cache_dir = CACHE_DIR / name.replace(" ", "_").lower()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_cache(self, key: str) -> Optional[Dict]:
+    def _get_cache(self, key: str) -> dict | None:
         """Get cached data if valid"""
         cache_file = self.cache_dir / f"{key}.json"
         if cache_file.exists():
@@ -86,22 +82,21 @@ class DataSource(ABC):
                 age = time.time() - mtime
                 if age < self.cache_ttl:
                     return json.loads(cache_file.read_text())
-            except:
+            except Exception:
                 pass
         return None
 
-    def _set_cache(self, key: str, data: Dict):
+    def _set_cache(self, key: str, data: dict):
         """Cache data"""
         try:
             cache_file = self.cache_dir / f"{key}.json"
             cache_file.write_text(json.dumps(data, indent=2, default=str))
-        except:
+        except Exception:
             pass
 
     @abstractmethod
-    def fetch(self, query: str) -> Optional[Dict]:
+    def fetch(self, query: str) -> dict | None:
         """Fetch data from source"""
-        pass
 
 
 class BhulekhMahabhoomi(DataSource):
@@ -112,7 +107,7 @@ class BhulekhMahabhoomi(DataSource):
     def __init__(self):
         super().__init__("bhulekh", cache_ttl_hours=168)  # 1 week cache
 
-    def fetch(self, survey_no: str, village: str = "") -> Optional[PropertyDetails]:
+    def fetch(self, survey_no: str, village: str = "") -> PropertyDetails | None:
         """Fetch property details from Bhulekh"""
 
         # Check cache first
@@ -136,10 +131,10 @@ class BhulekhMahabhoomi(DataSource):
             return None
 
         except Exception as e:
-            logger.error(f"Bhulekh fetch error: {e}")
+            logger.exception(f"Bhulekh fetch error: {e}")
             return None
 
-    def _scrape_bhulekh(self, survey_no: str, village: str) -> Optional[Dict]:
+    def _scrape_bhulekh(self, survey_no: str, village: str) -> dict | None:
         """Scrape Bhulekh website"""
         try:
             # This is a placeholder - actual implementation would need proper API access
@@ -156,10 +151,10 @@ class BhulekhMahabhoomi(DataSource):
                 "fetched_at": datetime.now().isoformat(),
             }
         except Exception as e:
-            logger.error(f"Scraping error: {e}")
+            logger.exception(f"Scraping error: {e}")
             return None
 
-    def _parse_property(self, data: Dict) -> PropertyDetails:
+    def _parse_property(self, data: dict) -> PropertyDetails:
         """Parse Bhulekh data to PropertyDetails"""
         return PropertyDetails(
             survey_no=data.get("survey_no", ""),
@@ -178,11 +173,11 @@ class BMCDataSource(DataSource):
     def __init__(self):
         super().__init__("bmc", cache_ttl_hours=24)
 
-    def fetch(self, query: str = "") -> Optional[Dict]:
+    def fetch(self, query: str = "") -> dict | None:
         """Fetch BMC data - generic fetch not implemented, use specific methods"""
         return None
 
-    def fetch_dp_remarks(self, survey_no: str) -> Optional[Dict]:
+    def fetch_dp_remarks(self, survey_no: str) -> dict | None:
         """Fetch DP remarks from BMC"""
 
         cache_key = f"dp_{survey_no}".replace("/", "_")
@@ -209,10 +204,10 @@ class BMCDataSource(DataSource):
             return dp_data
 
         except Exception as e:
-            logger.error(f"BMC fetch error: {e}")
+            logger.exception(f"BMC fetch error: {e}")
             return None
 
-    def fetch_property_lookup(self, address: str) -> Optional[Dict]:
+    def fetch_property_lookup(self, address: str) -> dict | None:
         """Fetch property details from MCGM Property Lookup"""
 
         try:
@@ -226,7 +221,7 @@ class BMCDataSource(DataSource):
                 "source": "mcgm_property_lookup",
             }
         except Exception as e:
-            logger.error(f"MCGM Property Lookup error: {e}")
+            logger.exception(f"MCGM Property Lookup error: {e}")
             return None
 
 
@@ -238,13 +233,11 @@ class NOCASDataSource(DataSource):
     def __init__(self):
         super().__init__("nocas", cache_ttl_hours=24)
 
-    def fetch(self, query: str = "") -> Optional[Dict]:
+    def fetch(self, query: str = "") -> dict | None:
         """Fetch NOCAS data - generic fetch not implemented, use specific methods"""
         return None
 
-    def fetch_building_height(
-        self, survey_no: str, zone: str, area_sq_m: float
-    ) -> Optional[Dict]:
+    def fetch_building_height(self, survey_no: str, zone: str, area_sq_m: float) -> dict | None:
         """Fetch max building height allowed"""
 
         cache_key = f"height_{survey_no}".replace("/", "_")
@@ -263,10 +256,10 @@ class NOCASDataSource(DataSource):
             return height_data
 
         except Exception as e:
-            logger.error(f"NOCAS fetch error: {e}")
+            logger.exception(f"NOCAS fetch error: {e}")
             return None
 
-    def _calculate_max_height(self, zone: str, area_sq_m: float) -> Dict:
+    def _calculate_max_height(self, zone: str, area_sq_m: float) -> dict:
         """Calculate max building height based on DCPR rules"""
 
         # Default heights based on zone
@@ -307,7 +300,7 @@ class ComplianceDataSource(DataSource):
         self.compliance_file = COMPLIANCE_DIR / "regulations.json"
         self._init_compliance_db()
 
-    def fetch(self, query: str = "") -> Optional[Dict]:
+    def fetch(self, query: str = "") -> dict | None:
         """Fetch compliance data - generic fetch not implemented, use specific methods"""
         return None
 
@@ -345,7 +338,7 @@ class ComplianceDataSource(DataSource):
             ]
             self.compliance_file.write_text(json.dumps(default_regs, indent=2))
 
-    def fetch_compliances(self, scheme: str = "") -> List[ComplianceRegulation]:
+    def fetch_compliances(self, scheme: str = "") -> list[ComplianceRegulation]:
         """Fetch applicable compliances"""
 
         try:
@@ -371,20 +364,20 @@ class ComplianceDataSource(DataSource):
                         )
                     )
             return regs
-        except:
+        except Exception:
             return []
 
-    def add_compliance(self, regulation: Dict):
+    def add_compliance(self, regulation: dict):
         """Add new compliance from WhatsApp or official source"""
         try:
             data = json.loads(self.compliance_file.read_text())
             data.append(regulation)
             self.compliance_file.write_text(json.dumps(data, indent=2))
             return True
-        except:
+        except Exception:
             return False
 
-    def parse_whatsapp_message(self, message: str) -> Optional[Dict]:
+    def parse_whatsapp_message(self, message: str) -> dict | None:
         """Parse WhatsApp message for compliance updates"""
 
         # Pattern to detect compliance updates
@@ -399,9 +392,7 @@ class ComplianceDataSource(DataSource):
             if match:
                 return {
                     "regulation_id": f"IMPORTED_{datetime.now().strftime('%Y%m%d%H%M')}",
-                    "title": match.group(3)
-                    if len(match.groups()) > 2
-                    else message[:100],
+                    "title": match.group(3) if len(match.groups()) > 2 else message[:100],
                     "description": message,
                     "effective_date": datetime.now().isoformat(),
                     "source": "WhatsApp Import",
@@ -421,9 +412,7 @@ class PropertyDataAggregator:
         self.nocas = NOCASDataSource()
         self.compliance = ComplianceDataSource()
 
-    def get_complete_property_data(
-        self, cts_no: str, village: str = ""
-    ) -> PropertyDetails:
+    def get_complete_property_data(self, cts_no: str, village: str = "") -> PropertyDetails:
         """Get complete property data from all sources"""
 
         # Fetch from Bhulekh
@@ -461,9 +450,7 @@ class PropertyDataAggregator:
 
         return property_details
 
-    def get_applicable_compliances(
-        self, scheme: str = ""
-    ) -> List[ComplianceRegulation]:
+    def get_applicable_compliances(self, scheme: str = "") -> list[ComplianceRegulation]:
         """Get all applicable compliances"""
         return self.compliance.fetch_compliances(scheme)
 
@@ -484,16 +471,15 @@ class FeasibilityReportGenerator:
             self._rag_agent = RAGAgent(use_milvus=True)
         return self._rag_agent
 
-    def _query_rag_for_clauses(self, property_data) -> Dict:
+    def _query_rag_for_clauses(self, property_data) -> dict:
         """Query RAG system for best DCPR clauses"""
         try:
-            area = property_data.plot_area_sq_m
             road = property_data.road_width_m
             zone = property_data.zone_type
 
             queries = [
                 f"FSI regulations {zone} zone {road}m road width",
-                f"DCPR 33(7B) 33(20B) residential redevelopment",
+                "DCPR 33(7B) 33(20B) residential redevelopment",
                 f"open space setbacks marginal distances {zone}",
                 f"building permission {zone} zone DCPR requirements",
             ]
@@ -502,10 +488,7 @@ class FeasibilityReportGenerator:
             for query in queries:
                 results = self.rag_agent.vectorstore.search(query, k=2)
                 rag_results.extend(
-                    [
-                        {"query": query, "score": r[0], "text": r[1][:500]}
-                        for r in results
-                    ]
+                    [{"query": query, "score": r[0], "text": r[1][:500]} for r in results]
                 )
 
             applicable_clauses = []
@@ -517,9 +500,7 @@ class FeasibilityReportGenerator:
             return {
                 "applicable_clauses": applicable_clauses,
                 "dcpr_analysis": rag_results[:4] if rag_results else [],
-                "recommended_regulations": self._get_regulation_summary(
-                    applicable_clauses
-                ),
+                "recommended_regulations": self._get_regulation_summary(applicable_clauses),
             }
         except Exception as e:
             logger.warning(f"RAG query failed: {e}")
@@ -529,7 +510,7 @@ class FeasibilityReportGenerator:
                 "recommended_regulations": {},
             }
 
-    def _extract_clause_info(self, text: str) -> Optional[Dict]:
+    def _extract_clause_info(self, text: str) -> dict | None:
         """Extract clause information from text"""
         clause_match = re.search(r"Clause\s*(\d+(?:\(\w+\))?)", text, re.IGNORECASE)
         table_match = re.search(r"Table\s*No\.?\s*(\d+[a-zA-Z]?)", text, re.IGNORECASE)
@@ -542,18 +523,16 @@ class FeasibilityReportGenerator:
             }
         return None
 
-    def _get_regulation_summary(self, clauses: List[Dict]) -> Dict:
+    def _get_regulation_summary(self, clauses: list[dict]) -> dict:
         """Get summary of recommended regulations"""
         return {
             "clause_33_7B": any("33(7)" in str(c) for c in clauses),
             "clause_33_20B": any("33(20)" in str(c) for c in clauses),
-            "has_fsi_table": any(
-                c.get("table") and c["table"] != "N/A" for c in clauses
-            ),
+            "has_fsi_table": any(c.get("table") and c["table"] != "N/A" for c in clauses),
             "total_clauses": len(clauses),
         }
 
-    def generate_from_cts(self, cts_no: str, village: str = "") -> Dict:
+    def generate_from_cts(self, cts_no: str, village: str = "") -> dict:
         """Generate feasibility report from CTS number"""
 
         # Step 1: Get property data from all sources
@@ -589,11 +568,10 @@ class FeasibilityReportGenerator:
                     "fungible_fsi": config.fungible_fsi,
                     "total_fsi": config.basic_fsi + config.incentive_fsi,
                     "max_bua_sqft": int(
-                        property_data.plot_area_sq_ft
-                        * (config.basic_fsi + config.incentive_fsi)
+                        property_data.plot_area_sq_ft * (config.basic_fsi + config.incentive_fsi)
                     ),
                 }
-            except:
+            except Exception:
                 pass
 
         # Step 5: Get NOCAS height
@@ -606,7 +584,7 @@ class FeasibilityReportGenerator:
         best_scheme_name, best_scheme = self._find_best_scheme(scheme_configs)
 
         # Step 7: Generate report with RAG insights
-        report = {
+        return {
             "report_id": f"FEAS_{cts_no.replace('/', '_')}_{datetime.now().strftime('%Y%m%d')}",
             "generated_at": datetime.now().isoformat(),
             "cts_no": cts_no,
@@ -624,9 +602,7 @@ class FeasibilityReportGenerator:
             "next_steps": self._generate_next_steps(best_scheme_name, rag_analysis),
         }
 
-        return report
-
-    def _find_best_scheme(self, schemes: Dict) -> tuple:
+    def _find_best_scheme(self, schemes: dict) -> tuple:
         """Find best scheme based on FSI and development potential"""
         if not schemes:
             return "None", {}
@@ -634,7 +610,7 @@ class FeasibilityReportGenerator:
         best = max(schemes.items(), key=lambda x: x[1].get("total_fsi", 0))
         return best[0], best[1]
 
-    def _generate_next_steps(self, best_scheme: str, rag_analysis: Dict) -> List[str]:
+    def _generate_next_steps(self, best_scheme: str, rag_analysis: dict) -> list[str]:
         """Generate next steps based on best scheme and RAG analysis"""
         steps = [
             f"1. Apply for development under DCPR {best_scheme}",
@@ -656,7 +632,7 @@ class FeasibilityReportGenerator:
         return steps
 
     def _generate_recommendation(
-        self, schemes: Dict, best_scheme: str = "", rag_analysis: Dict = None
+        self, schemes: dict, best_scheme: str = "", rag_analysis: dict | None = None
     ) -> str:
         """Generate recommendation based on schemes and RAG analysis"""
         if not schemes:
@@ -678,10 +654,9 @@ class FeasibilityReportGenerator:
 
         if best_fsi >= 2.5:
             return f"HIGH FSI potential ({best_fsi}) with scheme {best_scheme_name}. Development financially viable.{rag_info}"
-        elif best_fsi >= 1.5:
+        if best_fsi >= 1.5:
             return f"MODERATE FSI ({best_fsi}) with scheme {best_scheme_name}. Standard redevelopment recommended.{rag_info}"
-        else:
-            return f"LOW FSI ({best_fsi}). Limited development potential. Consider plot amalgamation."
+        return f"LOW FSI ({best_fsi}). Limited development potential. Consider plot amalgamation."
 
 
 class TenderGenerator:
@@ -691,9 +666,7 @@ class TenderGenerator:
         self.template_dir = DATA_DIR / "templates"
         self.template_dir.mkdir(parents=True, exist_ok=True)
 
-    def generate_tender(
-        self, feasibility_report: Dict, tender_type: str = "e_tender"
-    ) -> Dict:
+    def generate_tender(self, feasibility_report: dict, tender_type: str = "e_tender") -> dict:
         """Generate tender document from feasibility report"""
 
         property_data = feasibility_report["property_details"]
@@ -702,7 +675,7 @@ class TenderGenerator:
         # Select best scheme
         best_scheme = max(fsi.items(), key=lambda x: x[1].get("total_fsi", 0))
 
-        tender = {
+        return {
             "tender_id": f"TENDER_{datetime.now().strftime('%Y%m%d%H%M')}",
             "type": tender_type,
             "generated_at": datetime.now().isoformat(),
@@ -725,9 +698,7 @@ class TenderGenerator:
             "evaluation_criteria": self._get_evaluation_criteria(),
         }
 
-        return tender
-
-    def _get_eligibility_criteria(self) -> List[str]:
+    def _get_eligibility_criteria(self) -> list[str]:
         return [
             "RERA registration mandatory",
             "Minimum 5 years of experience in Maharashtra",
@@ -737,7 +708,7 @@ class TenderGenerator:
             "No criminal cases against company/directors",
         ]
 
-    def _get_submission_requirements(self) -> List[str]:
+    def _get_submission_requirements(self) -> list[str]:
         return [
             "Technical Bid with project plan",
             "Financial bid with detailed BOQ",
@@ -748,7 +719,7 @@ class TenderGenerator:
             "Bank guarantee of Rs. 5 lakhs",
         ]
 
-    def _get_terms_conditions(self) -> List[str]:
+    def _get_terms_conditions(self) -> list[str]:
         return [
             "Tender validity: 90 days",
             "Security deposit: 2% of project cost",
@@ -757,7 +728,7 @@ class TenderGenerator:
             "RERA carpet area commitment binding",
         ]
 
-    def _get_evaluation_criteria(self) -> Dict:
+    def _get_evaluation_criteria(self) -> dict:
         return {
             "technical_score": {
                 "experience": 25,
@@ -915,7 +886,7 @@ def cmd_generate_feasibility(args):
     report = generator.generate_from_cts(args.cts_no, args.village)
 
     logger.info(f"\nFeasibility Report Generated: {report['report_id']}")
-    logger.info(f"\nFSI Analysis:")
+    logger.info("\nFSI Analysis:")
     for scheme, config in report["fsi_analysis"].items():
         logger.info(
             f"  {scheme}: Basic={config['basic_fsi']}, Incentive={config['incentive_fsi']}, "
@@ -962,11 +933,9 @@ def cmd_generate_tender(args):
 def cmd_list_compliances(args):
     """List all compliance regulations"""
     compliance_ds = ComplianceDataSource()
-    regs = compliance_ds.fetch_compliances(
-        args.scheme if hasattr(args, "scheme") else ""
-    )
+    regs = compliance_ds.fetch_compliances(args.scheme if hasattr(args, "scheme") else "")
 
-    logger.info(f"\nApplicable Compliances:")
+    logger.info("\nApplicable Compliances:")
     logger.info("-" * 80)
     for r in regs:
         logger.info(f"{r.regulation_id}: {r.title}")
@@ -1001,21 +970,15 @@ if __name__ == "__main__":
     fetch_parser.add_argument("--village", default="", help="Village name")
 
     # Feasibility report
-    feas_parser = subparsers.add_parser(
-        "feasibility", help="Generate feasibility report"
-    )
+    feas_parser = subparsers.add_parser("feasibility", help="Generate feasibility report")
     feas_parser.add_argument("cts_no", help="CTS/Survey number")
     feas_parser.add_argument("--village", default="", help="Village name")
     feas_parser.add_argument("--output", default="reports/", help="Output directory")
 
     # Tender
     tender_parser = subparsers.add_parser("tender", help="Generate tender")
-    tender_parser.add_argument(
-        "feasibility_report", help="Feasibility report file or CTS no"
-    )
-    tender_parser.add_argument(
-        "--type", default="e_tender", choices=["e_tender", "traditional"]
-    )
+    tender_parser.add_argument("feasibility_report", help="Feasibility report file or CTS no")
+    tender_parser.add_argument("--type", default="e_tender", choices=["e_tender", "traditional"])
     tender_parser.add_argument("--output", default="reports/", help="Output directory")
 
     # List compliances

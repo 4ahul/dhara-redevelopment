@@ -2,15 +2,15 @@
 MCGM Property Lookup — Configuration
 """
 
-from pydantic_settings import BaseSettings
+from dhara_shared.core.config import BaseServiceSettings
 
 
-class Settings(BaseSettings):
-    APP_NAME: str = "MCGM Property Lookup Service"
-    APP_VERSION: str = "1.0.0"
+class Settings(BaseServiceSettings):
+    APP_NAME: str = "mcgm_property_lookup"
 
+    # Load from this service's .env file
     DATABASE_URL: str = (
-        "postgresql://redevelopment:redevelopment@localhost:5435/mcgm_property_lookup_db"
+        "postgresql://redevelopment:redevelopment@postgres:5432/mcgm_property_lookup_db"
     )
 
     # ArcGIS / MCGM
@@ -24,10 +24,8 @@ class Settings(BaseSettings):
     BROWSER_HEADLESS: bool = True
     BROWSER_TIMEOUT: int = 60000  # ms — generous for ArcGIS SPA
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
+    class Config(BaseServiceSettings.Config):
+        env_file = BaseServiceSettings.get_env_file(__file__)
 
 
 settings = Settings()

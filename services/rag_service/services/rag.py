@@ -3,37 +3,36 @@
 Production RAG System with LangGraph, Tools, Excel & Math Capabilities
 """
 
-import os
-import json
-import re
 import argparse
+import json
 import logging
-from pathlib import Path
+import os
+import re
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from pathlib import Path
+from typing import Any
+
 import requests
 
 logger = logging.getLogger(__name__)
 
 # LangGraph
 try:
-    from langgraph.graph import StateGraph
     from langchain_ollama import ChatOllama
-    from langchain_core.messages import HumanMessage, AIMessage
 
     LANGGRAPH_AVAILABLE = True
-except:
+except Exception:
     LANGGRAPH_AVAILABLE = False
     from langchain_ollama import ChatOllama
 
 # Milvus imports
 try:
     from pymilvus import (
-        connections,
         Collection,
-        FieldSchema,
         CollectionSchema,
         DataType,
+        FieldSchema,
+        connections,
         utility,
     )
 
@@ -114,19 +113,19 @@ class MathCalculatorTool:
             if "SUM" in expr or "ADD" in expr or "+" in expr:
                 result = sum(nums)
                 return f"SUM: {result}"
-            elif "AVERAGE" in expr or "AVG" in expr:
+            if "AVERAGE" in expr or "AVG" in expr:
                 result = sum(nums) / len(nums)
                 return f"AVERAGE: {result}"
-            elif "MAX" in expr:
+            if "MAX" in expr:
                 return f"MAX: {max(nums)}"
-            elif "MIN" in expr:
+            if "MIN" in expr:
                 return f"MIN: {min(nums)}"
-            elif "MULTIPLY" in expr or "*" in expr:
+            if "MULTIPLY" in expr or "*" in expr:
                 result = 1
                 for n in nums:
                     result *= n
                 return f"PRODUCT: {result}"
-            elif "DIVIDE" in expr or "/" in expr:
+            if "DIVIDE" in expr or "/" in expr:
                 if len(nums) >= 2:
                     result = nums[0] / nums[1]
                     return f"DIVIDE: {result}"
@@ -142,7 +141,7 @@ class MathCalculatorTool:
                 return f"Result: {eval(expr) if expr.isdigit() else 'Expression not recognized'}"
 
         except Exception as e:
-            return f"Calculation error: {str(e)}"
+            return f"Calculation error: {e!s}"
 
     def statistics(self, numbers: str) -> str:
         try:
@@ -161,7 +160,7 @@ class MathCalculatorTool:
 - Max: {max(nums)}
 - Range: {max(nums) - min(nums)}"""
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
 
 class ExcelTool:
@@ -171,14 +170,13 @@ class ExcelTool:
         self.excel_available = False
         try:
             import pandas as pd
-            import openpyxl
 
             self.pd = pd
             self.excel_available = True
-        except:
+        except Exception:
             pass
 
-    def read_excel(self, filepath: str, sheet: str = None) -> str:
+    def read_excel(self, filepath: str, sheet: str | None = None) -> str:
         if not self.excel_available:
             return "Excel support not available. Install pandas and openpyxl."
 
@@ -191,12 +189,10 @@ class ExcelTool:
             output = f"File: {filepath}\nSheets: {xl.sheet_names}\n\n"
             for s in xl.sheet_names[:3]:
                 df = self.pd.read_excel(xl, s)
-                output += (
-                    f"=== {s} ===\n{self.pd.DataFrame(df).head(5).to_string()}\n\n"
-                )
+                output += f"=== {s} ===\n{self.pd.DataFrame(df).head(5).to_string()}\n\n"
             return output
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def analyze_data(self, filepath: str) -> str:
         if not self.excel_available:
@@ -211,9 +207,7 @@ class ExcelTool:
 
             numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
-            output = (
-                f"Data Analysis:\n- Rows: {len(df)}\n- Columns: {len(df.columns)}\n\n"
-            )
+            output = f"Data Analysis:\n- Rows: {len(df)}\n- Columns: {len(df.columns)}\n\n"
 
             if numeric_cols:
                 output += "Numeric Columns:\n"
@@ -222,7 +216,7 @@ class ExcelTool:
 
             return output
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
     def create_spreadsheet(self, data: str, output: str = "output.xlsx") -> str:
         if not self.excel_available:
@@ -245,31 +239,35 @@ class ExcelTool:
 
             return f"Created {output} with {len(df)} rows"
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e!s}"
 
 
 class WebSearchTool:
-    """Real web search capability using Serper API"""
+    """Real web search capability using SerpApi"""
 
     def __init__(self):
-        self.api_key = os.environ.get("SERPER_API_KEY")
-        self.url = "https://google.serper.dev/search"
+        self.api_key = os.environ.get("SERP_API_KEY")
+        self.url = "https://serpapi.com/search"
 
     def search(self, query: str) -> str:
         if not self.api_key:
-            return f"[Web search simulation] Would search for: {query}\nNote: Set SERPER_API_KEY in .env for actual search."
+            return f"[Web search simulation] Would search for: {query}\nNote: Set SERP_API_KEY in .env for actual search."
 
-        headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
-        payload = json.dumps({"q": query})
+        params = {
+            "q": query,
+            "api_key": self.api_key,
+            "engine": "google",
+            "num": 5,
+        }
 
         try:
-            response = requests.post(self.url, headers=headers, data=payload)
+            response = requests.get(self.url, params=params)
             response.raise_for_status()
             results = response.json()
 
             snippets = []
-            if "organic" in results:
-                for result in results["organic"][:5]:
+            if "organic_results" in results:  # SerpApi uses 'organic_results'
+                for result in results["organic_results"][:5]:
                     snippets.append(
                         f"Title: {result.get('title')}\nSnippet: {result.get('snippet')}\nLink: {result.get('link')}\n"
                     )
@@ -279,7 +277,7 @@ class WebSearchTool:
 
             return "\n".join(snippets)
         except Exception as e:
-            return f"Web search error: {str(e)}"
+            return f"Web search error: {e!s}"
 
 
 # ==================== RAG CORE ====================
@@ -310,9 +308,7 @@ class MilvusVectorStore:
                 )
             else:
                 # Local connection
-                connections.connect(
-                    alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=5
-                )
+                connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT, timeout=5)
             logger.info(f"[OK] Connected to Milvus/Zilliz at {MILVUS_HOST}")
             self._setup_collection()
         except Exception as e:
@@ -326,13 +322,9 @@ class MilvusVectorStore:
             self.collection.load()
             logger.info(f"[OK] Loaded collection: {self.collection_name}")
         else:
-            dim = int(
-                os.environ.get("EMBEDDING_DIM", "1536")
-            )  # OpenAI text-embedding-3-small
+            dim = int(os.environ.get("EMBEDDING_DIM", "1536"))  # OpenAI text-embedding-3-small
             fields = [
-                FieldSchema(
-                    name="id", dtype=DataType.INT64, is_primary=True, auto_id=True
-                ),
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
                 FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
                 FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=512),
                 FieldSchema(name="page", dtype=DataType.INT32),
@@ -353,14 +345,10 @@ class MilvusVectorStore:
                 "metric_type": "COSINE",
                 "params": {"M": 16, "efConstruction": 256},
             }
-            self.collection.create_index(
-                field_name="embedding", index_params=index_params
-            )
-            logger.info(
-                f"[OK] Created collection: {self.collection_name} (HNSW, {dim}d COSINE)"
-            )
+            self.collection.create_index(field_name="embedding", index_params=index_params)
+            logger.info(f"[OK] Created collection: {self.collection_name} (HNSW, {dim}d COSINE)")
 
-    def add_documents(self, documents: List) -> int:
+    def add_documents(self, documents: list) -> int:
         """Add documents to Milvus with metadata support."""
         texts = [doc.page_content for doc in documents]
         logger.info(f"Embedding {len(texts)} docs...")
@@ -383,7 +371,7 @@ class MilvusVectorStore:
             all_vectors.extend(vectors)
 
             # Extract metadata from documents if available
-            for j, doc in enumerate(documents[i : i + batch_size]):
+            for _j, doc in enumerate(documents[i : i + batch_size]):
                 meta = getattr(doc, "metadata", {}) or {}
                 all_sources.append(meta.get("source", ""))
                 all_pages.append(meta.get("page", 0))
@@ -419,7 +407,7 @@ class MilvusVectorStore:
         logger.info(f"[OK] Added {len(texts)} docs to Milvus")
         return len(texts)
 
-    def search(self, query: str, k: int = 10) -> List[tuple]:
+    def search(self, query: str, k: int = 10) -> list[tuple]:
         """Search documents with HNSW params and metadata."""
         try:
             if self.collection:
@@ -482,7 +470,7 @@ class SimpleVectorStore:
         data = {"documents": self.documents, "vectors": self.vectors}
         filepath.write_text(json.dumps(data))
 
-    def add_documents(self, documents: List) -> int:
+    def add_documents(self, documents: list) -> int:
         texts = [doc.page_content for doc in documents]
         logger.info(f"Embedding {len(texts)} docs...")
 
@@ -494,13 +482,13 @@ class SimpleVectorStore:
             vectors = self.embeddings.embed_documents(batch)
             all_vectors.extend(vectors)
 
-        for t, v in zip(texts, all_vectors):
+        for t, v in zip(texts, all_vectors, strict=False):
             self.documents.append({"text": t})
             self.vectors.append(v)
 
         return len(texts)
 
-    def search(self, query: str, k: int = 10) -> List[tuple]:
+    def search(self, query: str, k: int = 10) -> list[tuple]:
         if not self.documents:
             return []
 
@@ -512,7 +500,7 @@ class SimpleVectorStore:
                 if i >= len(self.documents):
                     break
                 # Cosine similarity
-                dot = sum(a * b for a, b in zip(query_vec, vec))
+                dot = sum(a * b for a, b in zip(query_vec, vec, strict=False))
                 norm1 = sum(x * x for x in query_vec) ** 0.5
                 norm2 = sum(x * x for x in vec) ** 0.5
                 score = dot / (norm1 * norm2 + 0.0001)
@@ -545,7 +533,7 @@ class DocumentLoader:
         chunk_size: int = 1000,
         overlap: int = 200,
         strategy: str = "semantic",
-    ) -> List:
+    ) -> list:
         """
         Chunk text using semantic or fixed-size approach.
 
@@ -557,6 +545,8 @@ class DocumentLoader:
         """
         if strategy == "semantic":
             try:
+                from langchain_core.documents import Document
+
                 from ..scripts.semantic_chunker import SemanticChunker
 
                 chunker = SemanticChunker(
@@ -565,15 +555,11 @@ class DocumentLoader:
                     overlap=overlap,
                 )
                 chunks = chunker.chunk_text(text, "")
-                return [
-                    Document(page_content=c[0], metadata={"type": c[1]}) for c in chunks
-                ]
+                return [Document(page_content=c[0], metadata={"type": c[1]}) for c in chunks]
             except ImportError:
                 logger.warning("Warning: SemanticChunker not found, falling back to fixed")
 
-        # Default to langchain's RecursiveCharacterTextSplitter
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_core.documents import Document
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -588,8 +574,6 @@ class DocumentLoader:
 
 class AgentState(dict):
     """State for LangGraph agent"""
-
-    pass
 
 
 # ==================== RAG AGENT WITH LANGGRAPH ====================
@@ -632,12 +616,12 @@ class RAGAgent:
             "calculate": Tool(
                 "calculate",
                 "Perform math calculations",
-                lambda e: self.math_tool.calculate(e),
+                self.math_tool.calculate,
             ),
             "statistics": Tool(
                 "statistics",
                 "Calculate statistics on numbers",
-                lambda n: self.math_tool.statistics(n),
+                self.math_tool.statistics,
             ),
             "excel_read": Tool(
                 "excel_read",
@@ -647,7 +631,7 @@ class RAGAgent:
             "excel_analyze": Tool(
                 "excel_analyze",
                 "Analyze Excel/CSV data",
-                lambda f: self.excel_tool.analyze_data(f),
+                self.excel_tool.analyze_data,
             ),
             "excel_create": Tool(
                 "excel_create",
@@ -702,7 +686,7 @@ class RAGAgent:
 
         return len(docs)
 
-    def analyze_question(self, question: str) -> Dict:
+    def analyze_question(self, question: str) -> dict:
         """Analyze what tools to use"""
         question_lower = question.lower()
 
@@ -755,7 +739,7 @@ class RAGAgent:
             ),
         }
 
-    def execute_tools(self, tool_names: List[str], question: str) -> Dict[str, str]:
+    def execute_tools(self, tool_names: list[str], question: str) -> dict[str, str]:
         """Execute multiple tools"""
         results = {}
 
@@ -769,9 +753,7 @@ class RAGAgent:
                 if numbers:
                     results["calculate"] = self.math_tool.calculate(",".join(numbers))
                 else:
-                    results["calculate"] = (
-                        "No numbers found in question for calculation."
-                    )
+                    results["calculate"] = "No numbers found in question for calculation."
 
             elif tool_name == "excel_analyze":
                 # Would need filepath
@@ -779,7 +761,7 @@ class RAGAgent:
 
         return results
 
-    def answer(self, question: str) -> Dict[str, Any]:
+    def answer(self, question: str) -> dict[str, Any]:
         """Answer question with tool calling"""
         self.query_count += 1
 
@@ -833,7 +815,7 @@ Answer:"""
         FEEDBACK_FILE.write_text(json.dumps(self.feedback, indent=2))
         return entry
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         return {
             "queries": self.query_count,
             "documents": len(self.vectorstore.documents),
@@ -880,7 +862,7 @@ def main():
     if args.cmd == "stats":
         agent = RAGAgent()
         s = agent.get_stats()
-        logger.info(f"\n=== STATS ===")
+        logger.info("\n=== STATS ===")
         logger.info(f"Queries: {s['queries']}")
         logger.info(f"Document: {s['current_doc']}")
         logger.info(f"Chunks: {s['documents']}")

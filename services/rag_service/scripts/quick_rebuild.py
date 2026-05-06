@@ -11,20 +11,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import contextlib
+
 from pymilvus import (
-    connections,
-    utility,
     Collection,
-    FieldSchema,
     CollectionSchema,
     DataType,
+    FieldSchema,
+    connections,
+    utility,
 )
 
 
 def main():
-    print("=" * 60)
-    print("Full DCPR Rebuild - nomic-embed-text (768 dim)")
-    print("=" * 60)
 
     # Load env
     env_file = Path(__file__).parent.parent / ".env"
@@ -39,7 +38,6 @@ def main():
     MILVUS_PORT = os.environ.get("MILVUS_PORT", "19530")
     MILVUS_TOKEN = os.environ.get("MILVUS_TOKEN", "")
 
-    print(f"Connecting to Milvus at {MILVUS_HOST}:{MILVUS_PORT}...")
     if MILVUS_TOKEN:
         connections.connect(
             alias="default",
@@ -50,11 +48,9 @@ def main():
         )
     else:
         connections.connect(alias="default", host=MILVUS_HOST, port=MILVUS_PORT)
-    print("[OK] Connected")
 
     # Drop and recreate collection
     if utility.has_collection("documents"):
-        print("Dropping old 'documents' collection...")
         utility.drop_collection("documents")
 
     dim = 768  # nomic-embed-text
@@ -73,7 +69,6 @@ def main():
             "params": {"nlist": 128},
         },
     )
-    print("[OK] Collection created (768-dim, COSINE)")
 
     # Find only the primary regulation documents in docs root (not subdirs)
     # This avoids indexing 3000+ circular/minor files
@@ -99,13 +94,9 @@ def main():
     if not files:
         files = [f for f in docs_dir.glob("*.pdf") if "DCPR" in f.name.upper()]
 
-    print(f"\nIndexing {len(files)} primary regulation documents:")
     for f in files:
-        try:
-            size_mb = f.stat().st_size / 1024 / 1024
-            print(f"  - {f.name} ({size_mb:.1f} MB)")
-        except UnicodeEncodeError:
-            print(f"  - [filename] ({f.stat().st_size / 1024 / 1024:.1f} MB)")
+        with contextlib.suppress(UnicodeEncodeError):
+            f.stat().st_size / 1024 / 1024
 
     # Init embeddings
     from langchain_ollama import OllamaEmbeddings
@@ -117,7 +108,6 @@ def main():
     # Test connection
     test_vec = embeddings.embed_query("test")
     assert len(test_vec) == 768, f"Expected 768, got {len(test_vec)}"
-    print(f"[OK] Ollama embeddings verified ({len(test_vec)} dim)\n")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
@@ -130,8 +120,7 @@ def main():
     total_indexed = 0
     overall_start = time.time()
 
-    for file_idx, filepath in enumerate(files):
-        print(f"\n[{file_idx + 1}/{len(files)}] Processing: {filepath.name}")
+    for _file_idx, filepath in enumerate(files):
         file_start = time.time()
 
         # Load text
@@ -154,12 +143,9 @@ def main():
                 text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
             if not text.strip():
-                print("  [SKIP] No text extracted")
                 continue
 
-            print(f"  Loaded {len(text):,} chars")
-        except Exception as e:
-            print(f"  [ERROR] Loading failed: {e}")
+        except Exception:
             continue
 
         # Chunk
@@ -172,7 +158,6 @@ def main():
             else:
                 merged.append(c)
         chunks = merged
-        print(f"  Chunked into {len(chunks)} pieces")
 
         # Embed + insert in streaming batches
         file_indexed = 0
@@ -189,23 +174,13 @@ def main():
 
                 elapsed = time.time() - file_start
                 rate = file_indexed / elapsed if elapsed > 0 else 0
-                eta = (len(chunks) - file_indexed) / rate if rate > 0 else 0
-                print(
-                    f"  {file_indexed}/{len(chunks)} chunks  ({rate:.1f}/s  ETA {eta:.0f}s)"
-                )
-            except Exception as e:
-                print(f"  [ERROR] Embedding batch {i}: {e}")
+                (len(chunks) - file_indexed) / rate if rate > 0 else 0
+            except Exception:
                 continue
-
-        print(f"  Done: {file_indexed} chunks in {time.time() - file_start:.1f}s")
 
     # Load for queries
     collection.load()
-    total_time = time.time() - overall_start
-
-    print("\n" + "=" * 60)
-    print(f"COMPLETE: {total_indexed} chunks indexed in {total_time:.0f}s")
-    print("=" * 60)
+    time.time() - overall_start
 
 
 if __name__ == "__main__":

@@ -1,0 +1,34 @@
+[project]
+name = "dp-report-service"
+version = "1.0.0"
+description = "MCGM Development Plan (DP 2034) Remarks Microservice"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "playwright>=1.40.0",
+    "playwright-stealth>=1.0.6",
+    "httpx>=0.27.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.7.0",
+    "psycopg2-binary>=2.9.0",
+    "pypdf>=4.0.0",
+    "python-multipart>=0.0.12",
+    "redis[hiredis]>=5.0.0",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "dhara_shared",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["routers*", "services*", "core*", "schemas*"]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+
+

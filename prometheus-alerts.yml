@@ -1,0 +1,122 @@
+# Prometheus Alert Rules for Dhara AI
+# Place in /etc/prometheus/rules/ or load via prometheus.yml
+
+groups:
+  - name: dhara_alerts
+    interval: 30s
+    rules:
+      # ─── Service Health ─────────────────────────────────────────────
+      - alert: ServiceDown
+        expr: up{job!="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      # ─── Database ───────────────────────────────────────────────────
+      - alert: DatabaseConnectionFailure
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL running out of connections"
+          description: "Postgres has {{ $value }} active connections"
+
+      - alert: DatabaseHighLatency
+        expr: pg_stat_activity_mean_exec_time > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL high query latency"
+          description: "Average query execution time is {{ $value }}ms"
+
+      # ─── Redis ─────────────────────────────────────────────────────
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using {{ $value | humanizePercentage }} of max memory"
+
+      # ─── Background Jobs ───────────────────────────────────────────
+      - alert: JobQueueBacklog
+        expr: arq_queue_length > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Background job queue backlog"
+          description: "Queue {{ $labels.queue }} has {{ $value }} pending jobs"
+
+      - alert: JobFailureRateHigh
+        expr: rate(arq_jobs_failed_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High job failure rate"
+          description: "Job failure rate is {{ $value | humanizePercentage }}"
+
+      # ─── API Response Times ─────────────────────────────────────────
+      - alert: HighResponseTimeP95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High P95 response time"
+          description: "P95 response time is {{ $value }}s"
+
+      # ─── Resource Usage ─────────────────────────────────────────────
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / process_max_memory_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # ─── External Services ───────────────────────────────────────────
+      - alert: ExternalServiceDown
+        expr: up{job=~"site_analysis|aviation_height|ready_reckoner|report_generator|pr_card|rag|mcgm|dp_remarks|ocr"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      # ─── Feasibility Reports ────────────────────────────────────────
+      - alert: ReportGenerationFailures
+        expr: rate(feasibility_reports_failed_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High report generation failure rate"
+          description: "{{ $value | humanizePercentage }} of reports are failing"

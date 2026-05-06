@@ -3,30 +3,19 @@ Template service for loading Excel feasibility templates
 and managing dynamic input fields (yellow cells).
 """
 
-import openpyxl
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
-import os
-import sys
+from pathlib import Path
 
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
+import openpyxl
 
-from core.config import settings, resolve_scheme_key
-from services.cell_mapper import cell_mapper
+from ..core.config import resolve_scheme_key, settings
+from .cell_mapper import cell_mapper
 
 # Testing override: all report generation must use this single template file.
 # Remove to restore per-scheme template selection from SCHEME_TEMPLATE_MAP.
-_FORCED_TEMPLATE_NAME: Optional[str] = (
-    "FINAL TEMPLATE _ 33 (7)(B) .xlsx"
-)
+_FORCED_TEMPLATE_NAME: str | None = "FINAL TEMPLATE _ 33 (7)(B).xlsx"
 
 
 @dataclass
@@ -43,14 +32,12 @@ class TemplateField:
 
 class TemplateService:
     def __init__(self):
-        self._cache: Dict[str, openpyxl.Workbook] = {}
-        self._field_cache: Dict[str, List[TemplateField]] = {}
+        self._cache: dict[str, openpyxl.Workbook] = {}
+        self._field_cache: dict[str, list[TemplateField]] = {}
         # Cache of label indexes per (scheme_key)
-        self._label_index_cache: Dict[str, Dict[str, any]] = {}
+        self._label_index_cache: dict[str, dict[str, any]] = {}
 
-    def get_template_for_scheme(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> Path:
+    def get_template_for_scheme(self, scheme: str, redevelopment_type: str = "CLUBBING") -> Path:
         """Get template file path for given scheme + redevelopment type.
 
         Args:
@@ -90,26 +77,61 @@ class TemplateService:
         return "FFFF" in color_str or color_str in ["FFFFFF00", "FFFF99", "FFFFCC"]
 
     def _get_cell_label(self, ws, row: int, col: int) -> str:
-        """Try to get a label for the cell from nearby cells."""
+        """Get label for the cell prioritizing the nearest textual context visually."""
         col_letter = openpyxl.utils.get_column_letter(col)
 
-        # Check if there's a label in column A or B for this row
-        for check_col in [1, 2, 3]:
+        col_label = ""
+        row_label = ""
+
+        # 1. Vertical Scan (Find Column Header Hierarchy)
+        col_labels = []
+        for offset in range(1, 4):
+            if row - offset >= 1:
+                above_cell = ws.cell(row=row - offset, column=col)
+                val = str(above_cell.value).strip() if above_cell.value else ""
+
+                if (
+                    val
+                    and val != "None"
+                    and not val.startswith("=")
+                    and not val.replace(".", "", 1).isdigit()
+                    and len(val) > 2
+                    and (not col_labels or val[:50] != col_labels[-1])
+                ):
+                    col_labels.append(val[:50])
+
+        col_label = " - ".join(reversed(col_labels))
+
+        # 2. Horizontal Scan (Find Row Header)
+        # Traverse leftward to find the first non-numeric textual label
+        for check_col in range(col - 1, 0, -1):
             cell = ws.cell(row=row, column=check_col)
-            if cell.value and isinstance(cell.value, str) and len(str(cell.value)) > 2:
-                return str(cell.value)[:50]
+            val = str(cell.value).strip() if cell.value else ""
 
-        # Check above cell
-        if row > 1:
-            above = ws.cell(row=row - 1, column=col)
-            if above.value:
-                return str(above.value)[:50]
+            # Skip empty, Excel formulas, "None", and purely numeric data
+            if not val or val == "None" or val.startswith("="):
+                continue
 
+            # If it's a number/float (e.g., 153.27 or 2000), it's not a label!
+            if val.replace(".", "", 1).isdigit():
+                continue
+
+            if len(val) > 2:
+                row_label = val[:50]
+                break
+
+        # 3. Composite Logic
+        if row_label and col_label and row_label != col_label:
+            return f"{row_label} | {col_label}"
+        if row_label:
+            return row_label
+        if col_label:
+            return col_label
         return f"{col_letter}{row}"
 
     def get_yellow_fields(
         self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> List[TemplateField]:
+    ) -> list[TemplateField]:
         """Get all yellow (input) cells from template for given scheme."""
         key = resolve_scheme_key(scheme, redevelopment_type)
         if key in self._field_cache:
@@ -153,12 +175,9 @@ class TemplateService:
         # collapse spaces and remove trivial punctuation
         for ch in ["\n", "\t", ":", ";", ",", "|", "(", ")"]:
             s = s.replace(ch, " ")
-        s = " ".join(s.split())
-        return s
+        return " ".join(s.split())
 
-    def _build_label_index(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ):
+    def _build_label_index(self, scheme: str, redevelopment_type: str = "CLUBBING"):
         """Build an index to resolve manual label-based inputs to cells.
 
         Returns a dict with:
@@ -170,8 +189,8 @@ class TemplateService:
             return self._label_index_cache[key]
 
         fields = self.get_yellow_fields(scheme, redevelopment_type)
-        by_sheet_label: Dict[str, str] = {}
-        by_label: Dict[str, List[Tuple[str, str]]] = {}
+        by_sheet_label: dict[str, str] = {}
+        by_label: dict[str, list[tuple[str, str]]] = {}
         for f in fields:
             norm = self._normalize_label(f.label or f.cell)
             k = f"{f.sheet}|{norm}"
@@ -182,9 +201,7 @@ class TemplateService:
         self._label_index_cache[key] = out
         return out
 
-    def get_template_sheets(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> List[str]:
+    def get_template_sheets(self, scheme: str, redevelopment_type: str = "CLUBBING") -> list[str]:
         """Get list of sheets to copy (up to P&L)."""
         template_path = self.get_template_for_scheme(scheme, redevelopment_type)
         wb = self._load_workbook(template_path)
@@ -196,14 +213,14 @@ class TemplateService:
             return wb.sheetnames[:8]
 
     def apply_values(
-        self, scheme: str, values: Dict[str, any], redevelopment_type: str = "CLUBBING"
+        self, scheme: str, values: dict[str, any], redevelopment_type: str = "CLUBBING"
     ) -> bytes:
         """Apply user values to template and return as bytes."""
         template_path = self.get_template_for_scheme(scheme, redevelopment_type)
         wb = openpyxl.load_workbook(template_path, data_only=False)
 
         # ── Formula Integrity Fix ───────────────────────────────────────────
-        # We no longer delete extra sheets because templates often have 
+        # We no longer delete extra sheets because templates often have
         # hidden calculation sheets or Named Ranges that formulas depend on.
         # ────────────────────────────────────────────────────────────────────
 
@@ -219,9 +236,7 @@ class TemplateService:
         output.seek(0)
         return output.getvalue()
 
-    def zero_yellow_fields_in_place(
-        self, scheme: str, redevelopment_type: str = "CLUBBING"
-    ) -> int:
+    def zero_yellow_fields_in_place(self, scheme: str, redevelopment_type: str = "CLUBBING") -> int:
         """Set all yellow input cells in the template to 0 and save in place.
 
         Returns:
@@ -256,10 +271,10 @@ class TemplateService:
     def generate_full_report(
         self,
         scheme: str,
-        all_data: Dict[str, any],
-        output_path: Optional[str] = None,
+        all_data: dict[str, any],
+        output_path: str | None = None,
         redevelopment_type: str = "CLUBBING",
-    ) -> Tuple[bytes, str]:
+    ) -> tuple[bytes, str]:
         """Generate full feasibility report using template.
 
         Args:
@@ -328,7 +343,7 @@ class TemplateService:
             file_path = output_path
         else:
             # Generate temp path
-            from core.config import OUTPUT_DIR
+            from ..core.config import OUTPUT_DIR
 
             safe_name = all_data.get("society_name", "report").replace(" ", "_")
             output_path = str(

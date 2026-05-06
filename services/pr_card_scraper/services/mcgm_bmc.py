@@ -1,23 +1,24 @@
-import logging
 import asyncio
-from typing import List, Dict, Any
+import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class MCGMBMCService:
     """Service for MCGM and BMC data extraction."""
-    
-    async def scrape_nearby_cts(self, cts_number: str, village: str) -> List[str]:
+
+    async def scrape_nearby_cts(self, cts_number: str, village: str) -> list[str]:
         """
         Scrape nearby properties' CTS numbers from MCGM portal.
         Placeholder for real automation logic.
         """
         logger.info(f"Scraping nearby CTS for {cts_number} in {village} via MCGM")
         # In a real implementation, this would use Playwright to search MCGM's AutoDCR or DP portal
-        await asyncio.sleep(1) 
+        await asyncio.sleep(1)
         return [f"{cts_number}/1", f"{cts_number}/2", f"{cts_number}/A"]
 
-    async def get_dp_remark(self, cts_number: str, village: str) -> Dict[str, Any]:
+    async def get_dp_remark(self, cts_number: str, village: str) -> dict[str, Any]:
         """
         Get DP remark report from BMC.
         Placeholder for real automation logic.
@@ -29,7 +30,8 @@ class MCGMBMCService:
             "status": "available",
             "report_url": f"https://portal.mcgm.gov.in/irj/portal/anonymous/qlDPRemark?cts={cts_number}",
             "zone": "Residential",
-            "reservation": "None"
+            "reservation": "None",
         }
+
 
 mcgm_bmc_service = MCGMBMCService()

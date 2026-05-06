@@ -1,0 +1,56 @@
+[project]
+name = "rag-service"
+version = "1.0.0"
+description = "RAG Service for DCPR 2034"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "pydantic-settings",
+    "python-multipart",
+    "requests",
+    "bcrypt",
+    "pyjwt",
+    "psycopg2-binary",
+    "pymilvus>=2.5.4",
+    "pypdf",
+    "reportlab",
+    "langchain-ollama",
+    "langchain-core",
+    "langgraph",
+    "easyocr",
+    "python-dotenv",
+    "opencv-python",
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "langchain-openai",
+    "langchain-text-splitters",
+    "sqlalchemy",
+    "pyjwt",
+    "httpx",
+    "openai",
+    "google-cloud-discoveryengine",
+    "starlette",
+    "itsdangerous",
+    "psycopg2-binary",
+    "beautifulsoup4",
+    "redis",
+    "serpapi",
+    "dhara_shared",
+    "alembic>=1.13.0",
+    "asyncpg>=0.30.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["db*", "core*", "data*", "routers*", "schemas*", "services*", "integrations*"]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv.sources]
+dhara_shared = { workspace = true }
+

@@ -5,8 +5,6 @@ Handles Devanagari normalization, OCR artifacts, language detection.
 
 import re
 import unicodedata
-from typing import Optional, Tuple
-
 
 # ---------------------------------------------------------------------------
 # Language detection
@@ -57,7 +55,7 @@ def detect_language(text: str) -> str:
                 hi_hits = len(text_words & hindi_markers)
                 return "mr" if mr_hits >= hi_hits else "hi"
             return "mixed"
-        elif lang == "en":
+        if lang == "en":
             devanagari_count = sum(1 for c in text if "\u0900" <= c <= "\u097f")
             if devanagari_count > len(text) * 0.1:
                 return "mixed"
@@ -81,15 +79,15 @@ def detect_language(text: str) -> str:
 # Zero-width characters that break embeddings
 ZERO_WIDTH_RE = re.compile(
     "["
-    + "\u200b"  # ZERO WIDTH SPACE
-    + "\u200c"  # ZERO WIDTH NON-JOINER
-    + "\u200d"  # ZERO WIDTH JOINER
-    + "\u200e"  # LEFT-TO-RIGHT MARK
-    + "\u200f"  # RIGHT-TO-LEFT MARK
-    + "\ufeff"  # BYTE ORDER MARK
-    + "\u00ad"  # SOFT HYPHEN
-    + "\u2060"  # WORD JOINER
-    + "]",
+    "\u200b"  # ZERO WIDTH SPACE
+    "\u200c"  # ZERO WIDTH NON-JOINER
+    "\u200d"  # ZERO WIDTH JOINER
+    "\u200e"  # LEFT-TO-RIGHT MARK
+    "\u200f"  # RIGHT-TO-LEFT MARK
+    "\ufeff"  # BYTE ORDER MARK
+    "\u00ad"  # SOFT HYPHEN
+    "\u2060"  # WORD JOINER
+    "]",
     re.UNICODE,
 )
 
@@ -116,9 +114,7 @@ def normalize_devanagari(text: str) -> str:
         text = text.replace(composed, decomposed)
 
     # Remove stray halant + virama sequences
-    text = re.sub(r"\u094d\s+", "\u094d", text)
-
-    return text
+    return re.sub(r"\u094d\s+", "\u094d", text)
 
 
 # ---------------------------------------------------------------------------
@@ -194,12 +190,10 @@ def clean_text(text: str, aggressive: bool = False) -> str:
 
     # Final whitespace pass
     text = text.strip()
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    return text
+    return re.sub(r"\n{3,}", "\n\n", text)
 
 
-def clean_and_detect(text: str) -> Tuple[str, str]:
+def clean_and_detect(text: str) -> tuple[str, str]:
     """Clean text and detect language in one pass. Returns (cleaned_text, language)."""
     cleaned = clean_text(text)
     lang = detect_language(cleaned) if len(cleaned) > 20 else "en"
@@ -211,9 +205,7 @@ def clean_and_detect(text: str) -> Tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 DOC_TYPE_PATTERNS = {
-    "dcpr": re.compile(
-        r"DCPR|UDCPR|Development Control|Promotion Regulation", re.IGNORECASE
-    ),
+    "dcpr": re.compile(r"DCPR|UDCPR|Development Control|Promotion Regulation", re.IGNORECASE),
     "act": re.compile(r"MRTP|Municipal Corporation Act|Bombay", re.IGNORECASE),
     "circular": re.compile(r"Circular|CIRCULAR|Office Order|Memorandum", re.IGNORECASE),
     "guideline": re.compile(r"Guideline|Guidance|Procedure|Manual", re.IGNORECASE),
@@ -238,9 +230,7 @@ CHUNK_TYPE_PATTERNS = {
         r"^#{1,3}\s|^[A-Z][A-Z\s]{5,}$|^(?:CHAPTER|PART|REGULATION)\s",
         re.MULTILINE | re.IGNORECASE,
     ),
-    "clause": re.compile(
-        r"^\s*\(\d+\)|^\s*\d+\.\d+|^\s*Clause\s", re.MULTILINE | re.IGNORECASE
-    ),
+    "clause": re.compile(r"^\s*\(\d+\)|^\s*\d+\.\d+|^\s*Clause\s", re.MULTILINE | re.IGNORECASE),
     "list": re.compile(r"^\s*[-*•]\s|^\s*\d+[\.\)]\s", re.MULTILINE),
 }
 
@@ -260,9 +250,6 @@ if __name__ == "__main__":
         ("महाराष्ट्र शासनाचा निर्णय क्रमांक एफएसआय २.५ पेक्षा जास्त नसावा", "mr"),
         ("महाराष्ट्र सरकार का निर्णय संख्या एफएसआई 2.5 से अधिक नहीं होना चाहिए", "hi"),
     ]
-    for text, expected in test_samples:
+    for text, _expected in test_samples:
         cleaned = clean_text(text)
         lang = detect_language(cleaned)
-        print(f"Expected: {expected}, Detected: {lang}")
-        print(f"  Clean: {cleaned[:80]}")
-        print()

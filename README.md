@@ -1,81 +1,71 @@
-# Dhara AI - Microservices Architecture
+# Dhara AI — Mumbai Redeasibility Engine
 
-Unified platform for real estate redevelopment feasibility, regulatory compliance (RAG), and agentic workflow automation.
+Dhara AI is a professional-grade, high-performance microservices monorepo designed to automate real estate redevelopment feasibility in Mumbai. It leverages a multi-agent orchestration layer to aggregate data from fragmented government portals and DCPR 2034 regulations.
 
-## System Architecture
+## 🏗️ System Architecture
 
-The platform consists of a fleet of Python-based microservices coordinated by a central Orchestrator.
-
-| Service | Port | Responsibility |
-| :--- | :--- | :--- |
-| **Orchestrator** | 8000 | Central agent, tool execution, and session management |
-| **Site Analysis** | 8001 | Google Maps integration, address resolution, and proximity checks |
-| **Aviation Height** | 8002 | NOCAS building height verification |
-| **Ready Reckoner** | 8003 | MCGM premium calculation logic and RR rate lookup |
-| **Report Generator** | 8004 | Excel-to-PDF generation, template mapping, and financial modeling |
-| **PR Card Scraper** | 8005 | Automated extraction of data from Mahabhoomi PR cards |
-| **RAG Service** | 8006 | DCPR 2034 knowledge base, vector search (Milvus), and regulatory QA |
-| **MCGM Lookup** | 8007 | Property tax and ward-level attribute discovery |
-| **DP Remarks Report** | 8008 | Extraction and parsing of DP Remark PDF documents |
-
-## Getting Started
-
-### 1. Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
-- Valid API keys for LLMs (OpenAI, Gemini, or Anthropic)
-
-### 2. Setup
-Clone the repository and run the setup script:
-```bash
-# Windows
-.\scripts\setup.ps1
-
-# Linux/macOS
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-```
-
-### 3. Launch
-```bash
-docker compose up --build
-```
-
-The system will be available at:
-- **API Documentation:** http://localhost:8000/docs
-- **RAG Dashboard:** http://localhost:8006/docs
-- **pgAdmin:** http://localhost:5050
-
-## Project Structure
+The platform is built on a **Modular Monorepo** pattern, ensuring high cohesion and low coupling between domain boundaries.
 
 ```text
-├── services/               # Microservice implementations
-│   ├── orchestrator/       # Central logic and LLM agent
-│   ├── rag_service/        # Regulatory knowledge base (refactored)
-│   ├── report_generator/   # Excel/PDF engine
-│   └── ...                 # Other domain services
-├── shared/                 # Shared data models and utilities
-├── scripts/                # Setup and utility scripts
-├── data/                   # Base data for knowledge graphs
-└── docker-compose.yml      # Root composition
+├── dhara_shared/           # [CORE] Standardized schemas, logging, and HTTP clients
+├── docs/                   # [DOCS] API Specs (OpenAPI) and Architecture Diagrams
+├── scripts/                # [OPS] Monorepo automation and data export scripts
+├── services/               # [SERVICES] Independent domain microservices
+│   ├── orchestrator/       # --> Gateway, Auth, and AI Agent (The Brain)
+│   ├── site_analysis/      # --> Geocoding and Landmark Discovery
+│   ├── aviation_height/    # --> AAI NOCAS Height Compliance
+│   ├── ready_reckoner/     # --> Land & Construction Rate Lookups
+│   ├── report_generator/   # --> Excel/PDF Assembly & Expiry Alerts
+│   ├── rag_service/        # --> DCPR 2034 Legal Knowledge Bot
+│   ├── mcgm_property/      # --> ArcGIS authoritative spatial data
+│   ├── pr_card_scraper/    # --> Mahabhumi Land Records extraction
+│   └── dp_remarks/         # --> Automated DP 2034 Remarks parsing
+├── tests/                  # [TESTS] Global Integration and E2E Test Suite
+├── Makefile                # [CI/CD] Unified task runner
+├── docker-compose.yml      # [INFRA] Production-parity container stack
+└── ruff.toml               # [LINT] Project-wide code quality rules
 ```
 
-## Refactored RAG Service Layout
+## 🚀 Execution Guide (Full Stack)
 
-The `rag_service` has been refactored for modularity:
-- `main.py`: App entry point and router inclusion.
-- `core/`: Middleware, authentication, and dependencies.
-- `db/`: Database models and session management.
-- `routers/`: Modular API endpoints (chat, docs, query).
-- `services/`: Core business logic (RAG engine, OCR, workflows).
-- `schemas/`: Pydantic models for validation.
-
-## Testing
-
-Run the full end-to-end simulation:
+### 1. Environment Synchronization
+Ensure all microservices and the shared library are perfectly synced within the workspace:
 ```bash
-python tests/test_full_flow.py
+make sync
 ```
 
-## License
-Internal Development - Dhara AI.
+### 2. Database Provisioning
+Run migrations for the Orchestrator and stateful services:
+```bash
+make migrate
+```
+
+### 3. Orchestration (Docker)
+Launch the entire mesh on the internal `dhara_net` network:
+```bash
+make up
+```
+
+## 🛠️ Service-Level Development
+
+Every service follows a standardized hexagonal-lite structure:
+1.  **Routers:** API boundary (FastAPI).
+2.  **Services:** Domain business logic.
+3.  **Repositories:** Data persistence (PostgreSQL/Redis).
+4.  **Core:** Configuration and Dependency Injection.
+
+To run a specific service in isolation for debugging:
+```bash
+cd services/<service_name>
+uv run python main.py
+```
+
+## 🔒 Engineering Standards
+
+*   **Observability:** Unified JSON logging for log aggregation (ELK/Datadog compatible).
+*   **Resilience:** Every internal call is protected by a circuit-breaker/retry policy via `dhara_shared.http`.
+*   **Security:** "Zero Trust" internal networking; all ingress is proxied through the Orchestrator.
+*   **Quality:** Enforced 100-character line limit and strict type hinting via Ruff.
+
+---
+**Property of Trinetra Labs — System Architected by Dhara AI Team.**

@@ -1,14 +1,18 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
-from db.base import Base
-from models.enums import EnquiryStatus
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from services.orchestrator.db.base import Base
+from services.orchestrator.models.enums import EnquiryStatus
 
 
 def _uuid():
     return uuid.uuid4()
+
 
 def _now():
     return datetime.utcnow()
@@ -26,12 +30,17 @@ class Enquiry(Base):
     source: Mapped[str] = mapped_column(String(50), default="contact_form", nullable=False)
     status: Mapped[EnquiryStatus] = mapped_column(
         SAEnum(EnquiryStatus, name="enquiry_status", create_constraint=True),
-        default=EnquiryStatus.NEW, nullable=False,
+        default=EnquiryStatus.NEW,
+        nullable=False,
     )
-    assigned_to: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_now, onupdate=_now, nullable=False
+    )
 
     assigned_user = relationship("User", foreign_keys=[assigned_to], lazy="selectin")
 

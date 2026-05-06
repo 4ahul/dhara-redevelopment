@@ -4,15 +4,13 @@ PMC Workflow System
 Redemption, Deemed Conveyance, Feasibility Reports, Project Tracking
 """
 
-import os
 import json
 import logging
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
-from enum import Enum
 import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +117,9 @@ class WorkflowStep:
     status: str = "pending"
     completed_at: datetime = None
     notes: str = ""
-    dependencies: List[str] = field(default_factory=list)
-    documents_required: List[str] = field(default_factory=list)
-    documents_generated: List[str] = field(default_factory=list)
+    dependencies: list[str] = field(default_factory=list)
+    documents_required: list[str] = field(default_factory=list)
+    documents_generated: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -137,13 +135,13 @@ class Project:
     estimated_completion: datetime = None
 
     # Tenders
-    tenders: List[Tender] = field(default_factory=list)
+    tenders: list[Tender] = field(default_factory=list)
 
     # Documents
-    documents: List[Document] = field(default_factory=list)
+    documents: list[Document] = field(default_factory=list)
 
     # Workflow
-    workflow_steps: List[WorkflowStep] = field(default_factory=list)
+    workflow_steps: list[WorkflowStep] = field(default_factory=list)
 
     # Compliance
     compliance_checked: bool = False
@@ -166,7 +164,7 @@ class PMCWorkflowEngine:
     def __init__(self):
         self.templates = self._load_templates()
 
-    def _load_templates(self) -> Dict:
+    def _load_templates(self) -> dict:
         """Load document templates"""
         templates = {
             "provisional_agreement": TEMPLATES_DIR / "provisional_agreement.txt",
@@ -259,7 +257,7 @@ Completion Date: {completion_date}
 Tolerable delay: 6 months
 
 CLAUSE 5: DEEMED CONVEYANCE
-The Society shall execute Deemed Conveyance deed within 60 days of 
+The Society shall execute Deemed Conveyance deed within 60 days of
 completion certificate...
 
 Signed this {date} day of {month} {year}
@@ -274,8 +272,8 @@ For Society:                 For Developer:
 
 Date: {date}
 
-Know all men by these presents, I/We {names} the owner(s) of flat no(s) {flat_nos} 
-in {society_name} ("Society") do hereby irrevocably appoint and authorize 
+Know all men by these presents, I/We {names} the owner(s) of flat no(s) {flat_nos}
+in {society_name} ("Society") do hereby irrevocably appoint and authorize
 {builder_name} ("Attorney") to act on my/our behalf for the following:
 
 1. To sign all documents related to redevelopment of the Society property.
@@ -443,7 +441,7 @@ Date: {date}
         self.save_project(project)
         return project
 
-    def _create_workflow_steps(self) -> List[WorkflowStep]:
+    def _create_workflow_steps(self) -> list[WorkflowStep]:
         """Create standard workflow steps for redevelopment"""
         return [
             WorkflowStep(
@@ -533,11 +531,9 @@ Date: {date}
             ),
         ]
 
-    def get_available_steps(self, project: Project) -> List[WorkflowStep]:
+    def get_available_steps(self, project: Project) -> list[WorkflowStep]:
         """Get steps that can be started (dependencies met)"""
-        completed_ids = {
-            s.step_id for s in project.workflow_steps if s.status == "completed"
-        }
+        completed_ids = {s.step_id for s in project.workflow_steps if s.status == "completed"}
 
         available = []
         for step in project.workflow_steps:
@@ -563,9 +559,7 @@ Date: {date}
 
         # Update project status based on completed steps
         project.updated_at = datetime.now()
-        completed_count = sum(
-            1 for s in project.workflow_steps if s.status == "completed"
-        )
+        completed_count = sum(1 for s in project.workflow_steps if s.status == "completed")
 
         if completed_count >= 8:
             project.status = ProjectStatus.COMPLETED
@@ -587,7 +581,7 @@ Date: {date}
         return project
 
     def generate_document(
-        self, project: Project, doc_type: str, output_dir: Path = None
+        self, project: Project, doc_type: str, output_dir: Path | None = None
     ) -> Document:
         """Generate document from template"""
         if output_dir is None:
@@ -629,7 +623,7 @@ Date: {date}
 
         return doc
 
-    def _prepare_doc_context(self, project: Project, doc_type: str) -> Dict:
+    def _prepare_doc_context(self, project: Project, doc_type: str) -> dict:
         """Prepare context variables for document"""
         society = project.society
         plot = project.plot
@@ -655,7 +649,7 @@ Date: {date}
             # Add DCPR calculations
             from property_card_workflow import DCPRCalculator, PropertyCard
 
-            card = PropertyCard(
+            PropertyCard(
                 survey_no=plot.survey_no,
                 plot_area_sq_m=plot.area_sq_m,
                 road_width_m=plot.road_width_m,
@@ -678,13 +672,9 @@ Date: {date}
                     "incentive_fsi": config.incentive_fsi,
                     "premium_fsi": config.premium_fsi,
                     "max_fsi": config.max_permissible_fsi,
-                    "total_bua": int(
-                        plot.area_sq_ft * (config.basic_fsi + config.incentive_fsi)
-                    ),
+                    "total_bua": int(plot.area_sq_ft * (config.basic_fsi + config.incentive_fsi)),
                     "scheme": "33(7B)",
-                    "dcpr_7b": "Applicable"
-                    if config.basic_fsi > 0
-                    else "Not Applicable",
+                    "dcpr_7b": "Applicable" if config.basic_fsi > 0 else "Not Applicable",
                     "dcpr_20b": "Check eligibility",
                     "dcpr_30a": "Check road frontage",
                     "dcpr_compliance": "Compliant",
@@ -754,12 +744,8 @@ Date: {date}
             "plot": asdict(project.plot) if project.plot else None,
             "status": project.status.value,
             "current_stage": project.current_stage.value,
-            "created_at": project.created_at.isoformat()
-            if project.created_at
-            else None,
-            "updated_at": project.updated_at.isoformat()
-            if project.updated_at
-            else None,
+            "created_at": project.created_at.isoformat() if project.created_at else None,
+            "updated_at": project.updated_at.isoformat() if project.updated_at else None,
             "estimated_completion": project.estimated_completion.isoformat()
             if project.estimated_completion
             else None,
@@ -805,9 +791,7 @@ Date: {date}
         )
         project.compliance_checked = data.get("compliance_checked", False)
         project.compliance_notes = data.get("compliance_notes", "")
-        project.deemed_conveyance_initiated = data.get(
-            "deemed_conveyance_initiated", False
-        )
+        project.deemed_conveyance_initiated = data.get("deemed_conveyance_initiated", False)
         project.deemed_conveyance_date = (
             datetime.fromisoformat(data["deemed_conveyance_date"])
             if data.get("deemed_conveyance_date")
@@ -825,13 +809,11 @@ Date: {date}
 
         project.tenders = [Tender(**t) for t in data.get("tenders", [])]
         project.documents = [Document(**d) for d in data.get("documents", [])]
-        project.workflow_steps = [
-            WorkflowStep(**s) for s in data.get("workflow_steps", [])
-        ]
+        project.workflow_steps = [WorkflowStep(**s) for s in data.get("workflow_steps", [])]
 
         return project
 
-    def list_projects(self) -> List[Dict]:
+    def list_projects(self) -> list[dict]:
         """List all projects"""
         projects = []
         for path in PROJECTS_DIR.glob("*.json"):
@@ -847,17 +829,15 @@ Date: {date}
                         "society": data.get("society", {}).get("name", ""),
                     }
                 )
-            except:
+            except Exception:
                 pass
         return sorted(projects, key=lambda x: x.get("created", ""), reverse=True)
 
-    def get_project_progress(self, project: Project) -> Dict:
+    def get_project_progress(self, project: Project) -> dict:
         """Get project progress summary"""
         total = len(project.workflow_steps)
         completed = sum(1 for s in project.workflow_steps if s.status == "completed")
-        in_progress = sum(
-            1 for s in project.workflow_steps if s.status == "in_progress"
-        )
+        in_progress = sum(1 for s in project.workflow_steps if s.status == "in_progress")
         pending = total - completed - in_progress
 
         return {
@@ -869,9 +849,7 @@ Date: {date}
             "available_steps": [s.name for s in self.get_available_steps(project)],
             "current_stage": project.current_stage.value,
             "status": project.status.value,
-            "days_elapsed": (datetime.now() - project.created_at).days
-            if project.created_at
-            else 0,
+            "days_elapsed": (datetime.now() - project.created_at).days if project.created_at else 0,
             "days_remaining": (project.estimated_completion - datetime.now()).days
             if project.estimated_completion
             else 0,
@@ -912,7 +890,7 @@ class TenderManager:
         )
         return project
 
-    def evaluate_bids(self, tender: Tender, bids: List[Dict], project: Project) -> Dict:
+    def evaluate_bids(self, tender: Tender, bids: list[dict], project: Project) -> dict:
         """Evaluate submitted bids"""
         tender.status = "evaluation"
 
@@ -930,14 +908,12 @@ class TenderManager:
                 score = float(bid.get(criterion.lower().replace(" ", "_"), 0))
                 scores.append(score)
             bid["total_score"] = sum(
-                s * w for s, w in zip(scores, comparison["weights"])
+                s * w for s, w in zip(scores, comparison["weights"], strict=False)
             )
 
         # Sort by score
         comparison["bids"] = sorted(bids, key=lambda x: x["total_score"], reverse=True)
-        comparison["recommended"] = (
-            comparison["bids"][0] if comparison["bids"] else None
-        )
+        comparison["recommended"] = comparison["bids"][0] if comparison["bids"] else None
 
         tender.status = "evaluated"
         self.workflow.save_project(project)
@@ -955,7 +931,6 @@ class TenderManager:
 # CLI Commands
 def cmd_create_project(args):
     """Create new project"""
-    from .property_card_workflow import PropertyCard
 
     engine = PMCWorkflowEngine()
 
@@ -1022,7 +997,7 @@ def cmd_progress(args):
             f"\nTimeline: {progress['days_elapsed']} days elapsed, ~{progress['days_remaining']} days remaining"
         )
 
-    logger.info(f"\nAvailable Actions:")
+    logger.info("\nAvailable Actions:")
     for step_name in progress["available_steps"]:
         logger.info(f"  → {step_name}")
 
@@ -1072,20 +1047,12 @@ if __name__ == "__main__":
     create_parser = subparsers.add_parser("create", help="Create new project")
     create_parser.add_argument("project_name", help="Project name")
     create_parser.add_argument("--society-name", required=True, help="Society name")
-    create_parser.add_argument(
-        "--society-reg", required=True, help="Society registration no"
-    )
+    create_parser.add_argument("--society-reg", required=True, help="Society registration no")
     create_parser.add_argument("--survey-no", required=True, help="Survey number")
-    create_parser.add_argument(
-        "--area", type=float, required=True, help="Plot area in sq.m"
-    )
-    create_parser.add_argument(
-        "--road-width", type=float, default=9, help="Road width in meters"
-    )
+    create_parser.add_argument("--area", type=float, required=True, help="Plot area in sq.m")
+    create_parser.add_argument("--road-width", type=float, default=9, help="Road width in meters")
     create_parser.add_argument("--zone", default="Residential", help="Zone type")
-    create_parser.add_argument(
-        "--members", type=int, default=50, help="Total society members"
-    )
+    create_parser.add_argument("--members", type=int, default=50, help="Total society members")
     create_parser.add_argument("--address", default="", help="Society address")
     create_parser.add_argument("--pmc", default="Default PMC", help="PMC name")
 
@@ -1114,14 +1081,10 @@ if __name__ == "__main__":
     subparsers.add_parser("list", help="List all projects")
 
     # Deemed conveyance
-    dc_parser = subparsers.add_parser(
-        "deemed-conveyance", help="Initiate deemed conveyance"
-    )
+    dc_parser = subparsers.add_parser("deemed-conveyance", help="Initiate deemed conveyance")
     dc_parser.add_argument("project_id", help="Project ID")
     dc_parser.add_argument("--developer", required=True, help="Developer name")
-    dc_parser.add_argument(
-        "--developer-address", required=True, help="Developer address"
-    )
+    dc_parser.add_argument("--developer-address", required=True, help="Developer address")
     dc_parser.add_argument("--lawyer", required=True, help="Lawyer name")
 
     args = parser.parse_args()

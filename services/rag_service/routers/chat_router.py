@@ -2,21 +2,32 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
-from typing import Optional, List, Dict
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, BackgroundTasks
-from fastapi.responses import StreamingResponse, JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import func as sa_func
+from datetime import UTC, datetime
 
-from db.session import get_db, User, ChatSession, Message, FeedbackLog, SessionLocal
-from core.dependencies import require_auth
-from schemas.chat import ChatMessageRequest, EditMessageRequest, FeedbackRequest, CreateSessionRequest
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy import func as sa_func
+from sqlalchemy.orm import Session
+
+from ..core.dependencies import require_auth
+from ..db.session import (
+    ChatSession,
+    FeedbackLog,
+    Message,
+    SessionLocal,
+    get_db,
+)
+from ..schemas.chat import (
+    ChatMessageRequest,
+    CreateSessionRequest,
+    FeedbackRequest,
+)
 
 router = APIRouter(prefix="/api", tags=["Chat"])
 logger = logging.getLogger(__name__)
 
 STREAM_TIMEOUT_SECONDS = 120
+
 
 def sanitize_session_title(message: str) -> str:
     title = message.strip()[:50]
@@ -24,9 +35,12 @@ def sanitize_session_title(message: str) -> str:
         title += "..."
     return title or "New Chat"
 
+
 def get_rag_agent():
-    from services.intelligent_rag import IntelligentRAG
+    from ..services.intelligent_rag import IntelligentRAG
+
     return IntelligentRAG()
+
 
 def _save_chat_messages(
     session_db_id: int,
@@ -37,7 +51,7 @@ def _save_chat_messages(
     answer_confidence: float,
     thought_process: list,
     update_title: bool = False,
-    new_title: str = None,
+    new_title: str | None = None,
 ):
     db = SessionLocal()
     try:
@@ -51,9 +65,9 @@ def _save_chat_messages(
         clean_answer = re.sub(r"^\d+\.\s+", "", clean_answer, flags=re.MULTILINE)
         clean_answer = re.sub(r"\n{3,}", "\n\n", clean_answer).strip()
 
-        user_msg = Message(session_id=session_db_id, role="user", content=user_content)
+        user_msg = Message(session_id=session_id, role="user", content=user_content)
         asst_msg = Message(
-            session_id=session_db_id,
+            session_id=session_id,
             role="assistant",
             content=clean_answer,
             sources=json.dumps(answer_sources),
@@ -65,13 +79,11 @@ def _save_chat_messages(
         db.add(asst_msg)
 
         if update_title and new_title:
-            session_obj = (
-                db.query(ChatSession).filter(ChatSession.id == session_db_id).first()
-            )
+            session_obj = db.query(ChatSession).filter(ChatSession.id == session_id).first()
             if session_obj and session_obj.title == "New Chat":
                 session_obj.title = new_title
             if session_obj:
-                session_obj.last_message_at = datetime.now(timezone.utc)
+                session_obj.last_message_at = datetime.now(UTC)
 
         db.commit()
         logger.info(f"[DB] Messages saved to session {session_id}")
@@ -79,6 +91,7 @@ def _save_chat_messages(
         logger.error(f"[DB] Error saving messages: {db_err}", exc_info=True)
     finally:
         db.close()
+
 
 @router.get("/sessions")
 async def list_sessions(
@@ -90,7 +103,7 @@ async def list_sessions(
     rows = (
         db.query(ChatSession, sa_func.count(Message.id).label("message_count"))
         .outerjoin(Message, Message.session_id == ChatSession.id)
-        .filter(ChatSession.user_id == user_id, ChatSession.is_deleted == False)
+        .filter(ChatSession.user_id == user_id)
         .group_by(ChatSession.id)
         .order_by(ChatSession.last_message_at.desc())
         .all()
@@ -98,19 +111,16 @@ async def list_sessions(
 
     return [
         {
-            "id": s.session_id,
-            "session_id": s.session_id,
+            "id": s.id,
+            "session_id": s.id,
             "title": s.title,
-            "is_incognito": s.is_incognito,
-            "is_starred": s.is_starred,
             "message_count": msg_count,
-            "last_message_at": s.last_message_at.isoformat()
-            if s.last_message_at
-            else None,
+            "last_message_at": s.last_message_at.isoformat() if s.last_message_at else None,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         }
         for s, msg_count in rows
     ]
+
 
 @router.post("/sessions")
 async def create_session(
@@ -119,27 +129,25 @@ async def create_session(
     db: Session = Depends(get_db),
 ):
     user_id = payload["sub"]
-    session_id = str(uuid.uuid4())[:8] # Simplified generate_session_id
+    session_id = str(uuid.uuid4())[:8]  # Simplified generate_session_id
     title = request.title if request and request.title else "New Chat"
-    is_incognito = request.is_incognito if request else False
 
     session = ChatSession(
-        session_id=session_id,
+        id=session_id,
         user_id=user_id,
         title=title,
-        is_incognito=is_incognito,
     )
     db.add(session)
     db.commit()
     db.refresh(session)
 
     return {
-        "id": session.session_id,
-        "session_id": session.session_id,
+        "id": session.id,
+        "session_id": session.id,
         "title": session.title,
-        "is_incognito": session.is_incognito,
         "created_at": session.created_at.isoformat(),
     }
+
 
 @router.get("/sessions/{session_id}/history")
 async def get_session_history(
@@ -154,9 +162,9 @@ async def get_session_history(
     session = (
         db.query(ChatSession)
         .filter(
-            ChatSession.session_id == session_id,
+            ChatSession.id == session_id,
             ChatSession.user_id == user_id,
-            ChatSession.is_deleted == False,
+            not ChatSession.is_deleted,
         )
         .first()
     )
@@ -164,11 +172,7 @@ async def get_session_history(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    total = (
-        db.query(sa_func.count(Message.id))
-        .filter(Message.session_id == session.id)
-        .scalar()
-    )
+    total = db.query(sa_func.count(Message.id)).filter(Message.session_id == session.id).scalar()
 
     messages = (
         db.query(Message)
@@ -180,9 +184,9 @@ async def get_session_history(
     )
 
     return {
-        "session_id": session.session_id,
+        "session_id": session.id,
         "title": session.title,
-        "is_incognito": session.is_incognito,
+        "is_incognito": False,
         "total_messages": total,
         "messages": [
             {
@@ -199,6 +203,7 @@ async def get_session_history(
             for m in messages
         ],
     }
+
 
 @router.post("/chat/stream")
 async def chat_stream(
@@ -241,19 +246,18 @@ async def chat_stream(
         session = (
             db.query(ChatSession)
             .filter(
-                ChatSession.session_id == request.session_id,
+                ChatSession.id == request.session_id,
                 ChatSession.user_id == user_id,
             )
             .first()
         )
 
-    if not session and not request.is_incognito:
+    if not session and not False:
         session_id = str(uuid.uuid4())[:8]
         session = ChatSession(
-            session_id=session_id,
+            id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-            is_incognito=False,
         )
         db.add(session)
         db.commit()
@@ -264,7 +268,6 @@ async def chat_stream(
 
     async def event_generator():
         import asyncio
-        import traceback
 
         loop = asyncio.get_event_loop()
         async_q: asyncio.Queue = asyncio.Queue()
@@ -276,9 +279,7 @@ async def chat_stream(
 
         def produce():
             try:
-                for chunk in agent.stream_query(
-                    request.message, session_id=request.session_id
-                ):
+                for chunk in agent.stream_query(request.message, session_id=request.session_id):
                     asyncio.run_coroutine_threadsafe(async_q.put(chunk), loop)
                 asyncio.run_coroutine_threadsafe(async_q.put(None), loop)
             except Exception as e:
@@ -298,15 +299,15 @@ async def chat_stream(
                 break
             try:
                 item = await asyncio.wait_for(async_q.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield json.dumps({"type": "error", "content": "Stream timed out"})
                 break
             if item is None:
-                if final_session and not final_session.is_incognito:
+                if final_session:
                     background_tasks.add_task(
                         _save_chat_messages,
                         final_session.id,
-                        final_session.session_id,
+                        final_session.id,
                         request.message,
                         full_answer,
                         answer_sources,
@@ -342,6 +343,7 @@ async def chat_stream(
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+
 @router.post("/chat")
 async def chat(
     request: ChatMessageRequest,
@@ -350,7 +352,7 @@ async def chat(
 ):
     user_id = payload["sub"]
 
-    q_lower = request.message.lower().strip()
+    request.message.lower().strip()
     greeting_patterns = [
         (r"^(hi|hello|hey|hiya|hola)$", "Hello! How can I help you today?"),
         (r"^good\s*(morning|afternoon|evening)$", "Good day! Ready to assist you."),
@@ -386,19 +388,18 @@ async def chat(
         session = (
             db.query(ChatSession)
             .filter(
-                ChatSession.session_id == request.session_id,
+                ChatSession.id == request.session_id,
                 ChatSession.user_id == user_id,
             )
             .first()
         )
 
-    if not session and not request.is_incognito:
+    if not session and not False:
         session_id = str(uuid.uuid4())[:8]
         session = ChatSession(
-            session_id=session_id,
+            id=session_id,
             user_id=user_id,
             title=sanitize_session_title(request.message),
-            is_incognito=False,
         )
         db.add(session)
         db.commit()
@@ -417,7 +418,7 @@ async def chat(
     )
     answer_data["thought_process"] = thought_process
 
-    if session and not session.is_incognito:
+    if session and not False:
         user_msg = Message(
             session_id=session.id,
             role="user",
@@ -441,7 +442,7 @@ async def chat(
 
         if session.title == "New Chat":
             session.title = sanitize_session_title(request.message)
-        session.last_message_at = datetime.now(timezone.utc)
+        session.last_message_at = datetime.now(UTC)
 
         db.commit()
         db.refresh(user_msg)
@@ -449,13 +450,14 @@ async def chat(
 
         answer_data["user_message_id"] = user_msg.id
         answer_data["message_id"] = asst_msg.id
-        answer_data["session_id"] = session.session_id
+        answer_data["session_id"] = session.id
     else:
         answer_data["user_message_id"] = str(uuid.uuid4())
         answer_data["message_id"] = str(uuid.uuid4())
-        answer_data["session_id"] = session.session_id if session else None
+        answer_data["session_id"] = session.id if session else None
 
     return answer_data
+
 
 @router.post("/messages/{message_id}/feedback")
 async def add_feedback(
@@ -469,18 +471,22 @@ async def add_feedback(
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    session = db.query(ChatSession).filter(ChatSession.id == message.session_id, ChatSession.user_id == user_id).first()
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == message.session_id, ChatSession.user_id == user_id)
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     feedback_log = FeedbackLog(
         user_id=user_id,
         message_id=message_id,
-        session_id=session.session_id,
+        session_id=session.id,
         feedback_type=feedback.feedback_type,
     )
     db.add(feedback_log)
     message.feedback = feedback.feedback_type
-    message.feedback_at = datetime.now(timezone.utc)
+    message.feedback_at = datetime.now(UTC)
     db.commit()
     return {"success": True}

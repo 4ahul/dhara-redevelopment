@@ -5,19 +5,8 @@ then optionally appends the Excel sheets as attachments.
 """
 
 import logging
-from pathlib import Path
-from io import BytesIO
-from typing import Optional, Tuple
 from datetime import datetime
-import os
-import sys
-
-service_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(service_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-if service_dir not in sys.path:
-    sys.path.insert(0, service_dir)
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +17,15 @@ def generate_report_with_pdf(
     output_dir: Path,
     society_name: str,
     redevelopment_type: str = "CLUBBING",
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     """Generate both Excel and PDF reports with comprehensive data."""
-    from services.template_service import template_service
+    from .template_service import template_service
 
     safe_name = society_name.replace(" ", "_")
     excel_filename = f"Feasibility_{scheme}_{redevelopment_type}_{safe_name}.xlsx"
     excel_path = str(output_dir / excel_filename)
 
-    excel_bytes, saved_path = template_service.generate_full_report(
+    _excel_bytes, saved_path = template_service.generate_full_report(
         scheme=scheme,
         all_data=all_data,
         output_path=excel_path,
@@ -47,7 +36,7 @@ def generate_report_with_pdf(
     pdf_path = str(output_dir / pdf_filename)
 
     try:
-        from services.pdf_builder import build_feasibility_pdf
+        from .pdf_builder import build_feasibility_pdf
 
         pdf_data = normalize_template_data_for_pdf(all_data)
         build_feasibility_pdf(pdf_data, pdf_path)
@@ -69,7 +58,7 @@ def normalize_template_data_for_pdf(data: dict) -> dict:
     dp_report = data.get("dp_report", {})
     mcgm_property = data.get("mcgm_property", {})
     height = data.get("height", {})
-    site_analysis = data.get("site_analysis", {})
+    data.get("site_analysis", {})
     zone_regulations = data.get("zone_regulations", {})
 
     # Core calculations
@@ -174,9 +163,7 @@ def normalize_template_data_for_pdf(data: dict) -> dict:
                 "total_fsi": fsi.get("total_fsi", 4.05),
                 "total_area_sqft": int(plot_sqft * fsi.get("total_fsi", 4.05)),
                 "total_with_fungible": fsi.get("total_with_fungible", 5.40),
-                "total_with_fungible_area": int(
-                    plot_sqft * fsi.get("total_with_fungible", 5.40)
-                ),
+                "total_with_fungible_area": int(plot_sqft * fsi.get("total_with_fungible", 5.40)),
             },
             "33(20)(B)": {
                 "zonal_fsi": fsi.get("base_fsi", 1.33),
@@ -212,9 +199,7 @@ def normalize_template_data_for_pdf(data: dict) -> dict:
         # Detailed BUA breakdown
         "bua": {
             "33(7)(B)": {
-                "total_permissible_sqft": bua.get(
-                    "total_permissible_sqft", int(max_bua * 0.74)
-                ),
+                "total_permissible_sqft": bua.get("total_permissible_sqft", int(max_bua * 0.74)),
                 "rehab_area_sqft": int(rehab_area * 0.74),
                 "free_sale_sqft": int(free_sale_area * 0.74),
                 "parking_sqft": int(parking_area * 0.74),
@@ -225,9 +210,7 @@ def normalize_template_data_for_pdf(data: dict) -> dict:
                 "total_constr_sqft": int(max_bua * 0.74 * const_rate),
             },
             "33(20)(B)": {
-                "total_permissible_sqft": bua.get(
-                    "total_permissible_sqft", int(max_bua)
-                ),
+                "total_permissible_sqft": bua.get("total_permissible_sqft", int(max_bua)),
                 "rehab_area_sqft": rehab_area,
                 "free_sale_sqft": free_sale_area,
                 "parking_sqft": parking_area,

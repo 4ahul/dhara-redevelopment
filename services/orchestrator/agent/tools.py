@@ -306,7 +306,11 @@ TOOLS = [
                 },
                 "cts_no": {
                     "type": "string",
-                    "description": "CTS or CS number",
+                    "description": "CTS or FP number (depending on scheme)",
+                },
+                "use_fp_scheme": {
+                    "type": "boolean",
+                    "description": "If true, search as FP (2034 scheme) instead of CTS (1991)",
                 },
                 "lat": {
                     "type": "number",
