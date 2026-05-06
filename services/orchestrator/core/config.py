@@ -95,6 +95,11 @@ class Settings(BaseServiceSettings):
     READY_RECKONER_URL: str = f"http://{_HOST or 'ready_reckoner'}:8003"
     OCR_URL: str = f"http://{_HOST or 'ocr_service'}:8009"
 
+    # ── Razorpay (Payments) ────────────────────────────────
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "orchestrator"
     APP_VERSION: str = "3.0.0"

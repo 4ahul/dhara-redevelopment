@@ -51,3 +51,35 @@ async def clerk_webhook(
         logger.info(f"Unhandled Clerk event type: {event_type}")
 
     return {"status": "ok"}
+
+
+# ── Razorpay Webhook ─────────────────────────────────────────────────────────
+
+@router.post("/razorpay")
+async def razorpay_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Handle Razorpay payment events. No auth — verified via HMAC signature."""
+    import json as _json
+    from services.orchestrator.services.razorpay_service import RazorpayService, verify_webhook_signature
+
+    body = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+
+    if not verify_webhook_signature(body, signature):
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+
+    try:
+        payload = _json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_id = payload.get("event_id", payload.get("id", "unknown"))
+    event_type = payload.get("event", "unknown")
+    logger.info("Razorpay webhook: event=%s id=%s", event_type, event_id)
+
+    svc = RazorpayService(db)
+    result = await svc.process_webhook(event_id, event_type, payload)
+    await db.commit()
+    return {"status": "ok", **result}
