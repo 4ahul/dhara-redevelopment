@@ -94,7 +94,7 @@ class WebhookService:
                 "role": UserRole.PMC,
                 "avatar_url": avatar_url,
                 "is_active": True,
-                "last_login_at": datetime.now(UTC).replace(tzinfo=None),
+                "last_login_at": datetime.now(UTC),
             },
         )
         await self.db.commit()
@@ -153,6 +153,6 @@ class WebhookService:
 
         user = await user_repository.get_user_by_clerk_id(self.db, clerk_user_id)
         if user:
-            user.last_login_at = datetime.now(UTC).replace(tzinfo=None)
+            user.last_login_at = datetime.now(UTC)
             await self.db.commit()
             logger.info(f"Updated last login for user: {clerk_user_id}")

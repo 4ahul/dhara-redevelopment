@@ -60,7 +60,7 @@ class AuthService:
             user = await self._auto_create_from_claims(payload)
 
         # Update last login
-        user.last_login_at = datetime.now(UTC).replace(tzinfo=None)
+        user.last_login_at = datetime.now(UTC)
         await self.db.flush()
 
         access_token = create_access_token(

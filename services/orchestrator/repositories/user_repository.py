@@ -76,5 +76,5 @@ async def create_user(db: AsyncSession, user_data: dict) -> User:
 
 async def update_last_login(db: AsyncSession, user: User) -> None:
     """Atomic update for last login timestamp."""
-    user.last_login_at = datetime.now(UTC).replace(tzinfo=None)
+    user.last_login_at = datetime.now(UTC)
     await db.flush()

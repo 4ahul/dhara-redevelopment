@@ -15,7 +15,7 @@ def _uuid():
 
 
 def _now():
-    return datetime.now(UTC).replace(tzinfo=None)
+    return datetime.now(UTC)
 
 
 class User(Base):
