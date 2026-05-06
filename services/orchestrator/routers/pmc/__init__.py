@@ -9,6 +9,7 @@ from .profile import router as profile_router
 from .reports import router as global_reports_router
 from .search import router as search_router
 from .societies import core_router, reports_router, tenders_router
+from .subscription import router as subscription_router
 from .team import router as team_router
 from .verification import router as verification_router
 
@@ -26,3 +27,4 @@ router.include_router(verification_router)
 router.include_router(search_router)
 router.include_router(team_router)
 router.include_router(profile_router)
+router.include_router(subscription_router)
