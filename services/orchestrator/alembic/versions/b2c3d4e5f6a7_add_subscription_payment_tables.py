@@ -17,10 +17,20 @@ depends_on = ["a1b2c3d4e5f6", "fd819f308a81"]
 
 
 def upgrade() -> None:
-    sub_status = sa.Enum('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created', name='subscription_status')
-    sub_status.create(op.get_bind(), checkfirst=True)
-    pay_status = sa.Enum('created', 'authorized', 'captured', 'failed', 'refunded', name='payment_status')
-    pay_status.create(op.get_bind(), checkfirst=True)
+    conn = op.get_bind()
+    
+    # Create enum types if not exists (using IF NOT EXISTS to avoid duplicate error)
+    conn.execute(sa.text("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'subscription_status') THEN
+                CREATE TYPE subscription_status AS ENUM ('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created');
+            END IF;
+            IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'payment_status') THEN
+                CREATE TYPE payment_status AS ENUM ('created', 'authorized', 'captured', 'failed', 'refunded');
+            END IF;
+        END $$;
+    """))
 
     op.create_table('subscriptions',
         sa.Column('id', sa.dialects.postgresql.UUID(as_uuid=True), primary_key=True),
