@@ -19,21 +19,24 @@ depends_on = ["a1b2c3d4e5f6", "fd819f308a81"]
 def upgrade() -> None:
     conn = op.get_bind()
     
-    # Create enum types if not exists (using IF NOT EXISTS to avoid duplicate error)
-    conn.execute(sa.text("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'subscription_status') THEN
-                CREATE TYPE subscription_status AS ENUM ('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created');
-            END IF;
-            IF NOT EXISTS (SELECT FROM pg_type WHERE typname = 'payment_status') THEN
-                CREATE TYPE payment_status AS ENUM ('created', 'authorized', 'captured', 'failed', 'refunded');
-            END IF;
-        END $$;
-    """))
-    conn.commit()
+    # Create enum types - catch duplicate error if already exists
+    try:
+        conn.execute(sa.text("""
+            CREATE TYPE subscription_status AS ENUM ('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created')
+        """))
+        conn.commit()
+    except Exception:
+        pass  # Already exists
     
-    # Define enum types for use in table columns
+    try:
+        conn.execute(sa.text("""
+            CREATE TYPE payment_status AS ENUM ('created', 'authorized', 'captured', 'failed', 'refunded')
+        """))
+        conn.commit()
+    except Exception:
+        pass  # Already exists
+
+    # Reference existing enum types
     sub_status = sa.Enum('active', 'cancelled', 'expired', 'past_due', 'trialing', 'created', name='subscription_status')
     pay_status = sa.Enum('created', 'authorized', 'captured', 'failed', 'refunded', name='payment_status')
 
