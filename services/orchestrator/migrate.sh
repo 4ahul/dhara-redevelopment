@@ -78,17 +78,23 @@ async def fix_version():
         ))
         pay_status_exists = res_pay_status.scalar()
         
-        if sub_status_exists and pay_status_exists:
-            target_version = 'b2c3d4e5f6a7'
+        res_portfolio = await conn.execute(text(
+            "SELECT EXISTS (SELECT FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = 'portfolio_documents')"
+        ))
+        portfolio_exists = res_portfolio.scalar()
+        
+        if sub_status_exists and pay_status_exists and portfolio_exists:
+            target_version = '20260506162239'
             try:
                 res_ver = await conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
                 current_version = res_ver.scalar()
             except Exception:
                 current_version = None
-            if current_version != 'b2c3d4e5f6a7':
+            if current_version != '20260506162239':
                 await conn.execute(text("DELETE FROM alembic_version"))
                 await conn.execute(text(f"INSERT INTO alembic_version (version_num) VALUES ('{target_version}')"))
-                print(f"SUCCESS: Re-stamped to {target_version} (enums exist)")
+                print(f"SUCCESS: Re-stamped to {target_version} (all tables/enums exist)")
             return
 
         try:
