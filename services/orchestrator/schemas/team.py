@@ -100,13 +100,6 @@ class InviteRequest(BaseModel):
             raise ValueError(f"role must be one of: {', '.join(sorted(PMC_ROLES))}")
         return v
 
-    @field_validator("email")
-    @classmethod
-    def _validate_email_domain(cls, v: str) -> str:
-        if not v.endswith("@dhara.ai"):
-            raise ValueError("Team member email must end with @dhara.ai")
-        return v
-
 
 class InviteResponse(BaseModel):
     """Response after sending an invitation."""
